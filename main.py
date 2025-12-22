@@ -5,7 +5,7 @@ import datetime
 import os
 
 # ==========================================
-# CONFIGURATION ÉLITE V5.0
+# CONFIGURATION ÉLITE V5.1 (PRIX & MOMENTUM)
 # ==========================================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -17,7 +17,7 @@ TICKERS = [
 ]
 
 STOP_LOSS_ATR = 3.0
-REBALANCE_THRESHOLD = 0.40  # Alerte si une ligne dépasse 40%
+REBALANCE_THRESHOLD = 0.40 
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -25,6 +25,7 @@ def send_telegram(message):
     requests.post(url, data=payload)
 
 def get_signals():
+    # On télécharge les données (1 an pour les moyennes mobiles et momentum)
     all_tickers = list(set(TICKERS + ["SPY", "TLT"]))
     data = yf.download(all_tickers, period="1y", auto_adjust=True, progress=False)
     closes = data['Close'].ffill()
@@ -33,28 +34,35 @@ def get_signals():
     ma200_spy = closes["SPY"].rolling(200).mean().iloc[-1]
     is_bull_market = last_prices["SPY"] > ma200_spy
     
-    msg = f"🏛️ *BOT ALGO ELITE V5.0 - {datetime.date.today()}*\n"
+    msg = f"🏛️ *BOT ALGO ELITE V5.1 - {datetime.date.today()}*\n"
     msg += f"━━━━━━━━━━━━━━━━━━━━\n\n"
     
     if not is_bull_market:
         msg += "📉 *RÉGIME : SÉCURITÉ (🔴)*\n👉 *RESTER EN CASH OU TLT*\n"
     else:
         msg += "📈 *RÉGIME : HAUSSIER (🟢)*\n\n"
-        # Calcul Momentum
+        
+        # Calcul Momentum (Performance sur 6 mois / 126 jours de trading)
         ret_mom = (last_prices / closes.iloc[-126]) - 1
         ma50 = closes.rolling(50).mean().iloc[-1]
+        
+        # Filtrage : Doit être dans la liste, au-dessus de sa moyenne 50 jours
         valid_assets = ret_mom[(ret_mom.index.isin(TICKERS)) & (last_prices > ma50)]
         top_assets = valid_assets.sort_values(ascending=False).head(3)
         
         msg += "🏆 *TOP 3 MOMENTUM :*\n"
         for t, score in top_assets.items():
             price = last_prices[t]
+            # Calcul du Stop Loss basé sur la volatilité réelle (ATR 14 jours)
             vol = closes[t].pct_change().abs().tail(14).mean()
             stop_price = price - (vol * STOP_LOSS_ATR * price)
-            msg += f"• *{t}* : Stop à *${stop_price:.2f}*\n"
+            
+            # Affichage : Ticker | Prix Actuel | Momentum % | Stop Loss
+            msg += f"• *{t}* : *{price:.2f}$*\n"
+            msg += f"  └ Momentum : `+{score:.1%}`\n"
+            msg += f"  └ Stop Loss : *{stop_price:.2f}$*\n\n"
         
-        msg += f"\n⚖️ *RÈGLE DE GESTION :*\n"
-        msg += f"Si une ligne dépasse *40%* de votre total, vendez le surplus pour revenir à 33% et sécuriser vos gains.\n"
+        msg += f"⚖️ *GESTION :* Si une ligne > *40%* du total, rééquilibrez à 33%.\n"
 
     send_telegram(msg)
 
