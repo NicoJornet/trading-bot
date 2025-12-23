@@ -25,8 +25,9 @@ def get_data():
     ma200_spy = data[MARKET_INDEX].rolling(window=200).mean().iloc[-1]
     regime = "HAUSSIER (🟢)" if current_spy > ma200_spy else "PRUDENCE / CASH (🔴)"
     
-    # D. Calcul du Momentum (Top 3 sur 6 mois / 126 jours de trading)
-    returns = (data[TICKERS].iloc[-1] / data[TICKERS].iloc[-126]) - 1
+    # D. Calcul du Momentum (Performance 6 mois / 126 jours)
+    # On multiplie par 100 pour avoir le pourcentage
+    returns = ((data[TICKERS].iloc[-1] / data[TICKERS].iloc[-126]) - 1) * 100
     top_3 = returns.nlargest(3)
     
     # E. Prix actuels en USD
@@ -44,10 +45,11 @@ def format_and_send():
     
     if "HAUSSIER" in regime:
         msg += "🏆 **TOP 3 MOMENTUM (€) :**\n"
-        for ticker, perf in top_3.items():
+        for ticker, momentum_pct in top_3.items():
             price_eur = prices_usd[ticker] * fx_rate
             stop_eur = price_eur * 0.95  # Sécurité à -5%
             msg += f"• **{ticker}** : {price_eur:.2f}€\n"
+            msg += f"  ├ 🔥 Momentum : +{momentum_pct:.1f}%\n" # <-- AJOUT ICI
             msg += f"  └ 🛑 Stop Loss : {stop_eur:.2f}€\n"
     else:
         msg += "⚠️ **SIGNAL CASH GUARD ACTIVÉ**\n"
@@ -57,7 +59,7 @@ def format_and_send():
     msg += f"💰 **DCA À INJECTER : {DCA_MENSUEL}€**\n"
     msg += "📊 *Signal généré automatiquement.*\n"
     
-    # --- ENVOI RÉEL VERS TELEGRAM (CORRIGÉ) ---
+    # --- ENVOI RÉEL VERS TELEGRAM ---
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID, 
