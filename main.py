@@ -8,74 +8,71 @@ TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 DCA_MENSUEL = 200
 
-# Liste d'actifs surveillés par l'Algo
+# Liste d'actifs surveillés (Tech, Crypto, Or, Mines)
 TICKERS = ["NVDA", "TSLA", "META", "AAPL", "MSFT", "BTC-USD", "ETH-USD", "GLD", "NEM"]
 MARKET_INDEX = "SPY"
 
 def get_data():
-    # A. Récupérer le taux de change USD/EUR
+    # A. Taux de change EUR/USD
     fx = yf.Ticker("EURUSD=X")
     usd_to_eur = 1 / fx.history(period="1d")['Close'].iloc[-1]
     
-    # B. Télécharger les prix (1 an d'historique)
+    # B. Données historiques (1 an)
     data = yf.download(TICKERS + [MARKET_INDEX], period="1y")['Close'].ffill()
     
-    # C. Calcul du Régime de Marché (MA200)
+    # C. Régime de Marché (MA200)
     current_spy = data[MARKET_INDEX].iloc[-1]
     ma200_spy = data[MARKET_INDEX].rolling(window=200).mean().iloc[-1]
     regime = "HAUSSIER (🟢)" if current_spy > ma200_spy else "PRUDENCE / CASH (🔴)"
     
-    # D. Calcul du Momentum (Performance 6 mois / 126 jours)
-    # On multiplie par 100 pour avoir le pourcentage
-    returns = ((data[TICKERS].iloc[-1] / data[TICKERS].iloc[-126]) - 1) * 100
-    top_3 = returns.nlargest(3)
+    # D. Momentum Radar (6 mois)
+    all_returns = ((data[TICKERS].iloc[-1] / data[TICKERS].iloc[-126]) - 1) * 100
+    radar = all_returns.sort_values(ascending=False)
+    top_3 = radar.head(3)
     
-    # E. Prix actuels en USD
+    # E. Volatilité Dynamique (ATR pour Stop Loss)
+    # On calcule l'écart type des rendements sur 14 jours
+    volatility = data[TICKERS].pct_change().rolling(window=14).std() * 100
+    
     prices_usd = data[TICKERS].iloc[-1]
     
-    return regime, top_3, prices_usd, usd_to_eur
+    return regime, top_3, radar, prices_usd, usd_to_eur, volatility.iloc[-1]
 
 def format_and_send():
-    regime, top_3, prices_usd, fx_rate = get_data()
+    regime, top_3, radar, prices_usd, fx_rate, current_vol = get_data()
     
     msg = "━━━━━━━━━━━━━━━━━━━━\n"
-    msg += "🏛️ **BOT ALGO ELITE V5.2 (€)**\n"
+    msg += "🏛️ **ALGO ELITE V5.5 DYNAMIQUE (€)**\n"
     msg += "━━━━━━━━━━━━━━━━━━━━\n\n"
     msg += f"📈 **RÉGIME : {regime}**\n\n"
     
     if "HAUSSIER" in regime:
-        msg += "🏆 **TOP 3 MOMENTUM (€) :**\n"
-        for ticker, momentum_pct in top_3.items():
+        msg += "🏆 **TOP 3 À DÉTENIR :**\n"
+        for ticker, momentum in top_3.items():
             price_eur = prices_usd[ticker] * fx_rate
-            stop_eur = price_eur * 0.95  # Sécurité à -5%
+            
+            # Calcul du Stop Dynamique (3x Volatilité, min 5%, max 15%)
+            dist_stop = max(min(current_vol[ticker] * 3, 15), 5) 
+            stop_eur = price_eur * (1 - (dist_stop / 100))
+            
             msg += f"• **{ticker}** : {price_eur:.2f}€\n"
-            msg += f"  ├ 🔥 Momentum : +{momentum_pct:.1f}%\n" # <-- AJOUT ICI
-            msg += f"  └ 🛑 Stop Loss : {stop_eur:.2f}€\n"
+            msg += f"  └ 🔥 Mom : +{momentum:.1f}% | 🛑 Stop : {stop_eur:.2f}€ (-{dist_stop:.1f}%)\n"
     else:
         msg += "⚠️ **SIGNAL CASH GUARD ACTIVÉ**\n"
-        msg += "Le marché est risqué. Vendre et rester en Cash.\n"
+        msg += "Le marché est sous sa MA200. Protégez votre capital.\n"
+    
+    msg += "\n🔍 **DASHBOARD RADAR :**\n"
+    for ticker, momentum in radar.items():
+        symbol = "✅" if ticker in top_3.index else "⚪"
+        msg += f"{symbol} {ticker} : {momentum:+.1f}%\n"
         
     msg += "\n━━━━━━━━━━━━━━━━━━━━\n"
-    msg += f"💰 **DCA À INJECTER : {DCA_MENSUEL}€**\n"
-    msg += "📊 *Signal généré automatiquement.*\n"
+    msg += f"💰 **DCA : {DCA_MENSUEL}€** | 📊 *Auto-Calcul ATR*\n"
     
-    # --- ENVOI RÉEL VERS TELEGRAM ---
+    # --- ENVOI TELEGRAM ---
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID, 
-        "text": msg, 
-        "parse_mode": "Markdown"
-    }
-    
-    try:
-        response = requests.post(url, data=payload)
-        if response.status_code == 200:
-            print("✅ Message envoyé avec succès à Telegram !")
-        else:
-            print(f"❌ Erreur lors de l'envoi : {response.text}")
-    except Exception as e:
-        print(f"⚠️ Erreur de connexion : {e}")
+    payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
+    requests.post(url, data=payload)
 
-# Lancement du script
 if __name__ == "__main__":
     format_and_send()
