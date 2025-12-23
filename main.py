@@ -3,13 +3,13 @@ import pandas as pd
 import requests
 import os
 
-# --- 1. CONFIGURATION (Utilise les Secrets GitHub pour la sécurité) ---
+# --- 1. CONFIGURATION (Utilise les Secrets GitHub) ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 DCA_MENSUEL = 200
 
-# Liste d'actifs surveillés
-TICKERS = ["NVDA", "TSLA", "META", "AAPL", "MSFT", "BTC-USD", "GLD", "NEM"]
+# Liste d'actifs surveillés par l'Algo
+TICKERS = ["NVDA", "TSLA", "META", "AAPL", "MSFT", "BTC-USD", "ETH-USD", "GLD", "NEM"]
 MARKET_INDEX = "SPY"
 
 def get_data():
@@ -17,7 +17,7 @@ def get_data():
     fx = yf.Ticker("EURUSD=X")
     usd_to_eur = 1 / fx.history(period="1d")['Close'].iloc[-1]
     
-    # B. Télécharger les prix (1 an pour avoir MA200 et Momentum)
+    # B. Télécharger les prix (1 an d'historique)
     data = yf.download(TICKERS + [MARKET_INDEX], period="1y")['Close'].ffill()
     
     # C. Calcul du Régime de Marché (MA200)
@@ -29,7 +29,7 @@ def get_data():
     returns = (data[TICKERS].iloc[-1] / data[TICKERS].iloc[-126]) - 1
     top_3 = returns.nlargest(3)
     
-    # E. Prix actuels
+    # E. Prix actuels en USD
     prices_usd = data[TICKERS].iloc[-1]
     
     return regime, top_3, prices_usd, usd_to_eur
@@ -57,9 +57,13 @@ def format_and_send():
     msg += f"💰 **DCA À INJECTER : {DCA_MENSUEL}€**\n"
     msg += "📊 *Signal généré automatiquement.*\n"
     
-    # --- ENVOI RÉEL VERS TELEGRAM ---
+    # --- ENVOI RÉEL VERS TELEGRAM (CORRIGÉ) ---
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CH_ID, "text": msg, "parse_mode": "Markdown"}
+    payload = {
+        "chat_id": CHAT_ID, 
+        "text": msg, 
+        "parse_mode": "Markdown"
+    }
     
     try:
         response = requests.post(url, data=payload)
