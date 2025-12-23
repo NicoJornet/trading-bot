@@ -2,7 +2,7 @@ name: Run Monthly Algo
 
 on:
   schedule:
-    - cron: '0 14 1,15 * *'
+    - cron: '0 8 * * 1'  # 8h00 UTC = 9h00 ou 10h00 en France
   workflow_dispatch:
 
 jobs:
