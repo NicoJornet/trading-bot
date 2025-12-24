@@ -1,94 +1,109 @@
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import requests
 import os
 
-# --- 1. CONFIGURATION (Secrets GitHub) ---
-TOKEN = os.getenv('TELEGRAM_TOKEN')
-CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-DCA_MENSUEL = 200
+# ============================================================
+# 1. CONFIGURATION (GitHub Secrets)
+# ============================================================
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# La Liste des 20 Champions (Radar 360°)
+TOP_N = 3
 TICKERS = [
-    "NVDA", "MSFT", "GOOGL", "AAPL", "TSLA", "SMH",  # Tech & IA
-    "BTC-USD", "ETH-USD", "SOL-USD",                # Crypto
-    "MC.PA", "RMS.PA", "RACE",                      # Luxe
-    "LLY", "UNH",                                   # Santé
-    "URNM", "COPX", "XLE",                          # Énergie & Métaux
-    "ITA", "NDIA.L", "GLD"                          # Défense, Inde, Or
+    "NVDA", "MSFT", "GOOGL", "AAPL", "TSLA", "SMH",
+    "BTC-USD", "ETH-USD", "SOL-USD",
+    "MC.PA", "RMS.PA", "RACE",
+    "LLY", "UNH",
+    "URNM", "COPX", "XLE",
+    "ITA", "NDIA.L", "GLD"
 ]
 MARKET_INDEX = "SPY"
 
-def get_data():
-    fx = yf.Ticker("EURUSD=X")
-    usd_to_eur = 1 / fx.history(period="1d")['Close'].iloc[-1]
+# ============================================================
+# 2. LOGIQUE V9.0 APEX CORE
+# ============================================================
+def run():
+    # Données sur 2 ans pour les moyennes mobiles longues
+    data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X"], period="2y", auto_adjust=True, progress=False)["Close"].ffill()
     
-    # Données sur 1 an pour les calculs
-    data = yf.download(TICKERS + [MARKET_INDEX], period="1y", auto_adjust=True)['Close'].ffill()
-    
-    # 1. Régime de Marché (MA200 SPY)
-    current_spy = data[MARKET_INDEX].iloc[-1]
-    ma200_spy = data[MARKET_INDEX].rolling(window=200).mean().iloc[-1]
-    regime = "HAUSSIER (🟢)" if current_spy > ma200_spy else "PRUDENCE (🔴)"
-    
-    # 2. Indicateurs Individuels
-    prices_now = data[TICKERS].iloc[-1]
-    ma50 = data[TICKERS].rolling(window=50).mean().iloc[-1]
-    momentum = ((prices_now / data[TICKERS].iloc[-126]) - 1) * 100
-    
-    # 3. Sélection Top 3
-    assets_sains = [t for t in TICKERS if prices_now[t] > ma50[t]]
-    top_3 = momentum[assets_sains].nlargest(3)
-    
-    # 4. Volatilité pour Stop Loss
-    vol = data[TICKERS].pct_change().rolling(window=14).std() * 100
-    
-    return regime, top_3, momentum, prices_now, usd_to_eur, vol.iloc[-1], ma50
+    prices, spy = data[TICKERS], data[MARKET_INDEX]
+    fx = 1 / data["EURUSD=X"].iloc[-1]
+    today = data.index[-1]
 
-def format_and_send():
-    regime, top_3, radar, prices, fx, vol, ma50 = get_data()
-    
-    msg = "━━━━━━━━━━━━━━━━━━━━\n"
-    msg += "🏆 **ALGO ELITE V5.7 - FINAL 360°**\n"
-    msg += "━━━━━━━━━━━━━━━━━━━━\n\n"
-    msg += f"📈 **MARCHÉ GLOBAL : {regime}**\n\n"
-    
-    if "HAUSSIER" in regime:
-        msg += "🟢 **SÉLECTION TOP 3 (ACHAT) :**\n"
-        if not top_3.empty:
-            for t, mom in top_3.items():
-                # Gestion devise (EUR pour .PA, sinon USD->EUR)
-                p_eur = prices[t] if t.endswith(".PA") else prices[t] * fx
-                dist_stop = max(min(vol[t] * 3, 15), 5) 
-                msg += f"• **{t}** : {p_eur:.2f}€ (+{mom:.1f}%)\n"
-                msg += f"  └ 🛑 Stop : {(p_eur*(1-dist_stop/100)):.2f}€\n"
+    # Indicateurs
+    returns = prices.pct_change()
+    vol_daily = returns.rolling(20).std() * 100
+    vol_ann = returns.rolling(252).std() * np.sqrt(252) # Volatilité stable sur 1 an
+    vol_ann = vol_ann.clip(lower=0.10)
+
+    # Momentum V9 : Multi-horizons pondéré / Volatilité 1 an
+    m3, m6, m12 = prices/prices.shift(63)-1, prices/prices.shift(126)-1, prices/prices.shift(252)-1
+    momentum = (0.2 * m3 + 0.3 * m6 + 0.5 * m12) / vol_ann
+
+    ma100, ma150 = prices.rolling(100).mean(), prices.rolling(150).mean()
+    hwm_55 = prices.rolling(55).max()
+    ma200_spy = spy.rolling(200).mean()
+    slope_spy = ma200_spy.diff(20)
+
+    # Régime de Marché
+    if spy.loc[today] > ma200_spy.loc[today] and slope_spy.loc[today] > 0:
+        regime_txt, exposure = "🟢 BULL FORT", 1.0
+    elif spy.loc[today] > ma200_spy.loc[today]:
+        regime_txt, exposure = "🟡 BULL FAIBLE", 0.5
     else:
-        msg += "⚠️ **SIGNAL CASH GUARD** : Restez en liquidités.\n"
+        regime_txt, exposure = "🔴 BEAR", 0.25
 
-    # SECTION SURVEILLANCE SPÉCIALE
-    msg += "\n⚡ **FOCUS OPPORTUNITÉS :**\n"
-    for watch in ["TSLA", "GOOGL"]:
-        m = radar[watch]
-        if watch in top_3.index:
-            msg += f"✅ **{watch}** est dans le Top 3 !\n"
-        elif prices[watch] < ma50[watch]:
-            msg += f"❌ **{watch}** est en zone de baisse (Prix < MA50).\n"
-        else:
-            diff = top_3.iloc[-1] - m
-            msg += f"⚪ **{watch}** est saine mais manque {diff:.1f}% de force.\n"
+    # Sélection stricte (V9 : Momentum doit être positif)
+    valid = (prices.loc[today] > ma150.loc[today]) & (momentum.loc[today] > 0)
+    scores = momentum.loc[today][valid].dropna()
 
-    msg += "\n🔍 **DASHBOARD SECTORIEL (Leader) :**\n"
-    sects = {"Tech": ["NVDA", "SMH"], "Crypto": ["BTC-USD", "SOL-USD"], "Luxe": ["MC.PA", "RACE"], "Indus": ["URNM", "COPX"]}
-    for s_name, t_list in sects.items():
-        leader = radar[t_list].idxmax()
-        msg += f"• {s_name} : {leader} (+{radar[leader]:.0f}%)\n"
+    # En mode Bear, on ne garde que le meilleur actif
+    if exposure < 0.5 and not scores.empty:
+        scores = scores.nlargest(1)
+
+    top_assets = scores.nlargest(TOP_N)
+
+    # Allocation (Risk Parity)
+    weights = pd.Series(dtype=float)
+    if not top_assets.empty:
+        inv_vol = 1 / vol_ann.loc[today, top_assets.index]
+        weights = (inv_vol / inv_vol.sum()) * exposure
+
+    # Message Telegram
+    msg = "━━━━━━━━━━━━━━━━━━━━\n"
+    msg += "🏛️ **ALGO ELITE V9.0 — APEX CORE**\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    msg += f"📈 **RÉGIME : {regime_txt} ({int(exposure*100)}%)**\n\n"
+
+    if not weights.empty:
+        msg += "🎯 **ALLOCATION & STOPS :**\n"
+        for t, w in weights.items():
+            p_raw = prices.loc[today, t]
+            p_eur = p_raw if t.endswith(".PA") else p_raw * fx
+            
+            # Stop Hybride V9
+            buffer = max(min(vol_daily.loc[today, t] * 2.5, 18), 6)
+            stop_raw = max(ma100.loc[today, t], hwm_55.loc[today, t] * (1 - buffer / 100))
+            stop_eur = stop_raw if t.endswith(".PA") else stop_raw * fx
+
+            msg += f"• **{t}** : **{w*100:.1f}%**\n"
+            msg += f"  Prix : {p_eur:.2f}€ | 🛡️ **STOP : {stop_eur:.2f}€**\n\n"
+    else:
+        msg += "⚠️ **TOTAL CASH — Aucune opportunité valide**\n\n"
+
+    msg += "🔍 **RADAR :**\n"
+    for t in TICKERS:
+        if t in top_assets.index: msg += f"✅ {t}\n"
+        elif prices.loc[today, t] < ma150.loc[today, t]: msg += f"❌ {t}\n"
 
     msg += "\n━━━━━━━━━━━━━━━━━━━━\n"
-    msg += f"💰 **DCA : {DCA_MENSUEL}€** | 📅 *Scan Mensuel actif*"
+    msg += "📅 *Mise à jour Hebdo — Discipline > Émotion.*"
 
     if TOKEN and CHAT_ID:
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                      data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+    print(msg)
 
 if __name__ == "__main__":
-    format_and_send()
+    run()
