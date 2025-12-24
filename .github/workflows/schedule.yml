@@ -1,4 +1,4 @@
-name: Run Monthly Algo
+name: Algo Apex V9.0 Final
 
 on:
   schedule:
