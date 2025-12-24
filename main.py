@@ -30,32 +30,30 @@ def rsi(series, period=14):
 def run():
     # --- 1. RÉCUPÉRATION DES DONNÉES ---
     try:
-        # On télécharge tout d'un coup
-        raw_data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX"], period="2y", auto_adjust=True, progress=False)
+        # On force group_by='column' pour éviter le bug de l'index GOOGL
+        raw_data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX"], 
+                               period="2y", auto_adjust=True, progress=False)
         
-        if raw_data.empty:
-            print("Erreur : Aucune donnée reçue.")
-            return
+        if raw_data.empty: return
 
-        # Extraction propre des colonnes pour éviter l'IndexingError
+        # Nettoyage MultiIndex : on s'assure que close, high, low sont des DataFrames simples
         close = raw_data["Close"].ffill()
-        high = raw_data["High"].ffill() if "High" in raw_data else close
-        low = raw_data["Low"].ffill() if "Low" in raw_data else close
+        high = raw_data["High"].ffill()
+        low = raw_data["Low"].ffill()
         
     except Exception as e:
         print(f"Erreur technique : {e}")
         return
     
-    # Sécurité : on ne garde que les tickers qui ont bien été téléchargés
-    available_tickers = [t for t in TICKERS if t in close.columns]
-    prices = close[available_tickers]
+    # On ne garde que les tickers valides
+    valid_assets = [t for t in TICKERS if t in close.columns]
+    prices = close[valid_assets]
+    today = prices.index[-1]
     
     if len(close) < 260: return
 
-    fx_rate = close["EURUSD=X"].iloc[-1]
-    fx = 1 / fx_rate if fx_rate > 0 else 1
-    today = close.index[-1]
-    returns = prices.pct_change(fill_method=None) # Correction du warning FutureWarning
+    # FX Rate
+    fx = 1 / close["EURUSD=X"].iloc[-1] if "EURUSD=X" in close.columns else 1
 
     # --- 2. RÉGIME DE MARCHÉ ---
     spy = close[MARKET_INDEX]
@@ -63,9 +61,9 @@ def run():
     ma200 = spy.rolling(200).mean()
     vix_med = vix.rolling(252).median()
     
-    score = int(spy.loc[today] > ma200.loc[today]) + \
-            int(ma200.diff(20).loc[today] > 0) + \
-            int(vix.loc[today] < vix_med.loc[today])
+    score = int(spy.iloc[-1] > ma200.iloc[-1]) + \
+            int(ma200.diff(20).iloc[-1] > 0) + \
+            int(vix.iloc[-1] < vix_med.iloc[-1])
     
     exposure = {0:0.25, 1:0.50, 2:0.75, 3:1.0}[score]
     regime_txt = {0:"🔴 BEAR", 1:"🟠 CAUTION", 2:"🟡 BULL", 3:"🟢 STRONG BULL"}[score]
@@ -74,14 +72,15 @@ def run():
     m = (0.2*(prices/prices.shift(63)-1) + 0.3*(prices/prices.shift(126)-1) + 0.5*(prices/prices.shift(252)-1))
     momentum = (m - m.mean(axis=1).values.reshape(-1,1)) / m.std(axis=1).values.reshape(-1,1).clip(min=0.001)
     
-    rsi_vals = prices.apply(rsi).loc[today]
+    rsi_vals = prices.apply(rsi).iloc[-1]
     ma150 = prices.rolling(150).mean()
     
-    valid = (prices.loc[today] > ma150.loc[today]) & (momentum.loc[today] > 0) & (rsi_vals < 70)
-    candidates = momentum.loc[today][valid].nlargest(6)
+    valid = (prices.iloc[-1] > ma150.iloc[-1]) & (momentum.iloc[-1] > 0) & (rsi_vals < 70)
+    candidates = momentum.iloc[-1][valid].nlargest(6)
 
     # --- 4. DIVERSIFICATION (CORRÉLATION) ---
     selected = []
+    returns = prices.pct_change(fill_method=None)
     for t in candidates.index:
         if not selected:
             selected.append(t)
@@ -99,32 +98,31 @@ def run():
 
     if selected:
         vol_ann = returns.rolling(252).std() * np.sqrt(252)
-        inv_vol = 1 / vol_ann.loc[today, selected].clip(lower=0.1)
+        inv_vol = 1 / vol_ann.iloc[-1][selected].clip(lower=0.1)
         weights = (inv_vol / inv_vol.sum()) * exposure
 
-        # Calcul ATR et MA100
+        # Calcul ATR
         tr = pd.concat([high-low, abs(high-close.shift(1)), abs(low-close.shift(1))], axis=1).max(axis=1)
-        atr_all = tr.rolling(14).mean()
-        ma100_all = prices.rolling(100).mean()
-
+        # On calcule l'ATR par colonne pour éviter les erreurs d'index
+        
         msg += "🎯 **ALLOCATION & STOPS :**\n"
         for t in selected:
             w = weights[t]
-            p_eur = prices.loc[today, t] * (1 if t.endswith(".PA") else fx)
+            p_eur = prices[t].iloc[-1] * (1 if t.endswith(".PA") else fx)
             
-            # Correction ici pour l'IndexingError
-            current_atr = atr_all[t].loc[today]
-            current_ma100 = ma100_all[t].loc[today]
+            # Stop ATR robuste
+            ticker_tr = pd.concat([high[t]-low[t], abs(high[t]-close[t].shift(1)), abs(low[t]-close[t].shift(1))], axis=1).max(axis=1)
+            ticker_atr = ticker_tr.rolling(14).mean().iloc[-1]
+            ticker_ma100 = prices[t].rolling(100).mean().iloc[-1]
             
-            st_raw = prices.loc[today, t] - (3.0 * current_atr)
-            st_final = max(st_raw, current_ma100)
+            st_raw = prices[t].iloc[-1] - (3.0 * ticker_atr)
+            st_final = max(st_raw, ticker_ma100)
             st_eur = st_final * (1 if t.endswith(".PA") else fx)
 
             msg += f"• **{t}** : **{w*100:.1f}%**\n"
             msg += f"  Prix : {p_eur:.2f}€ | 🛡️ **STOP : {st_eur:.2f}€**\n\n"
     else:
-        msg += "⚠️ **TOTAL CASH — Attente**\n"
-        msg += "(Marché surchauffé ou pas de leader sain)\n\n"
+        msg += "⚠️ **TOTAL CASH — Attente**\n(Marché surchauffé ou pas de leader sain)\n\n"
 
     msg += "━━━━━━━━━━━━━━━━━━━━\n📅 *Discipline > Chance*"
 
