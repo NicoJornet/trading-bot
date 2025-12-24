@@ -2,25 +2,25 @@ name: Run Monthly Algo
 
 on:
   schedule:
-    - cron: '0 8 * * 1'  # 8h00 UTC = 9h00 ou 10h00 en France
-  workflow_dispatch:
+    - cron: '30 8 * * 1' # Chaque lundi à 09h30 Heure de Paris
+  workflow_dispatch:      # Permet le lancement manuel
 
 jobs:
-  build:
+  run-algo:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
-      
-      - name: Set up Python
+
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      
-      - name: Run script
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install yfinance pandas numpy requests
+
+      - name: Execute Strategy
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
