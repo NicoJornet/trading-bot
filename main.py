@@ -28,35 +28,36 @@ def rsi(series, period=14):
     return 100 - (100 / (1 + rs))
 
 def run():
-    # --- 1. RÉCUPÉRATION DES DONNÉES AVEC SÉCURITÉ ---
+    # --- 1. RÉCUPÉRATION DES DONNÉES ---
     try:
-        data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX"], period="2y", auto_adjust=True, progress=False)
+        # On télécharge tout d'un coup
+        raw_data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX"], period="2y", auto_adjust=True, progress=False)
         
-        if data.empty:
-            print("Erreur : Aucune donnée reçue de Yahoo Finance.")
+        if raw_data.empty:
+            print("Erreur : Aucune donnée reçue.")
             return
 
-        # Gestion Multi-Index de yfinance
-        close = data["Close"].ffill()
-        # Sécurité pour High/Low : si absents, on utilise Close pour éviter le plantage
-        high = data["High"].ffill() if "High" in data else close
-        low = data["Low"].ffill() if "Low" in data else close
+        # Extraction propre des colonnes pour éviter l'IndexingError
+        close = raw_data["Close"].ffill()
+        high = raw_data["High"].ffill() if "High" in raw_data else close
+        low = raw_data["Low"].ffill() if "Low" in raw_data else close
         
     except Exception as e:
-        print(f"Erreur technique lors du téléchargement : {e}")
+        print(f"Erreur technique : {e}")
         return
     
-    if len(close) < 260:
-        print("Erreur : Historique insuffisant.")
-        return
+    # Sécurité : on ne garde que les tickers qui ont bien été téléchargés
+    available_tickers = [t for t in TICKERS if t in close.columns]
+    prices = close[available_tickers]
+    
+    if len(close) < 260: return
 
-    prices = close[TICKERS]
     fx_rate = close["EURUSD=X"].iloc[-1]
     fx = 1 / fx_rate if fx_rate > 0 else 1
     today = close.index[-1]
-    returns = prices.pct_change()
+    returns = prices.pct_change(fill_method=None) # Correction du warning FutureWarning
 
-    # --- 2. RÉGIME DE MARCHÉ HYBRIDE ---
+    # --- 2. RÉGIME DE MARCHÉ ---
     spy = close[MARKET_INDEX]
     vix = close["^VIX"]
     ma200 = spy.rolling(200).mean()
@@ -69,14 +70,13 @@ def run():
     exposure = {0:0.25, 1:0.50, 2:0.75, 3:1.0}[score]
     regime_txt = {0:"🔴 BEAR", 1:"🟠 CAUTION", 2:"🟡 BULL", 3:"🟢 STRONG BULL"}[score]
 
-    # --- 3. SÉLECTION MOMENTUM + FILTRE RSI ---
+    # --- 3. SÉLECTION MOMENTUM + RSI ---
     m = (0.2*(prices/prices.shift(63)-1) + 0.3*(prices/prices.shift(126)-1) + 0.5*(prices/prices.shift(252)-1))
     momentum = (m - m.mean(axis=1).values.reshape(-1,1)) / m.std(axis=1).values.reshape(-1,1).clip(min=0.001)
     
     rsi_vals = prices.apply(rsi).loc[today]
     ma150 = prices.rolling(150).mean()
     
-    # Filtres : Tendance + Momentum + RSI sain (<70)
     valid = (prices.loc[today] > ma150.loc[today]) & (momentum.loc[today] > 0) & (rsi_vals < 70)
     candidates = momentum.loc[today][valid].nlargest(6)
 
@@ -102,7 +102,7 @@ def run():
         inv_vol = 1 / vol_ann.loc[today, selected].clip(lower=0.1)
         weights = (inv_vol / inv_vol.sum()) * exposure
 
-        # Calcul de l'ATR sécurisé
+        # Calcul ATR et MA100
         tr = pd.concat([high-low, abs(high-close.shift(1)), abs(low-close.shift(1))], axis=1).max(axis=1)
         atr_all = tr.rolling(14).mean()
         ma100_all = prices.rolling(100).mean()
@@ -112,26 +112,24 @@ def run():
             w = weights[t]
             p_eur = prices.loc[today, t] * (1 if t.endswith(".PA") else fx)
             
-            # Calcul du stop
-            st_raw = prices.loc[today, t] - (3.0 * atr_all.loc[today, t])
-            st_final = max(st_raw, ma100_all.loc[today, t])
+            # Correction ici pour l'IndexingError
+            current_atr = atr_all[t].loc[today]
+            current_ma100 = ma100_all[t].loc[today]
+            
+            st_raw = prices.loc[today, t] - (3.0 * current_atr)
+            st_final = max(st_raw, current_ma100)
             st_eur = st_final * (1 if t.endswith(".PA") else fx)
 
             msg += f"• **{t}** : **{w*100:.1f}%**\n"
             msg += f"  Prix : {p_eur:.2f}€ | 🛡️ **STOP : {st_eur:.2f}€**\n\n"
     else:
-        msg += "⚠️ **TOTAL CASH — Attente opportunité**\n"
+        msg += "⚠️ **TOTAL CASH — Attente**\n"
         msg += "(Marché surchauffé ou pas de leader sain)\n\n"
 
     msg += "━━━━━━━━━━━━━━━━━━━━\n📅 *Discipline > Chance*"
 
     if TOKEN and CHAT_ID:
-        try:
-            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                          data={"chat_id":CHAT_ID,"text":msg,"parse_mode":"Markdown"}, 
-                          timeout=10)
-        except:
-            print("Erreur d'envoi Telegram")
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id":CHAT_ID,"text":msg,"parse_mode":"Markdown"})
     print(msg)
 
 if __name__ == "__main__":
