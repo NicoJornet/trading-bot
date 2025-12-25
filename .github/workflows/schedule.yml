@@ -1,4 +1,4 @@
-name: APEX Bot Daily Run
+name: Update APEX bot workflow with improvements
 
 on:
   schedule:
