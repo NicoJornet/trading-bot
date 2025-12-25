@@ -6,129 +6,129 @@ import os
 from datetime import datetime
 
 # ============================================================
-# 1. CONFIGURATION
+# CONFIGURATION - APEX v17.0 PRODUCTION
 # ============================================================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 TOP_MAX = 3
+# La liste des 25 actifs stratégiques
 TICKERS = [
-    "NVDA","MSFT","GOOGL","AAPL","TSLA","SMH","PLTR","ASML", # IA & Tech
-    "BTC-USD","ETH-USD","SOL-USD",                          # Cryptos
-    "MC.PA","RMS.PA","RACE",                                # Luxe
-    "LLY","UNH","ISRG",                                     # Santé & Robotique (Ajout ISRG)
-    "PANW",                                                 # Cybersécurité (Ajout PANW)
-    "URNM","COPX","XLE","ALB",                              # Énergie & Métaux Tech (Ajout ALB)
-    "GLD","SIL",                                            # Métaux Précieux (Ajout SIL)
-    "ITA"                                                   # Défense
+    "NVDA","MSFT","GOOGL","AAPL","TSLA","SMH","PLTR","ASML", 
+    "BTC-USD","ETH-USD","SOL-USD",                          
+    "MC.PA","RMS.PA","RACE",                                
+    "LLY","UNH","ISRG","PANW",                              
+    "URNM","COPX","XLE","ALB","GLD","SIL","ITA"            
 ]
 MARKET_INDEX = "SPY"
 
-# Paramètres de gestion du risque Professional v11.0
-MAX_CRYPTO_WEIGHT = 0.20  
-MAX_SINGLE_POSITION = 0.35  
-
-# ============================================================
-# 2. FONCTIONS
-# ============================================================
-def rsi(series, period=14):
-    delta = series.diff()
-    gain = delta.where(delta > 0, 0).rolling(period).mean()
-    loss = -delta.where(delta < 0, 0).rolling(period).mean()
-    rs = gain / loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
-
-def calculate_market_breadth(prices, ma_period=50):
-    above_ma = (prices > prices.rolling(ma_period).mean()).sum(axis=1)
-    return above_ma / len(prices.columns)
+# Paramètres du Moteur v17 (Smart Aggressive)
+MAX_CRYPTO_WEIGHT = 0.35   
+MAX_SINGLE_POSITION = 0.40 
+CORRELATION_THRESHOLD = 0.85
 
 def run():
-    # --- 1. RÉCUPÉRATION DES DONNÉES ---
+    # --- 1. CHARGEMENT DES DONNÉES ---
     try:
-        raw_data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX"], 
+        # Téléchargement optimisé
+        raw_data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X"], 
                                period="2y", auto_adjust=True, progress=False)
         if raw_data.empty: return
         
-        close = raw_data["Close"].ffill()
-        high = raw_data["High"].ffill()
-        low = raw_data["Low"].ffill()
+        # Gestion de la structure de données (MultiIndex vs SingleIndex)
+        if isinstance(raw_data.columns, pd.MultiIndex):
+            close = raw_data['Close'].ffill()
+            high = raw_data['High'].ffill()
+            low = raw_data['Low'].ffill()
+        else:
+            close = raw_data['Close'].ffill()
+            high = raw_data['High'].ffill()
+            low = raw_data['Low'].ffill()
+            
     except Exception as e:
-        print(f"Erreur : {e}"); return
+        print(f"Data Error: {e}"); return
     
+    # Filtrage des actifs valides
     valid_assets = [t for t in TICKERS if t in close.columns]
     prices = close[valid_assets]
-    fx = 1 / close["EURUSD=X"].iloc[-1] if "EURUSD=X" in close.columns else 1
+    fx = 1 / close["EURUSD=X"].iloc[-1] if "EURUSD=X" in close.columns else 1.0
 
-    # --- 2. RÉGIME DE MARCHÉ AMÉLIORÉ ---
+    # --- 2. LE PARACHUTE (MA200) ---
+    # Si le SPY est sous sa moyenne 200 jours -> On passe 100% Cash
     spy = close[MARKET_INDEX]
-    vix = close["^VIX"]
-    ma200 = spy.rolling(200).mean()
-    vix_med = vix.rolling(252).median()
-    breadth = calculate_market_breadth(prices, ma_period=50)
+    bull_market = spy.iloc[-1] > spy.rolling(200).mean().iloc[-1]
+    exposure = 1.0 if bull_market else 0.0
 
-    # Score de 0 à 4 (Breadth inclus)
-    score = int(spy.iloc[-1] > ma200.iloc[-1]) + \
-            int(ma200.diff(20).iloc[-1] > 0) + \
-            int(vix.iloc[-1] < vix_med.iloc[-1]) + \
-            int(breadth.iloc[-1] > 0.60)
-
-    exposure = {0:0.25, 1:0.40, 2:0.60, 3:0.80, 4:1.0}[score]
-    regime_txt = {0:"🔴 BEAR", 1:"🟠 CAUTION", 2:"🟡 NEUTRAL", 3:"🟢 BULL", 4:"🚀 STRONG BULL"}[score]
-
-    # --- 3. MOMENTUM & RSI 80 ---
+    # --- 3. SÉLECTION (Momentum v17) ---
     m = (0.2*(prices/prices.shift(63)-1) + 0.3*(prices/prices.shift(126)-1) + 0.5*(prices/prices.shift(252)-1))
     z_mom = (m - m.mean(axis=1).values.reshape(-1,1)) / m.std(axis=1).values.reshape(-1,1).clip(min=0.001)
-    rsi_vals = prices.apply(rsi).iloc[-1]
-    ma150 = prices.rolling(150).mean()
     
-    valid = (prices.iloc[-1] > ma150.iloc[-1]) & (z_mom.iloc[-1] > 0) & (rsi_vals < 80)
+    rsi_vals = 100 - (100 / (1 + prices.diff().where(lambda x: x>0,0).rolling(14).mean() / -prices.diff().where(lambda x: x<0,0).rolling(14).mean()))
+    
+    valid = (prices.iloc[-1] > prices.rolling(150).mean().iloc[-1]) & (z_mom.iloc[-1] > 0) & (rsi_vals.iloc[-1] < 80)
     candidates = z_mom.iloc[-1][valid].nlargest(6)
 
-    # --- 4. DIVERSIFICATION & SÉLECTION ---
     selected = []
     returns = prices.pct_change(fill_method=None)
     for t in candidates.index:
         if not selected: selected.append(t)
         else:
-            current_corr = returns[selected + [t]].iloc[-60:].corr().iloc[-1]
-            if current_corr.loc[selected].max() < 0.80: selected.append(t)
-        if len(selected) == (1 if exposure <= 0.25 else TOP_MAX): break
+            if returns[selected + [t]].iloc[-126:].corr().iloc[-1].loc[selected].max() < CORRELATION_THRESHOLD:
+                selected.append(t)
+        if len(selected) == TOP_MAX: break
 
-    # --- 5. ALLOCATION & MESSAGE ---
-    msg = "━━━━━━━━━━━━━━━━━━━━━━━━\n🚀 **APEX TOTAL DOMINANCE v11.0**\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    msg += f"📊 RÉGIME : {regime_txt} ({int(exposure*100)}%)\n"
-    msg += f"📈 Market Breadth : {breadth.iloc[-1]*100:.0f}%\n\n"
+    # --- 4. CALCULS ET FORMATTAGE TELEGRAM ---
+    msg = "🤖 **APEX v17 DUO**\n\n"
 
-    if selected:
-        vol_ann = returns.rolling(252).std() * np.sqrt(252)
-        inv_vol = 1 / vol_ann.iloc[-1][selected].clip(lower=0.1)
-        weights = (inv_vol / inv_vol.sum()) * exposure
+    if selected and exposure > 0:
+        # Allocation Equal Weight (Le secret de la performance)
+        w_val = 1.0 / len(selected)
+        weights = pd.Series(w_val, index=selected) * exposure
         
-        # Contraintes Crypto & Single Pos
+        # Plafonds de sécurité
         crypto = [t for t in selected if "USD" in t]
         if crypto and weights[crypto].sum() > MAX_CRYPTO_WEIGHT:
             weights[crypto] *= MAX_CRYPTO_WEIGHT / weights[crypto].sum()
-        weights = weights.clip(max=MAX_SINGLE_POSITION)
+            
+        weights = weights.clip(upper=MAX_SINGLE_POSITION)
         weights *= exposure / weights.sum()
 
-        msg += "🎯 **ALLOCATION & STOPS :**\n"
+        msg += "✅ **ACTIONS À DÉTENIR :**\n"
         for t in selected:
+            # Prix actuel converti en EUR
             p_eur = prices[t].iloc[-1] * (1 if t.endswith(".PA") else fx)
-            ticker_tr = pd.concat([high[t]-low[t], abs(high[t]-close[t].shift(1)), abs(low[t]-close[t].shift(1))], axis=1).max(axis=1)
-            ticker_atr = ticker_tr.rolling(14).mean().iloc[-1]
-            st_val = max(prices[t].iloc[-1] - (3.0 * ticker_atr), prices[t].rolling(100).mean().iloc[-1])
-            st_eur = st_val * (1 if t.endswith(".PA") else fx)
+            
+            # Calcul du Stop Suiveur (4 ATR)
+            # C'est un stop large pour laisser respirer l'action
+            tr = np.maximum(high[t]-low[t], np.maximum(abs(high[t]-close[t].shift(1)), abs(low[t]-close[t].shift(1))))
+            atr = tr.rolling(14).mean().iloc[-1]
+            stop_level = prices[t].iloc[-1] - (4.0 * atr)
+            stop_eur = stop_level * (1 if t.endswith(".PA") else fx)
+            
+            # Distance du stop en %
+            risk = (p_eur - stop_eur) / p_eur * 100
 
-            msg += f"• **{t}** : **{weights[t]*100:.1f}%**\n  Prix : {p_eur:.2f}€ | 🛡️ **STOP : {st_eur:.2f}€**\n\n"
+            msg += f"🔹 **{t}**\n"
+            msg += f"   📊 Alloc : **{weights[t]*100:.0f}%**\n"
+            msg += f"   💰 Prix  : {p_eur:.2f}€\n"
+            msg += f"   🛡️ **Stop Suiveur : {stop_eur:.2f}€** (-{risk:.1f}%)\n\n"
+            
+        msg += f"💵 Investissement total : {weights.sum()*100:.0f}%\n"
+        msg += "ℹ️ *Sur Trade Republic : Si le 'Stop Suiveur' monte, annulez l'ancien stop et placez le nouveau.*"
+        
     else:
-        msg += "⚠️ **TOTAL CASH — Protection active**\n"
+        msg += "🛑 **MODE CASH (100% Liquide)**\n"
+        msg += "Le marché est baissier (Sous Moyenne 200). On protège le capital."
 
-    msg += f"\n💰 Exposition Totale : {weights.sum()*100 if selected else 0:.0f}%\n"
-    msg += "━━━━━━━━━━━━━━━━━━━━━━━━\n💡 *Discipline > Chance*"
-
+    # Envoi Telegram
     if TOKEN and CHAT_ID:
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                      data={"chat_id":CHAT_ID,"text":msg,"parse_mode":"Markdown"})
+        try:
+            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                          data={"chat_id":CHAT_ID,"text":msg,"parse_mode":"Markdown"})
+        except Exception as e:
+            print(f"Erreur Telegram: {e}")
+    
+    # Affichage console pour les logs GitHub
     print(msg)
 
 if __name__ == "__main__":
