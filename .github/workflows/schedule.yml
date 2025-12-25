@@ -2,29 +2,55 @@ name: APEX Bot Daily Run
 
 on:
   schedule:
-    # Tourne à 08:00 UTC (09:00 Paris) du Lundi au Vendredi
+    # Runs at 08:00 UTC (09:00 Paris winter, 10:00 summer) Mon-Fri
     - cron: '0 8 * * 1-5'
-  workflow_dispatch: # Permet de lancer manuellement pour tester
+  workflow_dispatch: # Manual trigger for testing
+    inputs:
+      branch:
+        description: 'Branch to run on'
+        required: false
+        default: 'main'
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [main, develop, staging] # Add your branches here
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ matrix.branch }}
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-    - name: Run Trading Bot
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: python main.py
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Trading Bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BRANCH_NAME: ${{ matrix.branch }}
+        run: python main.py
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="⚠️ APEX Bot failed on branch: ${{ matrix.branch }}"
