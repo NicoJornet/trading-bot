@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        branch: [main, develop, staging] # Add your branches here
+        branch: [main, Max] # Add your branches here
 
     steps:
       - name: Checkout code
