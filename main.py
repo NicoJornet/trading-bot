@@ -3,132 +3,162 @@ import pandas as pd
 import numpy as np
 import requests
 import os
-from datetime import datetime
 
 # ============================================================
-# CONFIGURATION - APEX v17.0 PRODUCTION
+# APEX v23.2 — STRATEGIC MATERIALS (AI + Energy + Metals)
 # ============================================================
+
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-TOP_MAX = 3
-# La liste des 25 actifs stratégiques
-TICKERS = [
-    "NVDA","MSFT","GOOGL","AAPL","TSLA","SMH","PLTR","ASML",
-    "BTC-USD","ETH-USD","SOL-USD",
-    "MC.PA","RMS.PA","RACE",
-    "LLY","UNH","ISRG","PANW",
-    "URNM","COPX","XLE","ALB","GLD","SIL","ITA"
+# --- 1. LES ATTAQUANTS (Offensive - Tech & Alpha) ---
+OFFENSIVE_TICKERS = [
+    # Magnificent 7 & Cloud
+    "NVDA", "MSFT", "GOOGL", "META", "AMZN", "TSLA",
+    # Infrastructure AI (Hardware + Cooling + Space)
+    "AVGO", "SMH", "VRT", "RKLB", "PLTR",
+    # Crypto
+    "BTC-USD", "ETH-USD", "SOL-USD"
 ]
-MARKET_INDEX = "SPY"
 
-# Paramètres du Moteur v17 (Smart Aggressive)
-MAX_CRYPTO_WEIGHT = 0.35
-MAX_SINGLE_POSITION = 0.40
-CORRELATION_THRESHOLD = 0.85
+# --- 2. LES DÉFENSEURS (Real Assets & Strategic) ---
+DEFENSIVE_TICKERS = [
+    # Santé (Stabilité)
+    "LLY", "UNH", "ISRG",
+    
+    # Énergie IA (Le carburant des Data Centers)
+    "URNM",                # Uranium (Nucléaire)
+    "XLE",                 # Pétrole/Gaz
+    
+    # Métaux Stratégiques (Le squelette de l'IA)
+    "COPX",                # Cuivre (Câblage/Réseau)
+    "SIL",                 # Argent (Conductivité/Solaire)  <-- AJOUT
+    "REMX",                # Terres Rares (Aimants/Robots)  <-- AJOUT
+    
+    # Valeurs Refuges
+    "GLD",                 # Or
+    "ITA",                 # Défense
+    "RACE", "MC.PA"        # Luxe
+]
+
+ALL_TICKERS = list(set(OFFENSIVE_TICKERS + DEFENSIVE_TICKERS))
+MARKET_INDEX = "SPY"
+TOP_MAX = 3
+
+# Paramètres
+MAX_CRYPTO_ALLOC = 0.20
+MAX_SINGLE_POS = 0.40
 
 def run():
-    # --- 1. CHARGEMENT DES DONNÉES ---
+    print("\n" + "="*50)
+    print("💎 APEX v23.2 — STRATEGIC MATERIALS")
+    print("="*50)
+
+    # --- 1. DATA LOADING ---
     try:
-        # Téléchargement optimisé
-        raw_data = yf.download(TICKERS + [MARKET_INDEX, "EURUSD=X"],
-                               period="2y", auto_adjust=True, progress=False)
-        if raw_data.empty: return
-
-        # Gestion de la structure de données (MultiIndex vs SingleIndex)
-        if isinstance(raw_data.columns, pd.MultiIndex):
-            close = raw_data['Close'].ffill()
-            high = raw_data['High'].ffill()
-            low = raw_data['Low'].ffill()
+        raw = yf.download(ALL_TICKERS + [MARKET_INDEX, "EURUSD=X"], period="2y", auto_adjust=True, progress=False)
+        if raw.empty: return
+        
+        if isinstance(raw.columns, pd.MultiIndex):
+            close = raw["Close"].ffill()
+            high = raw["High"].ffill()
+            low = raw["Low"].ffill()
         else:
-            close = raw_data['Close'].ffill()
-            high = raw_data['High'].ffill()
-            low = raw_data['Low'].ffill()
+            close = raw["Close"].ffill()
+            high = raw["High"].ffill()
+            low = raw["Low"].ffill()
+    except: return
 
-    except Exception as e:
-        print(f"Data Error: {e}"); return
-
-    # Filtrage des actifs valides
-    valid_assets = [t for t in TICKERS if t in close.columns]
-    prices = close[valid_assets]
+    prices = close[ALL_TICKERS]
+    spy = close[MARKET_INDEX]
     fx = 1 / close["EURUSD=X"].iloc[-1] if "EURUSD=X" in close.columns else 1.0
 
-    # --- 2. LE PARACHUTE (MA200) ---
-    # Si le SPY est sous sa moyenne 200 jours -> On passe 100% Cash
-    spy = close[MARKET_INDEX]
-    bull_market = spy.iloc[-1] > spy.rolling(200).mean().iloc[-1]
-    exposure = 1.0 if bull_market else 0.0
+    # --- 2. DÉTECTION DU RÉGIME ---
+    ma200 = spy.rolling(200).mean()
+    spy_bullish = (spy.iloc[-1] > ma200.iloc[-1]) and (ma200.iloc[-1] > ma200.iloc[-20])
+    
+    if spy_bullish:
+        hunting_ground = ALL_TICKERS
+        regime_msg = "🟢 BULL (Offensive + Strategic)"
+    else:
+        hunting_ground = DEFENSIVE_TICKERS
+        regime_msg = "🔴 BEAR (Strategic/Defensive Only)"
 
-    # --- 3. SÉLECTION (Momentum v17) ---
-    m = (0.2*(prices/prices.shift(63)-1) + 0.3*(prices/prices.shift(126)-1) + 0.5*(prices/prices.shift(252)-1))
-    z_mom = (m - m.mean(axis=1).values.reshape(-1,1)) / m.std(axis=1).values.reshape(-1,1).clip(min=0.001)
-
-    rsi_vals = 100 - (100 / (1 + prices.diff().where(lambda x: x>0,0).rolling(14).mean() / -prices.diff().where(lambda x: x<0,0).rolling(14).mean()))
-
-    valid = (prices.iloc[-1] > prices.rolling(150).mean().iloc[-1]) & (z_mom.iloc[-1] > 0) & (rsi_vals.iloc[-1] < 80)
-    candidates = z_mom.iloc[-1][valid].nlargest(6)
-
+    # --- 3. SÉLECTION ---
+    active_prices = prices[hunting_ground]
+    
+    # Momentum (Z-Score)
+    m = (0.2 * (active_prices/active_prices.shift(63)-1) + 
+         0.3 * (active_prices/active_prices.shift(126)-1) + 
+         0.5 * (active_prices/active_prices.shift(252)-1))
+    z_mom = (m - m.mean(axis=1).values.reshape(-1,1)) / m.std(axis=1).values.reshape(-1,1).clip(0.001)
+    
+    # RS vs SPY
+    rs = (active_prices/active_prices.shift(126)) / (spy/spy.shift(126)).values.reshape(-1,1)
+    rs_z = (rs - rs.mean(axis=1).values.reshape(-1,1)) / rs.std(axis=1).values.reshape(-1,1).clip(0.001)
+    
+    # Score
+    score = z_mom.iloc[-1] + (rs_z.iloc[-1] * 0.5)
+    
+    # Filtres
+    valid = (z_mom.iloc[-1] > 0) & (rs_z.iloc[-1] > 0)
+    candidates = score[valid].nlargest(TOP_MAX)
+    
     selected = []
-    returns = prices.pct_change(fill_method=None)
     for t in candidates.index:
-        if not selected: selected.append(t)
+        if not selected:
+            selected.append(t)
         else:
-            if returns[selected + [t]].iloc[-126:].corr().iloc[-1].loc[selected].max() < CORRELATION_THRESHOLD:
+            corr = active_prices[selected + [t]].pct_change().iloc[-63:].corr().iloc[-1, :-1].max()
+            if corr < 0.80:
                 selected.append(t)
         if len(selected) == TOP_MAX: break
 
-    # --- 4. CALCULS ET FORMATTAGE TELEGRAM ---
-    msg = "🤖 **APEX v17 DUO**\n\n"
-
-    if selected and exposure > 0:
-        # Allocation Equal Weight (Le secret de la performance)
-        w_val = 1.0 / len(selected)
-        weights = pd.Series(w_val, index=selected) * exposure
-
-        # Plafonds de sécurité
-        crypto = [t for t in selected if "USD" in t]
-        if crypto and weights[crypto].sum() > MAX_CRYPTO_WEIGHT:
-            weights[crypto] *= MAX_CRYPTO_WEIGHT / weights[crypto].sum()
-
-        weights = weights.clip(upper=MAX_SINGLE_POSITION)
-        weights *= exposure / weights.sum()
-
-        msg += "✅ **ACTIONS À DÉTENIR :**\n"
-        for t in selected:
-            # Prix actuel converti en EUR
-            p_eur = prices[t].iloc[-1] * (1 if t.endswith(".PA") else fx)
-
-            # Calcul du Stop Suiveur (4 ATR)
-            # C'est un stop large pour laisser respirer l'action
-            tr = np.maximum(high[t]-low[t], np.maximum(abs(high[t]-close[t].shift(1)), abs(low[t]-close[t].shift(1))))
-            atr = tr.rolling(14).mean().iloc[-1]
-            stop_level = prices[t].iloc[-1] - (4.0 * atr)
-            stop_eur = stop_level * (1 if t.endswith(".PA") else fx)
-
-            # Distance du stop en %
-            risk = (p_eur - stop_eur) / p_eur * 100
-
-            msg += f"🔹 **{t}**\n"
-            msg += f"   📊 Alloc : **{weights[t]*100:.0f}%**\n"
-            msg += f"   💰 Prix  : {p_eur:.2f}€\n"
-            msg += f"   🛡️ **Stop Suiveur : {stop_eur:.2f}€** (-{risk:.1f}%)\n\n"
-
-        msg += f"💵 Investissement total : {weights.sum()*100:.0f}%\n"
-        msg += "ℹ️ *Sur Trade Republic : Si le 'Stop Suiveur' monte, annulez l'ancien stop et placez le nouveau.*"
-
+    # --- 4. ALLOCATION ---
+    msg = f"🤖 **APEX v23.2 — STRATEGIC**\n"
+    msg += f"🌍 Régime: {regime_msg}\n"
+    
+    if not selected:
+        msg += "\n🛑 **MODE CASH (100%)**\n"
+        msg += "Aucun actif stratégique ne performe.\n"
     else:
-        msg += "🛑 **MODE CASH (100% Liquide)**\n"
-        msg += "Le marché est baissier (Sous Moyenne 200). On protège le capital."
+        # Risk Parity
+        vols = active_prices[selected].pct_change().iloc[-126:].std() * np.sqrt(252)
+        vols = vols.clip(lower=0.15)
+        weights = (1/vols) / (1/vols).sum()
+        
+        # Caps
+        crypto_sel = [t for t in selected if "USD" in t]
+        if crypto_sel and weights[crypto_sel].sum() > MAX_CRYPTO_ALLOC:
+            weights[crypto_sel] *= MAX_CRYPTO_ALLOC / weights[crypto_sel].sum()
+            
+        weights = weights.clip(upper=MAX_SINGLE_POS)
+        weights /= weights.sum()
 
-    # Envoi Telegram
+        msg += "\n✅ **SÉLECTION ACTIVE :**\n"
+        for t in selected:
+            p = prices[t].iloc[-1] * (1 if t.endswith(".PA") else fx)
+            tr = np.maximum(high[t]-low[t], np.maximum(abs(high[t]-close[t].shift(1)), abs(low[t]-close[t].shift(1))))
+            stop = p - (4.0 * tr.rolling(14).mean().iloc[-1]) * (1 if t.endswith(".PA") else fx)
+            
+            # Iconographie
+            if t in OFFENSIVE_TICKERS:
+                icon = "🪙" if "USD" in t else "🚀"
+            else:
+                # Icones spécifiques Matières Premières
+                if t in ["SIL", "GLD", "COPX", "REMX"]: icon = "💎"
+                elif t in ["URNM", "XLE"]: icon = "⚡"
+                else: icon = "🛡️"
+            
+            msg += f"{icon} **{t}**\n"
+            msg += f"   📊 Alloc: {weights[t]*100:.1f}%\n"
+            msg += f"   💰 Prix: {p:.2f}€ | Stop: {stop:.2f}€\n\n"
+            
+        msg += f"🔥 Investi: {weights.sum()*100:.0f}%"
+
     if TOKEN and CHAT_ID:
-        try:
-            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-                          data={"chat_id":CHAT_ID,"text":msg,"parse_mode":"Markdown"})
-        except Exception as e:
-            print(f"Erreur Telegram: {e}")
-
-    # Affichage console pour les logs GitHub
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                      data={"chat_id":CHAT_ID, "text":msg, "parse_mode":"Markdown"})
     print(msg)
 
 if __name__ == "__main__":
