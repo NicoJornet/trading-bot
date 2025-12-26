@@ -1,22 +1,18 @@
-name: Update APEX bot workflow with improvements
+name: Daily APEX Bot Alert
 
 on:
   schedule:
-    # Runs at 08:00 UTC (09:00 Paris winter, 10:00 summer) Mon-Fri
-    - cron: '0 8 * * 1-5'
-  workflow_dispatch: # Manual trigger for testing
-    inputs:
-      branch:
-        description: 'Branch to run on'
-        required: false
-        default: 'main'
+    # S'exécute tous les jours à 08:00 UTC (09:00 Paris hiver, 10:00 été)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Permet de lancer le bot manuellement depuis l'onglet Actions
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        branch: [main, Max] # Add your branches here
+        # On exécute sur la branche principale pour l'alerte quotidienne
+        branch: [main] 
 
     steps:
       - name: Checkout code
@@ -39,7 +35,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
+          # Installe via requirements.txt s'il existe, sinon installe les modules de base
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install yfinance pandas numpy requests; fi
 
       - name: Run Trading Bot
         env:
@@ -53,4 +51,4 @@ jobs:
         run: |
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
             -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d text="⚠️ APEX Bot failed on branch: ${{ matrix.branch }}"
+            -d text="⚠️ APEX Bot FAILED on branch: ${{ matrix.branch }}. Check GitHub Actions logs."
