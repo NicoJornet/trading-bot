@@ -15,7 +15,7 @@ CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TOTAL_CAPITAL = 1000 
 
 OFFENSIVE_TICKERS = [
-    "NVDA", "MSFT", "GOOGL", "META", "AMZN", "TSLA", "ASML", "AVGO", "SMH", "VRT",
+    "NVDA", "MSFT", "GOOGL", "META", "AMZN", "TSLA", "ASML", "AVGO", "SMH", "VRT", "AAPL",
     "PLTR", "PANW", "RKLB", "CRWD", "SMCI", "ARM", "APP", "BTC-USD", "ETH-USD", "SOL-USD"
 ]
 
