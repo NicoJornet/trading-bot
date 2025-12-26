@@ -6,13 +6,14 @@ import os
 from datetime import datetime
 
 # ============================================================
-# APEX v24.8.1 — GITHUB STABILITY FIXED
+# APEX v25.2 — INTELLIGENCE ADAPTATIVE (TOP 2 à 8)
 # ============================================================
 
-# Récupération sécurisée des variables d'environnement
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TOTAL_CAPITAL = 1000 
+RISK_PER_TRADE = 0.02 # On risque 2% du capital (20€) par position
+ATR_MULT = 3.3
 
 OFFENSIVE_TICKERS = [
     "NVDA", "MSFT", "GOOGL", "META", "AMZN", "TSLA", "ASML", "AVGO", "SMH", "VRT", "AAPL",
@@ -34,104 +35,77 @@ def calculate_rsi(series, period=14):
     rs = gain / loss.replace(0, np.nan)
     return 100 - (100 / (1 + rs))
 
-def send_telegram(message):
-    if not TOKEN or not CHAT_ID:
-        print("❌ Erreur: Secrets TELEGRAM_TOKEN ou TELEGRAM_CHAT_ID manquants.")
-        return
-    
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code != 200:
-            print(f"❌ Erreur Telegram ({response.status_code}): {response.text}")
-        else:
-            print("✅ Notification Telegram envoyée avec succès.")
-    except Exception as e:
-        print(f"❌ Erreur de connexion Telegram: {e}")
-
 def run():
-    print(f"🚀 Lancement APEX v24.8.1 — {datetime.now().strftime('%Y-%m-%d')}")
+    print(f"🚀 Lancement APEX v25.2 Adaptatif — {datetime.now().strftime('%Y-%m-%d')}")
 
-    # --- 1. TÉLÉCHARGEMENT ---
     try:
-        tickers = ALL_TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX", "^TNX", "^IRX"]
-        data = yf.download(tickers, period="2y", auto_adjust=True, progress=False)
-        
-        if data.empty:
-            print("❌ Erreur: Aucune donnée reçue."); return
-            
-        close = data['Close'].ffill().bfill() if 'Close' in data else data.ffill().bfill()
-        high = data['High'].ffill().bfill() if 'High' in data else close
-        low = data['Low'].ffill().bfill() if 'Low' in data else close
+        # Téléchargement des données
+        data = yf.download(ALL_TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX", "^TNX", "^IRX"], period="2y", progress=False)
+        close = data['Close'].ffill().bfill()
+        high = data['High'].ffill().bfill()
+        low = data['Low'].ffill().bfill()
     except Exception as e:
         print(f"❌ Erreur Data: {e}"); return
 
-    # --- 2. RÉGIME ---
-    prices = close[ALL_TICKERS]
-    spy = close[MARKET_INDEX]
-    vix = close["^VIX"]
+    # --- RÉGIME v25.2 ---
+    spy, vix = close[MARKET_INDEX], close["^VIX"]
     fx = 1 / float(close["EURUSD=X"].iloc[-1]) if "EURUSD=X" in close.columns else 1.0
-
-    ma200 = spy.rolling(200).mean()
-    vix_threshold = vix.rolling(252).quantile(0.4).iloc[-1]
-
-    score = 0
-    if float(spy.iloc[-1]) > float(ma200.iloc[-1]): score += 1
-    if float(ma200.iloc[-1]) > float(ma200.iloc[-20]): score += 1
-    if float(vix.iloc[-1]) < float(vix_threshold): score += 1
-    try:
-        if (float(close["^TNX"].iloc[-1]) - float(close["^IRX"].iloc[-1])) > 0: score += 1
-    except: pass
-
-    exposure_map = {0: 0.0, 1: 0.25, 2: 0.50, 3: 0.75, 4: 1.00}
-    exposure = exposure_map.get(score, 0.0)
-    regime_names = {0: "🔴 BEAR", 1: "🟡 CAUTIOUS", 2: "🟢 BULL", 3: "🟢🟢 STRONG", 4: "🟢🟢🟢 MAX"}
     
-    # --- 3. RAPPORT ---
-    if exposure == 0.0:
-        msg = f"🤖 APEX v24.8.1\n**Régime:** {regime_names.get(score)} | Expo: **0%**\n💰 Capital: **{TOTAL_CAPITAL}€**\n━━━━━━━━━━━━━\n⚠️ **100% CASH**"
-        send_telegram(msg)
+    regime_score = (0.4*(spy.iloc[-1] > spy.rolling(200).mean().iloc[-1]) + 
+                    0.3*(vix.iloc[-1] < vix.rolling(50).mean().iloc[-1]) + 
+                    0.2*(spy.iloc[-1] > spy.iloc[-63]) + 
+                    0.1*((close["^TNX"] - close["^IRX"]).iloc[-1] > 0))
+    
+    exposure = 1.0 if regime_score >= 0.65 else 0.75 if regime_score >= 0.45 else 0.5 if regime_score >= 0.3 else 0.0
+    regime_name = {1.0: "🟢🟢🟢 MAX", 0.75: "🟢🟢 STRONG", 0.5: "🟢 BULL", 0.0: "🔴 BEAR"}.get(exposure, "🟡 CAUTIOUS")
+
+    if exposure == 0:
+        msg = f"🤖 APEX v25.2\n**Régime:** 🔴 BEAR | Expo: **0%**\n⚠️ **100% CASH**"
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": msg})
         return
 
-    ground = DEFENSIVE_TICKERS if score <= 1 else ALL_TICKERS
-    active_prices = prices[ground].copy()
-    m = (0.2 * (active_prices/active_prices.shift(63)-1) + 0.3 * (active_prices/active_prices.shift(126)-1) + 0.5 * (active_prices/active_prices.shift(252)-1))
-    rs = (active_prices/active_prices.shift(126)).div((spy/spy.shift(126)), axis=0)
-    z_mom = (m.iloc[-1] - m.iloc[-1].mean()) / m.iloc[-1].std()
-    z_rs = (rs.iloc[-1] - rs.iloc[-1].mean()) / rs.iloc[-1].std()
-    final_scores = (0.6 * z_mom + 0.4 * z_rs)
+    # --- SÉLECTION ADAPTATIVE (Jusqu'à 8 candidats) ---
+    ground = ALL_TICKERS if exposure >= 0.5 else DEFENSIVE_TICKERS
+    active_p = close[ground].dropna(axis=1)
     
-    rsi_vals = active_prices.apply(calculate_rsi).iloc[-1]
-    ma150 = active_prices.rolling(150).mean().iloc[-1]
-    valid = (final_scores > 0) & (rsi_vals < 80) & (active_prices.iloc[-1] > ma150)
-    candidates = final_scores[valid].nlargest(10)
+    mom = (active_p.iloc[-1] / active_p.iloc[-126]) - 1
+    rsi_vals = active_p.apply(calculate_rsi).iloc[-1]
+    ma150 = active_p.rolling(150).mean().iloc[-1]
+    
+    valid = (rsi_vals < 75) & (active_p.iloc[-1] > ma150)
+    candidates = mom[valid].nlargest(8).index.tolist() # On regarde le TOP 8 potentiel
 
-    msg = f"🤖 APEX v24.8.1 | {datetime.now().strftime('%d/%m/%Y')}\n"
-    msg += f"**Régime:** {regime_names.get(score)} | Expo: **{int(exposure*100)}%**\n"
-    msg += f"💰 Capital: **{TOTAL_CAPITAL}€**\n━━━━━━━━━━━━━\n\n"
+    # --- CONSTRUCTION DU PORTEFEUILLE ---
+    msg = f"🤖 APEX v25.2 | {regime_name} ({int(exposure*100)}%)\n💰 Capital: {TOTAL_CAPITAL}€\n━━━━━━━━━━━━━━\n\n"
+    
+    count = 0
+    total_allocated_weight = 0
+    
+    for t in candidates:
+        if count >= 8 or total_allocated_weight >= exposure: break
+        
+        p_eur = float(active_p[t].iloc[-1]) * (1 if t.endswith(".PA") else fx)
+        # Calcul ATR pour Stop
+        tr = pd.concat([high[t]-low[t], abs(high[t]-close[t].shift(1)), abs(low[t]-close[t].shift(1))], axis=1).max(axis=1)
+        atr_val = tr.rolling(14).mean().iloc[-1]
+        sl_eur = (float(active_p[t].iloc[-1]) - ATR_MULT * atr_val) * (1 if t.endswith(".PA") else fx)
+        
+        risk_dist = p_eur - sl_eur
+        if risk_dist > 0:
+            # Sizing par le risque : combien d'unités pour perdre 2% (20€) si le SL est touché
+            # Le poids max d'une ligne est capé à 25% pour forcer la diversification si possible
+            weight = min(((TOTAL_CAPITAL * RISK_PER_TRADE) / risk_dist) * p_eur / TOTAL_CAPITAL, 0.25) * exposure
+            
+            if weight > 0.05: # On ignore les lignes trop petites (< 5%)
+                msg += f"• **{t}**: {weight*100:.1f}% ({(TOTAL_CAPITAL * weight):.0f}€)\n  Prix: {p_eur:.2f}€ | **SL: {sl_eur:.2f}€**\n\n"
+                total_allocated_weight += weight
+                count += 1
 
-    for n in [2, 3]:
-        selected = list(candidates.nlargest(n).index)
-        is_rec = (n == 2 and TOTAL_CAPITAL < 5000) or (n == 3 and TOTAL_CAPITAL >= 5000)
-        status = "⭐ CONSEILLÉ" if is_rec else "🔹 Option"
-        msg += f"🏆 **TOP {n}** | {status}\n"
-        if not selected:
-            msg += "   Aucun signal.\n"
-        else:
-            vols = active_prices[selected].pct_change().std() * np.sqrt(252)
-            weights = (1 / vols.clip(lower=0.15))
-            weights = (weights / weights.sum()) * exposure
-            for t in selected:
-                p_eur = float(active_prices[t].iloc[-1]) * (1 if t.endswith(".PA") else fx)
-                tr = pd.concat([high[t]-low[t], abs(high[t]-close[t].shift(1)), abs(low[t]-close[t].shift(1))], axis=1).max(axis=1)
-                sl_eur = (float(active_prices[t].iloc[-1]) - (4.0 * tr.rolling(14).mean().iloc[-1])) * (1 if t.endswith(".PA") else fx)
-                msg += f"• **{t}**: {weights[t]*100:.1f}% ({(TOTAL_CAPITAL * weights[t]):.0f}€)\n  Prix: {p_eur:.2f}€ → **SL: {sl_eur:.2f}€**\n"
-        msg += "\n"
+    if count < 2:
+        msg += "⚠️ Peu de signaux validés. Prudence accrue."
 
-    msg += "Process > Conviction | Never Average Down"
-    send_telegram(msg)
+    msg += f"━━━━━━━━━━━━━━\n🎯 Signal: TOP {count} détecté.\n⚡ Process > Emotion"
+    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 if __name__ == "__main__":
     run()
