@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 
 # ============================================================
-# APEX v25.2 — MULTI-TOP SELECTION (2, 3, 6, 8)
+# APEX v25.2.1 — MULTI-TOP AVEC PRIX & % STOP LOSS
 # ============================================================
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -49,7 +49,7 @@ def calculate_adx(high, low, close, period=14):
     return dx.rolling(period).mean()
 
 def run():
-    print(f"🚀 Lancement APEX v25.2 Multi-Top — {datetime.now().strftime('%Y-%m-%d')}")
+    print(f"🚀 Lancement APEX v25.2.1 — {datetime.now().strftime('%Y-%m-%d')}")
     try:
         data = yf.download(ALL_TICKERS + [MARKET_INDEX, "EURUSD=X", "^VIX", "^TNX", "^IRX"], period="2y", auto_adjust=True, progress=False)
         close = data['Close'].ffill().bfill(); high = data['High'].ffill().bfill(); low = data['Low'].ffill().bfill()
@@ -67,7 +67,7 @@ def run():
     regime = "🟢🟢🟢 MAX" if exposure == 1.0 else "🟢 STRONG" if exposure >= 0.75 else "🟡 NEUTRAL" if exposure > 0 else "🔴 BEAR"
 
     if exposure == 0:
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": f"🤖 APEX v25.2\n{regime} | Expo: 0%\n⚠️ **100% CASH**", "parse_mode": "Markdown"})
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": f"🤖 APEX v25.2.1\n{regime} | Expo: 0%\n⚠️ **100% CASH**", "parse_mode": "Markdown"})
         return
 
     universe = ALL_TICKERS if exposure >= 0.5 else DEFENSIVE_TICKERS
@@ -80,9 +80,8 @@ def run():
     valid = (rsi < 78) & (active_p.iloc[-1] > ma150) & (adx > 20) & (mom > 0)
     all_candidates = mom[valid].nlargest(8).index.tolist()
 
-    msg = f"🤖 APEX v25.2 | {regime} ({int(exposure*100)}%)\n💰 Cap: {TOTAL_CAPITAL}€ | 🛡️ SL: {ATR_MULT} ATR\n━━━━━━━━━━━━━━\n\n"
+    msg = f"🤖 APEX v25.2.1 | {regime} ({int(exposure*100)}%)\n💰 Cap: {TOTAL_CAPITAL}€ | 🛡️ SL: {ATR_MULT} ATR\n━━━━━━━━━━━━━━\n\n"
 
-    # Boucle sur les différentes configurations demandées
     for n in [2, 3, 6, 8]:
         selected = all_candidates[:n]
         if not selected: continue
@@ -97,14 +96,18 @@ def run():
             atr = tr.rolling(14).mean().iloc[-1]
             sl_eur = p_eur - (ATR_MULT * atr * (1 if t.endswith(".PA") else fx))
             
+            # Distance du stop en %
+            sl_pct = ((p_eur - sl_eur) / p_eur) * 100
+            
             w = min(((TOTAL_CAPITAL * RISK_PER_TRADE) / (p_eur - sl_eur)) * p_eur / TOTAL_CAPITAL, 0.40 if n <= 3 else 0.25)
-            pos_details.append((t, w, p_eur, sl_eur))
+            pos_details.append((t, w, p_eur, sl_eur, sl_pct))
             weights_sum += w
 
         scale = exposure / weights_sum if weights_sum > 0 else 0
-        for t, w, p_eur, sl_eur in pos_details:
+        for t, w, p_eur, sl_eur, sl_pct in pos_details:
             final_w = w * scale
-            msg += f"• **{t}**: {final_w*100:.1f}% ({TOTAL_CAPITAL*final_w:.0f}€) | SL: {sl_eur:.2f}€\n"
+            msg += f"• **{t}**: {final_w*100:.1f}% ({TOTAL_CAPITAL*final_w:.0f}€)\n"
+            msg += f"  Prix: {p_eur:.2f}€ | **SL: {sl_eur:.2f}€ (-{sl_pct:.1f}%)**\n"
         msg += "\n"
 
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", data={"chat_id": CHAT_ID, "text": msg + "⚡ Process > Emotion", "parse_mode": "Markdown"})
