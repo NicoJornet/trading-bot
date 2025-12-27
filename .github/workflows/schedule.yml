@@ -2,12 +2,10 @@ name: APEX Weekly Scanner
 
 on:
   schedule:
-    # Cron syntax: Minute Heure JourMois Mois JourSemaine
-    # 18:00 UTC = 19:00 ou 20:00 France (selon été/hiver)
-    # Le '0' final signifie Dimanche
+    # Lancement tous les dimanches à 18h00 UTC
     - cron: '0 18 * * 0'
   
-  # Permet de lancer manuellement le script via un bouton (pratique pour tester)
+  # Bouton pour lancer manuellement
   workflow_dispatch:
 
 jobs:
@@ -21,7 +19,7 @@ jobs:
     - name: Installer Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.10'  # <--- CORRECTION ICI (3.9 -> 3.10)
 
     - name: Installer les dépendances
       run: |
