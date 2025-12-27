@@ -2,48 +2,32 @@ name: Daily APEX Bot Alert
 
 on:
   schedule:
-    # S'exécute tous les jours à 08:00 UTC (09:00 Paris hiver, 10:00 été)
-    - cron: '0 8 * * *'
-  workflow_dispatch: # Permet de lancer le bot manuellement depuis l'onglet Actions
+    # 07:00 UTC = 08:00 Paris (Hiver) / 09:00 Paris (Été)
+    - cron: '0 7 * * *'
+  workflow_dispatch: # Permet le lancement manuel (bouton "Run workflow")
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # On exécute sur la branche principale pour l'alerte quotidienne
-        branch: [main] 
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: ${{ matrix.branch }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Installe via requirements.txt s'il existe, sinon installe les modules de base
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install yfinance pandas numpy requests; fi
+          pip install yfinance pandas numpy requests
 
       - name: Run Trading Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          BRANCH_NAME: ${{ matrix.branch }}
         run: python main.py
 
       - name: Notify on failure
@@ -51,4 +35,4 @@ jobs:
         run: |
           curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
             -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d text="⚠️ APEX Bot FAILED on branch: ${{ matrix.branch }}. Check GitHub Actions logs."
+            -d text="⚠️ APEX Bot FAILED. Check GitHub Actions logs."
