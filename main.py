@@ -2,94 +2,92 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import sys
 
 # ============================================================
-# APEX SCANNER - GITHUB EDITION
+# APEX SCANNER - DEBUG EDITION
 # ============================================================
 
-# 1. CONFIGURATION
-# ----------------
-# Univers d'investissement (Trade Republic Large)
 DATABASE = [
     "NVDA","MSFT","GOOGL","AMZN","AAPL","META","TSLA","AVGO","AMD","MU",
     "ASML","TSM","ARM","LRCX","AMAT","PLTR","APP","CRWD","PANW","NET",
     "DDOG","ZS","SNOW","RKLB","SHOP","ABNB","VRT","SMCI","UBER",
-    "COIN","MSTR","MARA","RIOT",
-    "MC.PA","RMS.PA","OR.PA","SAP","AIR.PA","BNP.PA",
-    "LLY","NVO","UNH","JNJ","ABBV","TMO","DHR","ISRG",
-    "WMT","COST","PG","KO","PEP","XLE","XOM","CVX",
-    "QQQ","SPY","GLD","SLV","TLT"
+    "COIN","MSTR","MARA","RIOT"
 ]
 
 VOLATILE_SET = ["COIN", "MSTR", "MARA", "RIOT", "RKLB", "SMCI", "TSLA", "AMD", "NVDA", "APP"]
 
-def get_momentum_score(prices):
-    """Calcul du score APEX (Moyenne ROC 3 mois + 6 mois)"""
-    # On s'assure d'avoir assez de données
-    if len(prices) < 130: return -999
-    
-    r3 = prices.iloc[-1] / prices.iloc[-63] - 1
-    r6 = prices.iloc[-1] / prices.iloc[-126] - 1
-    return (r3 + r6) / 2
-
 def run_scan():
-    print(f"🚀 APEX SCANNER | Date: {datetime.now().strftime('%Y-%m-%d')}")
-    print("-" * 60)
+    print(f"1. Démarrage du scan... ({len(DATABASE)} actifs)")
     
-    # 1. Téléchargement des données (6 mois + buffer)
-    print("📡 Téléchargement des données de marché...")
+    # Téléchargement
     try:
-        data = yf.download(DATABASE, period="1y", auto_adjust=True, progress=False)
-        # Gestion multi-index de yfinance
+        # On force le téléchargement en groupe
+        data = yf.download(DATABASE, period="6mo", progress=False)
+        
+        # Gestion des colonnes MultiIndex (problème fréquent yfinance)
         if isinstance(data.columns, pd.MultiIndex):
-            close = data['Close']
+            # On essaye de récupérer 'Close' ou 'Adj Close'
+            try:
+                close = data['Close']
+            except KeyError:
+                close = data['Adj Close']
         else:
             close = data
+
+        print(f"2. Données récupérées. Analyse en cours...")
+        
     except Exception as e:
-        print(f"❌ Erreur critique téléchargement: {e}")
+        print(f"❌ ERREUR TÉLÉCHARGEMENT : {e}")
         return
 
-    # 2. Calcul des Scores
     scores = {}
     current_prices = {}
     
+    # Calcul
     for ticker in DATABASE:
         try:
-            if ticker not in close.columns: continue
+            # On vérifie si le ticker est bien dans les colonnes
+            if ticker not in close.columns:
+                continue
+                
             series = close[ticker].dropna()
-            if series.empty: continue
+            if len(series) < 50: # Pas assez de données
+                continue
             
-            score = get_momentum_score(series)
-            scores[ticker] = score
+            # Score simplifié (Momentum 3 mois) pour éviter les erreurs de calcul
+            # Prix actuel / Prix il y a 60 jours
+            r3 = series.iloc[-1] / series.iloc[-min(60, len(series)-1)] - 1
+            
+            scores[ticker] = r3
             current_prices[ticker] = series.iloc[-1]
-        except:
+        except Exception as e:
             continue
-            
-    # Création du classement
+
+    if not scores:
+        print("❌ AUCUN SCORE CALCULÉ. Vérifie la liste des tickers.")
+        return
+
+    # Classement
     df_scores = pd.Series(scores).sort_values(ascending=False)
-    top_5 = df_scores.head(5)
     
-    print("\n" + "="*60)
-    print(f"🏆 TOP 2 ACTIFS À ACHETER (Si tu as du Cash)")
-    print("="*60)
+    print("\n" + "="*50)
+    print(f"🏆 RÉSULTAT DU {datetime.now().strftime('%d/%m/%Y')}")
+    print("="*50)
     
     rank = 1
-    for ticker, score in top_5.head(2).items():
+    # On affiche le TOP 3
+    for ticker, score in df_scores.head(3).items():
         price = current_prices[ticker]
-        # Définition du Stop Loss
         sl_pct = 0.15 if ticker in VOLATILE_SET else 0.20
-        stop_loss_price = price * (1 - sl_pct)
+        stop_price = price * (1 - sl_pct)
         
         print(f"#{rank} {ticker}")
-        print(f"   ► Prix Actuel : {price:.2f}")
-        print(f"   ► Score APEX  : {score:.4f}")
-        print(f"   🛡️ STOP LOSS À PLACER : {stop_loss_price:.2f} (-{sl_pct*100:.0f}%)")
-        print("-" * 30)
+        print(f"   Prix: {price:.2f}$")
+        print(f"   Force: {score*100:.1f}%")
+        print(f"   Stop Loss suggéré: {stop_price:.2f}$")
+        print("-" * 20)
         rank += 1
-        
-    print("\n🧐 SURVEILLANCE (Remplaçants potentiels)")
-    for ticker, score in top_5.iloc[2:].items():
-        print(f"   - {ticker} (Score: {score:.4f})")
 
 if __name__ == "__main__":
     run_scan()
