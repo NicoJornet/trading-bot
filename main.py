@@ -296,8 +296,9 @@ def run():
     
     # Générer plusieurs tops
     for n in [2, 3, 6, 8]:
-        if TOTAL_CAPITAL < 1500 and n > 3:
-            continue  # Skip 6/8 positions pour petits capitaux
+        # Affiche tous les TOPs peu importe le capital (pour analyse)
+        # if TOTAL_CAPITAL < 1500 and n > 3:
+        #     continue
         
         positions = select_and_size_positions(
             active_prices, active_high, active_low, spy, 
