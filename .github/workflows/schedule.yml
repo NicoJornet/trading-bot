@@ -3,7 +3,6 @@ name: APEX v30.0 Hybride Daily
 on:
   schedule:
     # 7h00 Paris = 6h00 UTC (hiver) / 5h00 UTC (été)
-    # On prend 6h00 UTC pour couvrir les deux cas
     - cron: '0 6 * * 1-5'
   
   workflow_dispatch:
@@ -16,6 +15,14 @@ jobs:
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
+
+      - name: 📂 List files (debug)
+        run: |
+          echo "📂 Contenu du repo:"
+          ls -la
+          echo ""
+          echo "📂 Recherche des fichiers Python:"
+          find . -name "*.py" -type f
 
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
@@ -32,14 +39,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python apex_v30_hybride.py
-
-      - name: 📊 Upload logs
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: apex-logs-${{ github.run_number }}
-          path: |
-            *.log
-            *.json
-          retention-days: 30
+          # Chercher le fichier Python
+          if [ -f "apex_v30_hybride.py" ]; then
+            python apex_v30_hybride.py
+          elif [ -f "scripts/apex_v30_hybride.py" ]; then
+            python scripts/apex_v30_hybride.py
+          else
+            echo "❌ Fichier apex_v30_hybride.py non trouvé!"
+            echo "📂 Fichiers disponibles:"
+            find . -name "*.py" -type f
+            exit 1
+          fi
