@@ -1,29 +1,45 @@
-name: APEX Weekly Scanner
+name: APEX v30.0 Hybride Daily
 
 on:
   schedule:
-    - cron: '0 18 * * 0' # Tous les dimanches à 18h UTC
-  workflow_dispatch:      # Permet le lancement manuel
+    # 7h00 Paris = 6h00 UTC (hiver) / 5h00 UTC (été)
+    # On prend 6h00 UTC pour couvrir les deux cas
+    - cron: '0 6 * * 1-5'
+  
+  workflow_dispatch:
+    # Permet l'exécution manuelle
 
 jobs:
-  run-scanner:
+  apex-analysis:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: Récupérer le code
-      uses: actions/checkout@v3
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Installer Python 3.10
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Installer dépendances
-      run: pip install -r requirements.txt
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas numpy requests
 
-    - name: 🚀 LANCER LE SCAN APEX
-      # C'EST ICI QUE LA MAGIE OPÈRE 👇
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: python main.py
+      - name: 🚀 Run APEX v30.0 Hybride
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python apex_v30_hybride.py
+
+      - name: 📊 Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-logs-${{ github.run_number }}
+          path: |
+            *.log
+            *.json
+          retention-days: 30
