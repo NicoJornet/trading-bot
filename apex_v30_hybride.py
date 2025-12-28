@@ -193,6 +193,81 @@ def get_market_regime(vix):
         return "DEFENSIVE", MAX_POSITIONS_DEFENSIVE, True
     return "NORMAL", MAX_POSITIONS_NORMAL, False
 
+def eur_to_usd(eur_amount):
+    """Convertit EUR en USD"""
+    global EUR_USD_RATE
+    if EUR_USD_RATE is None:
+        EUR_USD_RATE = get_eur_usd_rate()
+    return eur_amount * EUR_USD_RATE
+
+def load_portfolio(filename="portfolio.json"):
+    """Charge le portfolio depuis un fichier JSON (en EUR)"""
+    try:
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        
+        portfolio = {}
+        entry_dates = {}
+        currency = data.get('currency', 'EUR')
+        
+        for ticker, pos in data.get('positions', {}).items():
+            entry_price = pos['entry_price']
+            peak_price = pos.get('peak_price', entry_price)
+            
+            # Convertir EUR → USD pour les calculs internes
+            if currency == 'EUR':
+                entry_usd = eur_to_usd(entry_price)
+                peak_usd = eur_to_usd(peak_price)
+            else:
+                entry_usd = entry_price
+                peak_usd = peak_price
+            
+            portfolio[ticker] = {
+                'entry': entry_usd,
+                'entry_eur': entry_price if currency == 'EUR' else usd_to_eur(entry_price),
+                'shares': pos['shares'],
+                'peak': peak_usd
+            }
+            entry_dates[ticker] = datetime.strptime(pos['entry_date'], '%Y-%m-%d')
+        
+        print(f"📂 Portfolio chargé: {len(portfolio)} positions")
+        for t, p in portfolio.items():
+            print(f"   • {t}: {p['shares']} actions @ {p['entry_eur']:.2f}€")
+        
+        return portfolio, entry_dates
+    
+    except FileNotFoundError:
+        print(f"📂 Aucun portfolio trouvé ({filename}) - Mode découverte")
+        return {}, {}
+    except Exception as e:
+        print(f"⚠️ Erreur chargement portfolio: {e}")
+        return {}, {}
+
+def save_portfolio(portfolio, entry_dates, filename="portfolio.json"):
+    """Sauvegarde le portfolio dans un fichier JSON (en EUR)"""
+    data = {
+        'currency': 'EUR',
+        'positions': {},
+        'last_updated': datetime.now().strftime('%Y-%m-%d')
+    }
+    
+    for ticker, pos in portfolio.items():
+        # Sauvegarder en EUR
+        entry_eur = pos.get('entry_eur', usd_to_eur(pos['entry']))
+        peak_eur = usd_to_eur(pos.get('peak', pos['entry']))
+        
+        data['positions'][ticker] = {
+            'entry_price': round(entry_eur, 2),
+            'entry_date': entry_dates.get(ticker, datetime.now()).strftime('%Y-%m-%d'),
+            'shares': pos['shares'],
+            'peak_price': round(peak_eur, 2)
+        }
+    
+    with open(filename, 'w') as f:
+        json.dump(data, f, indent=4)
+    
+    print(f"💾 Portfolio sauvegardé: {len(portfolio)} positions")
+
 # ============================================================
 # TELEGRAM
 # ============================================================
@@ -616,17 +691,8 @@ def main():
     EUR_USD_RATE = get_eur_usd_rate()
     print(f"💱 Taux EUR/USD: {EUR_USD_RATE:.4f}")
     
-    # Exemple de portfolio (à adapter selon votre situation)
-    # En production, charger depuis un fichier JSON
-    portfolio = {
-        # "NVDA": {"entry": 120.0, "shares": 10, "peak": 140.0},
-        # "PLTR": {"entry": 25.0, "shares": 50, "peak": 35.0},
-    }
-    
-    entry_dates = {
-        # "NVDA": datetime(2024, 6, 1),
-        # "PLTR": datetime(2024, 8, 15),
-    }
+    # Charger le portfolio depuis portfolio.json
+    portfolio, entry_dates = load_portfolio("portfolio.json")
     
     # Générer les signaux
     result = generate_signals(portfolio, entry_dates)
