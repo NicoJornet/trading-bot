@@ -1,0 +1,15 @@
+{
+    "trades": [],
+    "summary": {
+        "total_trades": 0,
+        "buys": 0,
+        "sells": 0,
+        "winning_trades": 0,
+        "losing_trades": 0,
+        "total_pnl_eur": 0,
+        "total_fees_eur": 0,
+        "best_trade_eur": 0,
+        "worst_trade_eur": 0,
+        "win_rate": 0
+    }
+}
