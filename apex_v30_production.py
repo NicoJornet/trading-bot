@@ -1,15 +1,14 @@
 """
-APEX v30.0 HYBRIDE - PRODUCTION AVEC TRACKING AUTOMATIQUE
-==========================================================
+APEX v30.0 HYBRIDE - PRODUCTION AVEC MONTANTS EXACTS
+=====================================================
 
 Capital: 1,500€ initial + 100€/mois DCA
 Tracking: portfolio.json + trades_history.json
 
-Fonctionnalités:
-- Mise à jour automatique du portfolio
-- Historique complet des trades
-- PnL en temps réel
-- Notifications Telegram enrichies
+Te donne:
+- Le montant EXACT à investir par action
+- Le nombre d'actions à acheter
+- Met à jour automatiquement le portfolio
 """
 
 import yfinance as yf
@@ -180,7 +179,6 @@ def load_trades_history():
 
 def save_trades_history(history):
     """Sauvegarde l'historique des trades"""
-    # Recalculer le summary
     trades = history["trades"]
     sells = [t for t in trades if t["action"] == "SELL"]
     
@@ -203,10 +201,8 @@ def save_trades_history(history):
     with open(TRADES_HISTORY_FILE, 'w') as f:
         json.dump(history, f, indent=4)
 
-def log_trade(history, action, ticker, price_usd, shares, eur_rate, reason="signal", pnl_eur=None, pnl_pct=None):
+def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur, eur_rate, reason="signal", pnl_eur=None, pnl_pct=None):
     """Ajoute un trade à l'historique"""
-    price_eur = usd_to_eur(price_usd, eur_rate)
-    value_eur = price_eur * shares
     fee_eur = usd_to_eur(COST_PER_TRADE, eur_rate)
     
     trade = {
@@ -218,7 +214,7 @@ def log_trade(history, action, ticker, price_usd, shares, eur_rate, reason="sign
         "shares": round(shares, 4),
         "price_usd": round(price_usd, 2),
         "price_eur": round(price_eur, 2),
-        "value_eur": round(value_eur, 2),
+        "amount_eur": round(amount_eur, 2),
         "fee_eur": round(fee_eur, 2),
         "eur_usd_rate": round(eur_rate, 4),
         "reason": reason
@@ -291,9 +287,9 @@ def send_telegram(message):
 
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
-    print(f"{'='*60}")
+    print(f"{'='*70}")
     print(f"📊 APEX v30.0 HYBRIDE - {today}")
-    print(f"{'='*60}")
+    print(f"{'='*70}")
     
     # Charger portfolio et historique
     portfolio = load_portfolio()
@@ -308,9 +304,11 @@ def main():
     current_month = datetime.now().strftime("%Y-%m")
     
     if last_dca is None or not last_dca.startswith(current_month):
-        portfolio["cash"] += MONTHLY_DCA
+        # Ne pas ajouter le DCA le premier jour (capital initial déjà là)
+        if last_dca is not None:
+            portfolio["cash"] += MONTHLY_DCA
+            print(f"📥 DCA mensuel ajouté: +{MONTHLY_DCA}€ → Cash: {portfolio['cash']:.2f}€")
         portfolio["last_dca_date"] = today
-        print(f"📥 DCA mensuel ajouté: +{MONTHLY_DCA}€ → Cash: {portfolio['cash']:.2f}€")
     
     # Télécharger les données
     print("\n📡 Téléchargement des données...")
@@ -380,8 +378,12 @@ def main():
     
     signals = {"sell": [], "buy": []}
     
-    print(f"\n📂 POSITIONS ACTUELLES ({len(portfolio['positions'])})")
-    print("-" * 50)
+    print(f"\n{'='*70}")
+    print(f"📂 POSITIONS ACTUELLES ({len(portfolio['positions'])})")
+    print(f"{'='*70}")
+    
+    if not portfolio['positions']:
+        print("\n   💵 Aucune position - 100% Cash")
     
     for ticker, pos in list(portfolio["positions"].items()):
         if ticker not in current_prices.index or pd.isna(current_prices[ticker]):
@@ -392,6 +394,7 @@ def main():
         current_price_eur = usd_to_eur(current_price_usd, eur_rate)
         entry_price_eur = pos["entry_price_eur"]
         shares = pos["shares"]
+        value_eur = current_price_eur * shares
         
         # Update peak
         peak_eur = pos.get("peak_price_eur", entry_price_eur)
@@ -402,7 +405,9 @@ def main():
         pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
         pnl_eur = (current_price_eur - entry_price_eur) * shares
         
-        print(f"{'📈' if pnl_pct > 0 else '📉'} {ticker}: {current_price_eur:.2f}€ ({pnl_pct:+.1f}%) | PnL: {pnl_eur:+.2f}€")
+        print(f"\n{'📈' if pnl_pct > 0 else '📉'} {ticker}: {shares:.4f} actions")
+        print(f"   Prix: {current_price_eur:.2f}€ | Entrée: {entry_price_eur:.2f}€")
+        print(f"   Valeur: {value_eur:.2f}€ | PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)")
         
         # Vérifier trailing stop
         gain_ratio = current_price_eur / entry_price_eur
@@ -422,7 +427,7 @@ def main():
         stop_price_eur = entry_price_eur * (1 - sl_pct)
         
         if current_price_eur < stop_price_eur:
-            sell_reason = f"STOP LOSS ({sl_pct*100:.0f}%)"
+            sell_reason = f"STOP LOSS (-{sl_pct*100:.0f}%)"
         
         if sell_reason:
             signals["sell"].append({
@@ -431,6 +436,7 @@ def main():
                 "price_usd": current_price_usd,
                 "price_eur": current_price_eur,
                 "shares": shares,
+                "value_eur": value_eur,
                 "pnl_eur": pnl_eur,
                 "pnl_pct": pnl_pct
             })
@@ -505,6 +511,7 @@ def main():
                             current_price_eur = usd_to_eur(current_price_usd, eur_rate)
                             entry_price_eur = pos["entry_price_eur"]
                             shares = pos["shares"]
+                            value_eur = current_price_eur * shares
                             pnl_eur = (current_price_eur - entry_price_eur) * shares
                             pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
                             
@@ -514,17 +521,30 @@ def main():
                                 "price_usd": current_price_usd,
                                 "price_eur": current_price_eur,
                                 "shares": shares,
+                                "value_eur": value_eur,
                                 "pnl_eur": pnl_eur,
                                 "pnl_pct": pnl_pct
                             })
                             break
     
-    # Nouveaux achats
+    # ============================================================
+    # CALCULER CASH DISPONIBLE APRÈS VENTES
+    # ============================================================
+    
+    cash_after_sells = portfolio["cash"]
+    for sell in signals["sell"]:
+        proceeds = sell["value_eur"] - usd_to_eur(COST_PER_TRADE, eur_rate)
+        cash_after_sells += proceeds
+    
     positions_after_sells = len(current_positions) - len(signals["sell"])
     available_slots = max_positions - positions_after_sells
     
-    if available_slots > 0 and portfolio["cash"] > 100:
-        cash_per_position = portfolio["cash"] / available_slots
+    # ============================================================
+    # CALCULER MONTANTS EXACTS POUR ACHATS
+    # ============================================================
+    
+    if available_slots > 0 and cash_after_sells > 50:
+        cash_per_position = cash_after_sells / available_slots
         
         for candidate in top_candidates:
             if candidate in current_positions:
@@ -536,7 +556,10 @@ def main():
             
             price_usd = float(current_prices[candidate])
             price_eur = usd_to_eur(price_usd, eur_rate)
-            shares = (cash_per_position - usd_to_eur(COST_PER_TRADE, eur_rate)) / price_eur
+            
+            # Montant à investir (moins les frais)
+            amount_to_invest = cash_per_position - usd_to_eur(COST_PER_TRADE, eur_rate)
+            shares = amount_to_invest / price_eur
             
             sl_pct = get_stop_loss_pct(candidate, defensive)
             stop_price_eur = price_eur * (1 - sl_pct)
@@ -546,66 +569,96 @@ def main():
                 "price_usd": price_usd,
                 "price_eur": price_eur,
                 "shares": shares,
+                "amount_eur": amount_to_invest,
                 "score": valid_scores[candidate],
                 "stop_loss_eur": stop_price_eur,
                 "stop_loss_pct": sl_pct * 100
             })
     
     # ============================================================
-    # EXÉCUTER LES TRADES (SIMULATION)
+    # AFFICHER SIGNAUX AVEC MONTANTS EXACTS
     # ============================================================
     
-    print(f"\n🚨 SIGNAUX")
-    print("-" * 50)
+    print(f"\n{'='*70}")
+    print(f"🚨 SIGNAUX DU JOUR")
+    print(f"{'='*70}")
+    
+    if not signals["sell"] and not signals["buy"]:
+        print("\n✅ Aucun signal aujourd'hui - HOLD")
+    
+    # Ventes
+    if signals["sell"]:
+        print(f"\n🔴 VENTES ({len(signals['sell'])})")
+        print("-"*70)
+        for sell in signals["sell"]:
+            print(f"""
+   {sell['ticker']}
+   ├─ Raison: {sell['reason']}
+   ├─ Prix actuel: {sell['price_eur']:.2f}€ (${sell['price_usd']:.2f})
+   ├─ Actions à vendre: {sell['shares']:.4f}
+   ├─ Montant récupéré: {sell['value_eur']:.2f}€
+   └─ PnL: {sell['pnl_eur']:+.2f}€ ({sell['pnl_pct']:+.1f}%)
+""")
+    
+    # Achats
+    if signals["buy"]:
+        print(f"\n🟢 ACHATS ({len(signals['buy'])})")
+        print("-"*70)
+        for buy in signals["buy"]:
+            print(f"""
+   {buy['ticker']}
+   ┌─────────────────────────────────────────────
+   │ 💶 MONTANT À INVESTIR: {buy['amount_eur']:.2f}€
+   │ 📊 ACTIONS À ACHETER:  {buy['shares']:.4f}
+   └─────────────────────────────────────────────
+   ├─ Prix: {buy['price_eur']:.2f}€ (${buy['price_usd']:.2f})
+   ├─ Score: {buy['score']:.3f}
+   └─ Stop Loss: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)
+""")
+    
+    # ============================================================
+    # EXÉCUTER LES TRADES (MISE À JOUR PORTFOLIO)
+    # ============================================================
     
     # Ventes
     for sell in signals["sell"]:
         ticker = sell["ticker"]
-        print(f"🔴 VENDRE {ticker} @ {sell['price_eur']:.2f}€ | {sell['reason']} | PnL: {sell['pnl_eur']:+.2f}€ ({sell['pnl_pct']:+.1f}%)")
-        
-        # Exécuter la vente
-        proceeds = sell["shares"] * sell["price_eur"] - usd_to_eur(COST_PER_TRADE, eur_rate)
+        proceeds = sell["value_eur"] - usd_to_eur(COST_PER_TRADE, eur_rate)
         portfolio["cash"] += proceeds
         
-        # Logger le trade
-        log_trade(history, "SELL", ticker, sell["price_usd"], sell["shares"], eur_rate,
+        log_trade(history, "SELL", ticker, sell["price_usd"], sell["price_eur"],
+                  sell["shares"], sell["value_eur"], eur_rate,
                   reason=sell["reason"], pnl_eur=sell["pnl_eur"], pnl_pct=sell["pnl_pct"])
         
-        # Supprimer la position
         del portfolio["positions"][ticker]
     
     # Achats
     for buy in signals["buy"]:
         ticker = buy["ticker"]
-        print(f"🟢 ACHETER {ticker} @ {buy['price_eur']:.2f}€ | Score: {buy['score']:.3f} | Stop: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)")
-        
-        # Exécuter l'achat
-        cost = buy["shares"] * buy["price_eur"] + usd_to_eur(COST_PER_TRADE, eur_rate)
+        cost = buy["amount_eur"] + usd_to_eur(COST_PER_TRADE, eur_rate)
         portfolio["cash"] -= cost
         
-        # Ajouter la position
         portfolio["positions"][ticker] = {
             "entry_price_eur": buy["price_eur"],
             "entry_price_usd": buy["price_usd"],
             "entry_date": today,
             "shares": buy["shares"],
+            "amount_invested_eur": buy["amount_eur"],
             "score": buy["score"],
             "peak_price_eur": buy["price_eur"],
             "stop_loss_eur": buy["stop_loss_eur"]
         }
         
-        # Logger le trade
-        log_trade(history, "BUY", ticker, buy["price_usd"], buy["shares"], eur_rate, reason="signal")
-    
-    if not signals["sell"] and not signals["buy"]:
-        print("✅ Aucun signal aujourd'hui - HOLD")
+        log_trade(history, "BUY", ticker, buy["price_usd"], buy["price_eur"],
+                  buy["shares"], buy["amount_eur"], eur_rate, reason="signal")
     
     # ============================================================
     # RÉSUMÉ PORTFOLIO
     # ============================================================
     
-    print(f"\n📊 RÉSUMÉ PORTFOLIO")
-    print("-" * 50)
+    print(f"\n{'='*70}")
+    print(f"📊 RÉSUMÉ PORTFOLIO")
+    print(f"{'='*70}")
     
     total_positions_value = 0
     for ticker, pos in portfolio["positions"].items():
@@ -615,28 +668,30 @@ def main():
             total_positions_value += value
     
     total_value = portfolio["cash"] + total_positions_value
-    total_invested = portfolio["initial_capital"]
     
-    # Calculer le capital investi total (initial + tous les DCA)
+    # Calculer le capital investi total
     start_date = datetime.strptime(portfolio["start_date"], "%Y-%m-%d")
     months_elapsed = (datetime.now().year - start_date.year) * 12 + (datetime.now().month - start_date.month)
-    total_invested += months_elapsed * MONTHLY_DCA
+    total_invested = portfolio["initial_capital"] + max(0, months_elapsed) * MONTHLY_DCA
     
     total_pnl = total_value - total_invested
     total_pnl_pct = (total_value / total_invested - 1) * 100 if total_invested > 0 else 0
     
-    print(f"💵 Cash: {portfolio['cash']:.2f}€")
-    print(f"📈 Positions: {total_positions_value:.2f}€")
-    print(f"💰 TOTAL: {total_value:.2f}€")
-    print(f"📊 Investi: {total_invested:.2f}€")
-    print(f"{'📈' if total_pnl >= 0 else '📉'} PnL: {total_pnl:+.2f}€ ({total_pnl_pct:+.1f}%)")
+    print(f"""
+   💵 Cash disponible:     {portfolio['cash']:.2f}€
+   📈 Valeur positions:    {total_positions_value:.2f}€
+   ────────────────────────────────────
+   💰 VALEUR TOTALE:       {total_value:.2f}€
+   📊 Total investi:       {total_invested:.2f}€
+   {'📈' if total_pnl >= 0 else '📉'} PnL:                  {total_pnl:+.2f}€ ({total_pnl_pct:+.1f}%)
+""")
     
     # Stats historique
     summary = history["summary"]
-    print(f"\n📜 HISTORIQUE")
-    print(f"   Trades: {summary['total_trades']} | Wins: {summary['winning_trades']} | Losses: {summary['losing_trades']}")
-    print(f"   Win Rate: {summary['win_rate']:.1f}%")
-    print(f"   PnL réalisé: {summary['total_pnl_eur']:+.2f}€")
+    if summary["total_trades"] > 0:
+        print(f"   📜 HISTORIQUE")
+        print(f"   Trades: {summary['total_trades']} | Wins: {summary['winning_trades']} | Losses: {summary['losing_trades']}")
+        print(f"   Win Rate: {summary['win_rate']:.1f}% | PnL réalisé: {summary['total_pnl_eur']:+.2f}€")
     
     # Sauvegarder
     save_portfolio(portfolio)
@@ -648,48 +703,39 @@ def main():
     # ============================================================
     
     msg = f"📊 <b>APEX v30.0</b> - {today}\n"
-    msg += f"{regime} | VIX: {current_vix:.1f} | 🎯 {scoring_method}\n"
+    msg += f"{regime} | VIX: {current_vix:.1f}\n"
     msg += f"💱 EUR/USD: {eur_rate:.4f}\n\n"
     
-    # Portfolio
-    msg += f"📂 <b>PORTFOLIO</b>\n"
-    for ticker, pos in portfolio["positions"].items():
-        if ticker in current_prices.index and not pd.isna(current_prices[ticker]):
-            current_price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
-            pnl_pct = (current_price_eur / pos["entry_price_eur"] - 1) * 100
-            emoji = "📈" if pnl_pct > 0 else "📉"
-            msg += f"{emoji} {ticker}: {current_price_eur:.2f}€ ({pnl_pct:+.1f}%)\n"
-    
-    if not portfolio["positions"]:
-        msg += "💵 100% Cash\n"
-    
-    msg += f"\n💰 Total: {total_value:.2f}€ ({total_pnl_pct:+.1f}%)\n"
-    
-    # Signaux
+    # Signaux avec montants
     if signals["sell"] or signals["buy"]:
-        msg += f"\n🚨 <b>SIGNAUX</b>\n"
+        msg += f"🚨 <b>ACTIONS À FAIRE</b>\n\n"
+        
         for sell in signals["sell"]:
-            msg += f"🔴 VENDRE {sell['ticker']} @ {sell['price_eur']:.2f}€\n"
-            msg += f"   └ {sell['reason']} | PnL: {sell['pnl_eur']:+.2f}€\n"
+            msg += f"🔴 <b>VENDRE {sell['ticker']}</b>\n"
+            msg += f"   Actions: {sell['shares']:.4f}\n"
+            msg += f"   Montant: ~{sell['value_eur']:.2f}€\n"
+            msg += f"   Raison: {sell['reason']}\n"
+            msg += f"   PnL: {sell['pnl_eur']:+.2f}€ ({sell['pnl_pct']:+.1f}%)\n\n"
+        
         for buy in signals["buy"]:
-            msg += f"🟢 ACHETER {buy['ticker']} @ {buy['price_eur']:.2f}€\n"
-            msg += f"   └ Stop: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)\n"
+            msg += f"🟢 <b>ACHETER {buy['ticker']}</b>\n"
+            msg += f"   💶 <b>Montant: {buy['amount_eur']:.2f}€</b>\n"
+            msg += f"   📊 <b>Actions: {buy['shares']:.4f}</b>\n"
+            msg += f"   Prix: {buy['price_eur']:.2f}€\n"
+            msg += f"   Stop: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)\n\n"
     else:
-        msg += f"\n✅ Aucun signal - HOLD\n"
+        msg += f"✅ <b>Aucun signal - HOLD</b>\n\n"
     
-    # Top candidats
-    msg += f"\n🏆 <b>TOP 5</b>\n"
-    for i, ticker in enumerate(valid_scores.head(5).index, 1):
-        price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
-        score = valid_scores[ticker]
-        in_portfolio = "✓" if ticker in portfolio["positions"] else ""
-        msg += f"{i}. {ticker} @ {price_eur:.2f}€ ({score:.3f}) {in_portfolio}\n"
+    # Portfolio
+    msg += f"💰 <b>PORTFOLIO</b>\n"
+    msg += f"Valeur: {total_value:.2f}€ ({total_pnl_pct:+.1f}%)\n"
+    msg += f"Cash: {portfolio['cash']:.2f}€\n"
     
     send_telegram(msg)
     
-    print(f"\n{'='*60}")
+    print(f"\n{'='*70}")
     print("✅ APEX v30.0 terminé")
-    print(f"{'='*60}")
+    print(f"{'='*70}")
 
 if __name__ == "__main__":
     main()
