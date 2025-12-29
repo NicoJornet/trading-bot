@@ -1,52 +1,40 @@
-name: APEX v30.0 Hybride Daily
+name: APEX v30.0 Trading Bot
 
 on:
   schedule:
-    # 7h00 Paris = 6h00 UTC (hiver) / 5h00 UTC (été)
-    - cron: '0 6 * * 1-5'
-  
-  workflow_dispatch:
-    # Permet l'exécution manuelle
+    # 7h00 Paris = 6h00 UTC (heure d'hiver)
+    # 7h00 Paris = 5h00 UTC (heure d'été)
+    - cron: '0 6 * * 1-5'  # Lundi-Vendredi à 6h UTC
+  workflow_dispatch:  # Permet de lancer manuellement
 
 jobs:
-  apex-analysis:
+  trading:
     runs-on: ubuntu-latest
     
     steps:
-      - name: 📥 Checkout repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: 📂 List files (debug)
-        run: |
-          echo "📂 Contenu du repo:"
-          ls -la
-          echo ""
-          echo "📂 Recherche des fichiers Python:"
-          find . -name "*.py" -type f
-
-      - name: 🐍 Setup Python
+      
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: 📦 Install dependencies
+      
+      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install yfinance pandas numpy requests
-
-      - name: 🚀 Run APEX v30.0 Hybride
+      
+      - name: Run APEX Trading Bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Chercher le fichier Python
-          if [ -f "apex_v30_hybride.py" ]; then
-            python apex_v30_hybride.py
-          elif [ -f "scripts/apex_v30_hybride.py" ]; then
-            python scripts/apex_v30_hybride.py
-          else
-            echo "❌ Fichier apex_v30_hybride.py non trouvé!"
-            echo "📂 Fichiers disponibles:"
-            find . -name "*.py" -type f
-            exit 1
-          fi
+          python apex_v30_production.py
+      
+      - name: Commit portfolio updates
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add portfolio.json trades_history.json
+          git diff --staged --quiet || git commit -m "📊 Update portfolio - $(date +'%Y-%m-%d')"
+          git push
