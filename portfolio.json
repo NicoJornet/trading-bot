@@ -2,9 +2,37 @@
     "currency": "EUR",
     "initial_capital": 1500,
     "monthly_dca": 100,
-    "cash": 1500,
+    "cash": 0.0,
     "start_date": "2025-12-30",
     "last_dca_date": "2025-12-30",
-    "positions": {},
-    "last_updated": "2025-12-30 00:00"
+    "positions": {
+        "MU": {
+            "entry_price_eur": 242.09998548447612,
+            "entry_price_usd": 284.7900085449219,
+            "entry_date": "2025-12-29",
+            "shares": 2.0617510529951835,
+            "score": 0.81196897672672,
+            "peak_price_eur": 242.09998548447612,
+            "stop_loss_eur": 213.047987226339
+        },
+        "SLV": {
+            "entry_price_eur": 60.45911414019103,
+            "entry_price_usd": 71.12000274658203,
+            "entry_date": "2025-12-29",
+            "shares": 8.255990963501738,
+            "score": 0.6989966963592151,
+            "peak_price_eur": 60.45911414019103,
+            "stop_loss_eur": 49.57647359495665
+        },
+        "LRCX": {
+            "entry_price_eur": 151.3773127388834,
+            "entry_price_usd": 178.07000732421875,
+            "entry_date": "2025-12-29",
+            "shares": 3.297389093329595,
+            "score": 0.38987891494605087,
+            "peak_price_eur": 151.3773127388834,
+            "stop_loss_eur": 133.2120352102174
+        }
+    },
+    "last_updated": "2025-12-29 12:34"
 }

@@ -1,13 +1,56 @@
 {
-    "trades": [],
+    "trades": [
+        {
+            "id": 1,
+            "date": "2025-12-29",
+            "time": "12:34",
+            "action": "BUY",
+            "ticker": "MU",
+            "shares": 2.0618,
+            "price_usd": 284.79,
+            "price_eur": 242.1,
+            "value_eur": 499.15,
+            "fee_eur": 0.85,
+            "eur_usd_rate": 1.1763,
+            "reason": "signal"
+        },
+        {
+            "id": 2,
+            "date": "2025-12-29",
+            "time": "12:34",
+            "action": "BUY",
+            "ticker": "SLV",
+            "shares": 8.256,
+            "price_usd": 71.12,
+            "price_eur": 60.46,
+            "value_eur": 499.15,
+            "fee_eur": 0.85,
+            "eur_usd_rate": 1.1763,
+            "reason": "signal"
+        },
+        {
+            "id": 3,
+            "date": "2025-12-29",
+            "time": "12:34",
+            "action": "BUY",
+            "ticker": "LRCX",
+            "shares": 3.2974,
+            "price_usd": 178.07,
+            "price_eur": 151.38,
+            "value_eur": 499.15,
+            "fee_eur": 0.85,
+            "eur_usd_rate": 1.1763,
+            "reason": "signal"
+        }
+    ],
     "summary": {
-        "total_trades": 0,
-        "buys": 0,
+        "total_trades": 3,
+        "buys": 3,
         "sells": 0,
         "winning_trades": 0,
         "losing_trades": 0,
         "total_pnl_eur": 0,
-        "total_fees_eur": 0,
+        "total_fees_eur": 2.55,
         "best_trade_eur": 0,
         "worst_trade_eur": 0,
         "win_rate": 0
