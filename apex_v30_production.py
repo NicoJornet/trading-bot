@@ -783,7 +783,32 @@ def main():
     else:
         msg += f"✅ <b>Aucun signal - HOLD</b>\n\n"
     
-    # Portfolio
+    # MES POSITIONS avec classement
+    msg += f"📂 <b>MES POSITIONS</b>\n"
+    for ticker, pos in portfolio["positions"].items():
+        if ticker in current_prices.index and not pd.isna(current_prices[ticker]):
+            current_price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
+            entry_price_eur = pos["entry_price_eur"]
+            shares = pos["shares"]
+            value_eur = current_price_eur * shares
+            pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
+            pnl_eur = (current_price_eur - entry_price_eur) * shares
+            
+            # Trouver le classement dans valid_scores
+            if ticker in valid_scores.index:
+                rank = list(valid_scores.index).index(ticker) + 1
+                score = valid_scores[ticker]
+                rank_str = f"#{rank}"
+            else:
+                rank_str = "❌ Hors classement"
+                score = 0
+            
+            emoji = "📈" if pnl_pct >= 0 else "📉"
+            msg += f"{emoji} {ticker} ({rank_str}) @ {current_price_eur:.2f}€\n"
+            msg += f"   PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%) | Score: {score:.3f}\n"
+    msg += f"\n"
+    
+    # Portfolio total
     msg += f"💰 <b>PORTFOLIO</b>\n"
     msg += f"Valeur: {total_value:.2f}€ ({total_pnl_pct:+.1f}%)\n"
     msg += f"Cash: {portfolio['cash']:.2f}€\n\n"
