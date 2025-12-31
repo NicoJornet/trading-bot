@@ -1,58 +1,38 @@
 {
-    "trades": [
-        {
-            "id": 1,
-            "date": "2025-12-29",
-            "time": "12:34",
-            "action": "BUY",
-            "ticker": "MU",
+    "currency": "EUR",
+    "initial_capital": 1500,
+    "monthly_dca": 100,
+    "cash": 0,
+    "start_date": "2025-12-29",
+    "last_dca_date": "2025-12-29",
+    "positions": {
+        "MU": {
+            "entry_price_eur": 244.20,
+            "entry_price_usd": 284.79,
+            "entry_date": "2025-12-29",
             "shares": 2.0618,
-            "price_usd": 284.79,
-            "price_eur": 244.2,
-            "value_eur": 499.15,
-            "fee_eur": 0.85,
-            "eur_usd_rate": 1.1763,
-            "reason": "signal"
+            "amount_invested_eur": 499.15,
+            "peak_price_eur": 244.20,
+            "stop_loss_eur": 214.90
         },
-        {
-            "id": 2,
-            "date": "2025-12-29",
-            "time": "12:34",
-            "action": "BUY",
-            "ticker": "SLV",
+        "SLV": {
+            "entry_price_eur": 58.88,
+            "entry_price_usd": 71.12,
+            "entry_date": "2025-12-29",
             "shares": 8.256,
-            "price_usd": 71.12,
-            "price_eur": 58.88,
-            "value_eur": 499.15,
-            "fee_eur": 0.85,
-            "eur_usd_rate": 1.1763,
-            "reason": "signal"
+            "amount_invested_eur": 499.15,
+            "peak_price_eur": 58.88,
+            "stop_loss_eur": 48.28
         },
-        {
-            "id": 3,
-            "date": "2025-12-29",
-            "time": "12:34",
-            "action": "BUY",
-            "ticker": "LRCX",
+        "LRCX": {
+            "entry_price_eur": 149.42,
+            "entry_price_usd": 178.07,
+            "entry_date": "2025-12-29",
             "shares": 3.2974,
-            "price_usd": 178.07,
-            "price_eur": 149.42,
-            "value_eur": 499.15,
-            "fee_eur": 0.85,
-            "eur_usd_rate": 1.1763,
-            "reason": "signal"
+            "amount_invested_eur": 499.15,
+            "peak_price_eur": 149.42,
+            "stop_loss_eur": 131.49
         }
-    ],
-    "summary": {
-        "total_trades": 3,
-        "buys": 3,
-        "sells": 0,
-        "winning_trades": 0,
-        "losing_trades": 0,
-        "total_pnl_eur": 0,
-        "total_fees_eur": 2.55,
-        "best_trade_eur": 0,
-        "worst_trade_eur": 0,
-        "win_rate": 0
-    }
+    },
+    "last_updated": "2025-12-29 12:34"
 }
