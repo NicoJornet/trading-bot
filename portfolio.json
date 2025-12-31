@@ -7,14 +7,14 @@
     "last_dca_date": "2025-12-29",
     "positions": {
         "MU": {
-            "entry_price_eur": 244.20,
+            "entry_price_eur": 244.2,
             "entry_price_usd": 286.69,
             "entry_date": "2025-12-29",
             "shares": 2.043407,
-            "amount_invested_eur": 499.00,
+            "amount_invested_eur": 499.0,
             "score": 0.812,
             "peak_price_eur": 249.23,
-            "stop_loss_eur": 214.90
+            "stop_loss_eur": 214.9
         },
         "SLV": {
             "entry_price_eur": 58.88,
@@ -32,10 +32,10 @@
             "entry_date": "2025-12-29",
             "shares": 3.339579,
             "amount_invested_eur": 499.15,
-            "score": 0.390,
+            "score": 0.39,
             "peak_price_eur": 149.42,
             "stop_loss_eur": 131.49
         }
     },
-    "last_updated": "2025-12-31 12:00"
+    "last_updated": "2025-12-31 10:49"
 }
