@@ -8,8 +8,8 @@
             "ticker": "MU",
             "shares": 2.0475,
             "price_usd": 286.69,
-            "price_eur": 244.20,
-            "amount_eur": 500.00,
+            "price_eur": 244.2,
+            "amount_eur": 500.0,
             "fee_eur": 0,
             "eur_usd_rate": 1.174,
             "reason": "signal"
@@ -23,7 +23,7 @@
             "shares": 8.4918,
             "price_usd": 69.12,
             "price_eur": 58.88,
-            "amount_eur": 500.00,
+            "amount_eur": 500.0,
             "fee_eur": 0,
             "eur_usd_rate": 1.174,
             "reason": "signal"
@@ -37,7 +37,7 @@
             "shares": 3.3463,
             "price_usd": 175.41,
             "price_eur": 149.42,
-            "amount_eur": 500.00,
+            "amount_eur": 500.0,
             "fee_eur": 0,
             "eur_usd_rate": 1.174,
             "reason": "signal"
