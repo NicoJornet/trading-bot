@@ -3,36 +3,39 @@
     "initial_capital": 1500,
     "monthly_dca": 100,
     "cash": 0.0,
-    "start_date": "2025-12-30",
-    "last_dca_date": "2025-12-30",
+    "start_date": "2025-12-29",
+    "last_dca_date": "2025-12-29",
     "positions": {
         "MU": {
-            "entry_price_eur": 242.09998548447612,
-            "entry_price_usd": 284.7900085449219,
+            "entry_price_eur": 244.20,
+            "entry_price_usd": 286.69,
             "entry_date": "2025-12-29",
-            "shares": 2.0617510529951835,
-            "score": 0.81196897672672,
-            "peak_price_eur": 249.86125949122885,
-            "stop_loss_eur": 213.047987226339
+            "shares": 2.043407,
+            "amount_invested_eur": 499.00,
+            "score": 0.812,
+            "peak_price_eur": 249.23,
+            "stop_loss_eur": 214.90
         },
         "SLV": {
-            "entry_price_eur": 60.45911414019103,
-            "entry_price_usd": 71.12000274658203,
+            "entry_price_eur": 58.88,
+            "entry_price_usd": 69.12,
             "entry_date": "2025-12-29",
-            "shares": 8.255990963501738,
-            "score": 0.6989966963592151,
-            "peak_price_eur": 60.4875599467094,
-            "stop_loss_eur": 49.57647359495665
+            "shares": 8.474432,
+            "amount_invested_eur": 499.08,
+            "score": 0.699,
+            "peak_price_eur": 58.88,
+            "stop_loss_eur": 48.28
         },
         "LRCX": {
-            "entry_price_eur": 151.3773127388834,
-            "entry_price_usd": 178.07000732421875,
+            "entry_price_eur": 149.42,
+            "entry_price_usd": 175.41,
             "entry_date": "2025-12-29",
-            "shares": 3.297389093329595,
-            "score": 0.38987891494605087,
-            "peak_price_eur": 151.44853524703092,
-            "stop_loss_eur": 133.2120352102174
+            "shares": 3.339579,
+            "amount_invested_eur": 499.15,
+            "score": 0.390,
+            "peak_price_eur": 149.42,
+            "stop_loss_eur": 131.49
         }
     },
-    "last_updated": "2025-12-31 10:37"
+    "last_updated": "2025-12-31 12:00"
 }
