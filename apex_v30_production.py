@@ -627,6 +627,53 @@ def main():
 """)
     
     # ============================================================
+    # TOP 5 TENDANCES
+    # ============================================================
+    
+    print(f"\n{'='*70}")
+    print(f"🏆 TOP 5 TENDANCES (score momentum)")
+    print(f"{'='*70}")
+    
+    top5 = valid_scores.head(5)
+    current_positions = list(portfolio["positions"].keys())
+    
+    print(f"\n{'Rang':<6} {'Ticker':<8} {'Prix €':<12} {'Score':<10} {'Mom 3M':<10} {'Statut'}")
+    print("-"*70)
+    
+    for i, (ticker, score) in enumerate(top5.items(), 1):
+        price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
+        
+        # Calculer momentum 3 mois pour affichage
+        if idx >= 63:
+            mom_3m = (float(prices[ticker].iloc[idx]) / float(prices[ticker].iloc[idx - 63]) - 1) * 100
+        else:
+            mom_3m = 0
+        
+        # Statut
+        if ticker in current_positions:
+            statut = "📂 EN PORTEFEUILLE"
+        elif ticker in [b["ticker"] for b in signals["buy"]]:
+            statut = "🟢 ACHAT SIGNAL"
+        else:
+            statut = "👀 À surveiller"
+        
+        print(f"   {i:<4} {ticker:<8} {price_eur:>8.2f}€    {score:>6.3f}    {mom_3m:>+6.1f}%    {statut}")
+    
+    # Top 5 data pour Telegram
+    top5_data = []
+    for ticker, score in top5.items():
+        price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
+        in_portfolio = ticker in current_positions
+        in_buy = ticker in [b["ticker"] for b in signals["buy"]]
+        top5_data.append({
+            "ticker": ticker,
+            "price_eur": price_eur,
+            "score": score,
+            "in_portfolio": in_portfolio,
+            "in_buy": in_buy
+        })
+    
+    # ============================================================
     # EXÉCUTER LES TRADES (MISE À JOUR PORTFOLIO)
     # ============================================================
     
@@ -739,7 +786,18 @@ def main():
     # Portfolio
     msg += f"💰 <b>PORTFOLIO</b>\n"
     msg += f"Valeur: {total_value:.2f}€ ({total_pnl_pct:+.1f}%)\n"
-    msg += f"Cash: {portfolio['cash']:.2f}€\n"
+    msg += f"Cash: {portfolio['cash']:.2f}€\n\n"
+    
+    # Top 5 Tendances
+    msg += f"🏆 <b>TOP 5 TENDANCES</b>\n"
+    for i, t in enumerate(top5_data, 1):
+        if t["in_portfolio"]:
+            marker = "📂"
+        elif t["in_buy"]:
+            marker = "🟢"
+        else:
+            marker = "👀"
+        msg += f"{i}. {t['ticker']} @ {t['price_eur']:.2f}€ ({t['score']:.3f}) {marker}\n"
     
     send_telegram(msg)
     
