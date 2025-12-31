@@ -559,17 +559,9 @@ def main():
             price_usd = float(current_prices[candidate])
             price_eur = usd_to_eur(price_usd, eur_rate)
             
-            # Calculer le nombre d'ACTIONS ENTIÈRES
-            max_shares_possible = cash_per_position / price_eur
-            shares = int(max_shares_possible)  # Arrondi à l'entier inférieur
-            
-            # Vérifier qu'on peut acheter au moins 1 action
-            if shares < 1:
-                print(f"   ⚠️ {candidate}: Prix trop élevé ({price_eur:.2f}€) - Pas assez de cash")
-                continue
-            
-            # Montant réel à investir
-            amount_to_invest = shares * price_eur
+            # Calculer le nombre d'actions (fractionnées)
+            amount_to_invest = cash_per_position - usd_to_eur(COST_PER_TRADE, eur_rate)
+            shares = amount_to_invest / price_eur
             
             sl_pct = get_stop_loss_pct(candidate, defensive)
             stop_price_eur = price_eur * (1 - sl_pct)
@@ -578,7 +570,7 @@ def main():
                 "ticker": candidate,
                 "price_usd": price_usd,
                 "price_eur": price_eur,
-                "shares": shares,  # Maintenant un entier
+                "shares": shares,
                 "amount_eur": amount_to_invest,
                 "score": valid_scores[candidate],
                 "stop_loss_eur": stop_price_eur,
@@ -619,11 +611,11 @@ def main():
    {buy['ticker']}
    ┌─────────────────────────────────────────────
    │ 💶 MONTANT: {buy['amount_eur']:.2f}€ + 1€ frais
-   │ 📊 ACTIONS: {buy['shares']} (entières)
+   │ 📊 ACTIONS: {buy['shares']:.4f}
    └─────────────────────────────────────────────
    ├─ Prix: {buy['price_eur']:.2f}€ (${buy['price_usd']:.2f})
    ├─ Score: {buy['score']:.3f}
-   └─ 🔔 STOP LOSS TR: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)
+   └─ Stop Loss: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)
 """)
     
     # ============================================================
@@ -777,9 +769,9 @@ def main():
         for buy in signals["buy"]:
             msg += f"🟢 <b>ACHETER {buy['ticker']}</b>\n"
             msg += f"   💶 Montant: <b>{buy['amount_eur']:.2f}€</b> + 1€\n"
-            msg += f"   📊 Actions: <b>{buy['shares']}</b> (entières)\n"
+            msg += f"   📊 Actions: <b>{buy['shares']:.4f}</b>\n"
             msg += f"   Prix: {buy['price_eur']:.2f}€\n"
-            msg += f"   🔔 <b>STOP LOSS: {buy['stop_loss_eur']:.2f}€</b> (-{buy['stop_loss_pct']:.0f}%)\n\n"
+            msg += f"   Stop: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)\n\n"
     else:
         msg += f"✅ <b>Aucun signal - HOLD</b>\n\n"
     
