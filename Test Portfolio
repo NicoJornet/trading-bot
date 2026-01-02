@@ -1,0 +1,58 @@
+"""
+TEST SIMPLE - Vérifie que portfolio.json est bien lu
+"""
+
+import json
+import os
+
+PORTFOLIO_FILE = "portfolio.json"
+
+def main():
+    print("="*60)
+    print("🔍 TEST DE LECTURE PORTFOLIO.JSON")
+    print("="*60)
+    
+    # Vérifier si le fichier existe
+    if not os.path.exists(PORTFOLIO_FILE):
+        print(f"❌ Fichier {PORTFOLIO_FILE} non trouvé!")
+        print(f"   Répertoire actuel: {os.getcwd()}")
+        print(f"   Fichiers présents: {os.listdir('.')}")
+        return
+    
+    print(f"✅ Fichier {PORTFOLIO_FILE} trouvé")
+    
+    # Lire le fichier
+    with open(PORTFOLIO_FILE, 'r') as f:
+        portfolio = json.load(f)
+    
+    print(f"\n📊 CONTENU DU PORTFOLIO:")
+    print(f"   Cash: {portfolio.get('cash', 'N/A')}€")
+    print(f"   Positions: {len(portfolio.get('positions', {}))}")
+    
+    print(f"\n📂 DÉTAIL DES POSITIONS:")
+    for ticker, pos in portfolio.get("positions", {}).items():
+        print(f"\n   {ticker}:")
+        print(f"      entry_price_eur: {pos.get('entry_price_eur', 'N/A')}")
+        print(f"      shares: {pos.get('shares', 'N/A')}")
+        print(f"      pyramided: {pos.get('pyramided', 'N/A')}")
+        print(f"      days_zero_score: {pos.get('days_zero_score', 'N/A')} ← IMPORTANT")
+    
+    # Test spécifique pour SLV
+    print(f"\n🎯 TEST SPÉCIFIQUE SLV:")
+    if "SLV" in portfolio.get("positions", {}):
+        slv = portfolio["positions"]["SLV"]
+        days_zero = slv.get("days_zero_score", 0)
+        print(f"   days_zero_score = {days_zero}")
+        
+        if days_zero > 0:
+            warning = f"⚠️{days_zero}j"
+            print(f"   ✅ Warning devrait afficher: {warning}")
+        else:
+            print(f"   ❌ days_zero_score est 0 ou absent!")
+    else:
+        print("   ❌ SLV non trouvé dans le portfolio!")
+    
+    print("\n" + "="*60)
+
+if __name__ == "__main__":
+    main()
