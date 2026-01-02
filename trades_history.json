@@ -47,6 +47,7 @@
         "total_trades": 3,
         "buys": 3,
         "sells": 0,
+        "pyramids": 0,
         "winning_trades": 0,
         "losing_trades": 0,
         "total_pnl_eur": 0,
