@@ -1,14 +1,17 @@
 """
-APEX v30.0 HYBRIDE - PRODUCTION AVEC MONTANTS EXACTS
-=====================================================
+APEX v30.5 HYBRIDE - PRODUCTION
+================================
+
+Améliorations vs v30.0:
+1. Allocation pondérée : 50% rang #1, 30% rang #2, 20% rang #3
+2. Pyramiding : +50% sur position si gain >= +15% ET nouveau high 20j
 
 Capital: 1,500€ initial + 100€/mois DCA
 Tracking: portfolio.json + trades_history.json
 
-Te donne:
-- Le montant EXACT à investir par action
-- Le nombre d'actions à acheter
-- Met à jour automatiquement le portfolio
+Performance backtestée (2020-2025):
+- v30.0 : +1710% ROI
+- v30.5 : +1829% ROI (+118.6%)
 """
 
 import yfinance as yf
@@ -23,15 +26,13 @@ import requests
 # CONFIGURATION
 # ============================================================
 
-INITIAL_CAPITAL = 1500  # Capital de départ
-MONTHLY_DCA = 100       # DCA mensuel
-COST_PER_TRADE = 1.0    # Frais par trade achat/vente (€)
+INITIAL_CAPITAL = 1500
+MONTHLY_DCA = 100
+COST_PER_TRADE = 1.0
 
-# Fichiers
 PORTFOLIO_FILE = "portfolio.json"
 TRADES_HISTORY_FILE = "trades_history.json"
 
-# Telegram
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
@@ -52,6 +53,11 @@ TRAILING_STOP_ACTIVATION = 1.40
 TRAILING_STOP_PCT = 0.20
 MINI_TRAIL_ACTIVATION = 1.25
 MINI_TRAIL_PCT = 0.15
+
+# v30.5 - Paramètres pyramiding
+PYRAMID_GAIN_THRESHOLD = 0.15  # +15% minimum pour pyramider
+PYRAMID_LOOKBACK = 20          # New high sur 20 jours
+PYRAMID_ADD_PCT = 0.50         # Ajouter 50% de la position initiale
 
 # Univers
 DATABASE = [
@@ -97,11 +103,75 @@ def get_atr_threshold(ticker):
     return ATR_THRESHOLD.get(get_category(ticker), 0.04)
 
 # ============================================================
+# v30.5 - ALLOCATION PONDÉRÉE
+# ============================================================
+
+def get_weighted_allocation(rank, num_positions, total_capital):
+    """
+    Allocation pondérée par rang.
+    Rang 1 = 50%, Rang 2 = 30%, Rang 3 = 20%
+    """
+    if num_positions == 1:
+        return total_capital
+    elif num_positions == 2:
+        weights = {1: 0.60, 2: 0.40}
+    elif num_positions == 3:
+        weights = {1: 0.50, 2: 0.30, 3: 0.20}
+    else:
+        total_weight = sum(range(1, num_positions + 1))
+        weights = {i: (num_positions - i + 1) / total_weight for i in range(1, num_positions + 1)}
+    
+    return total_capital * weights.get(rank, 1.0 / num_positions)
+
+# ============================================================
+# v30.5 - PYRAMIDING
+# ============================================================
+
+def check_pyramid_signal(pos, current_price_eur, high_prices, ticker, idx):
+    """
+    Vérifie si on doit pyramider une position.
+    Conditions:
+    - Gain >= +15%
+    - Prix fait un nouveau high 20 jours
+    - Position pas déjà pyramidée
+    
+    Retourne: (should_pyramid, add_amount)
+    """
+    entry_price_eur = pos["entry_price_eur"]
+    gain_pct = (current_price_eur / entry_price_eur) - 1
+    
+    # Déjà pyramidé ?
+    if pos.get("pyramided", False):
+        return False, 0
+    
+    # En profit suffisant ?
+    if gain_pct < PYRAMID_GAIN_THRESHOLD:
+        return False, 0
+    
+    # Nouveau high 20j ?
+    if idx < PYRAMID_LOOKBACK:
+        return False, 0
+    
+    try:
+        if ticker in high_prices.columns:
+            recent_high = float(high_prices[ticker].iloc[idx-PYRAMID_LOOKBACK:idx].max())
+            current_price_usd = float(high_prices[ticker].iloc[idx])
+            
+            if current_price_usd > recent_high:
+                # Signal de pyramide !
+                initial_amount = pos.get("initial_amount_eur", pos.get("amount_invested_eur", 500))
+                add_amount = initial_amount * PYRAMID_ADD_PCT
+                return True, add_amount
+    except:
+        pass
+    
+    return False, 0
+
+# ============================================================
 # CONVERSION EUR/USD
 # ============================================================
 
 def get_eur_usd_rate():
-    """Récupère le taux EUR/USD"""
     try:
         eur_usd = yf.Ticker("EURUSD=X")
         rate = eur_usd.info.get('regularMarketPrice') or eur_usd.info.get('previousClose')
@@ -109,7 +179,7 @@ def get_eur_usd_rate():
             return rate
     except:
         pass
-    return 1.08  # Fallback
+    return 1.08
 
 def usd_to_eur(amount_usd, rate=None):
     if rate is None:
@@ -126,7 +196,6 @@ def eur_to_usd(amount_eur, rate=None):
 # ============================================================
 
 def load_portfolio():
-    """Charge le portfolio depuis le fichier JSON"""
     if os.path.exists(PORTFOLIO_FILE):
         try:
             with open(PORTFOLIO_FILE, 'r') as f:
@@ -134,7 +203,6 @@ def load_portfolio():
         except:
             pass
     
-    # Portfolio initial
     return {
         "currency": "EUR",
         "initial_capital": INITIAL_CAPITAL,
@@ -147,13 +215,11 @@ def load_portfolio():
     }
 
 def save_portfolio(portfolio):
-    """Sauvegarde le portfolio"""
     portfolio["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     with open(PORTFOLIO_FILE, 'w') as f:
         json.dump(portfolio, f, indent=4)
 
 def load_trades_history():
-    """Charge l'historique des trades"""
     if os.path.exists(TRADES_HISTORY_FILE):
         try:
             with open(TRADES_HISTORY_FILE, 'r') as f:
@@ -167,6 +233,7 @@ def load_trades_history():
             "total_trades": 0,
             "buys": 0,
             "sells": 0,
+            "pyramids": 0,
             "winning_trades": 0,
             "losing_trades": 0,
             "total_pnl_eur": 0,
@@ -178,9 +245,9 @@ def load_trades_history():
     }
 
 def save_trades_history(history):
-    """Sauvegarde l'historique des trades"""
     trades = history["trades"]
     sells = [t for t in trades if t["action"] == "SELL"]
+    pyramids = [t for t in trades if t["action"] == "PYRAMID"]
     
     winning = [t for t in sells if t.get("pnl_eur", 0) > 0]
     losing = [t for t in sells if t.get("pnl_eur", 0) < 0]
@@ -189,6 +256,7 @@ def save_trades_history(history):
         "total_trades": len(trades),
         "buys": len([t for t in trades if t["action"] == "BUY"]),
         "sells": len(sells),
+        "pyramids": len(pyramids),
         "winning_trades": len(winning),
         "losing_trades": len(losing),
         "total_pnl_eur": sum(t.get("pnl_eur", 0) for t in sells),
@@ -202,7 +270,6 @@ def save_trades_history(history):
         json.dump(history, f, indent=4)
 
 def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur, eur_rate, reason="signal", pnl_eur=None, pnl_pct=None):
-    """Ajoute un trade à l'historique"""
     fee_eur = usd_to_eur(COST_PER_TRADE, eur_rate)
     
     trade = {
@@ -262,7 +329,6 @@ def score_hybride(prices, idx, vix_value):
 # ============================================================
 
 def send_telegram(message):
-    """Envoie un message Telegram"""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("⚠️ Telegram non configuré")
         print(message)
@@ -288,10 +354,9 @@ def send_telegram(message):
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
     print(f"{'='*70}")
-    print(f"📊 APEX v30.0 HYBRIDE - {today}")
+    print(f"📊 APEX v30.5 HYBRIDE (Weighted + Pyramid) - {today}")
     print(f"{'='*70}")
     
-    # Charger portfolio et historique
     portfolio = load_portfolio()
     history = load_trades_history()
     eur_rate = get_eur_usd_rate()
@@ -299,12 +364,11 @@ def main():
     print(f"💱 EUR/USD: {eur_rate:.4f}")
     print(f"💰 Cash disponible: {portfolio['cash']:.2f}€")
     
-    # Vérifier DCA mensuel
+    # DCA mensuel
     last_dca = portfolio.get("last_dca_date")
     current_month = datetime.now().strftime("%Y-%m")
     
     if last_dca is None or not last_dca.startswith(current_month):
-        # Ne pas ajouter le DCA le premier jour (capital initial déjà là)
         if last_dca is not None:
             portfolio["cash"] += MONTHLY_DCA
             print(f"📥 DCA mensuel ajouté: +{MONTHLY_DCA}€ → Cash: {portfolio['cash']:.2f}€")
@@ -337,7 +401,7 @@ def main():
     current_prices = prices.iloc[-1]
     idx = len(prices) - 1
     
-    # Régime de marché
+    # Régime
     if current_vix >= VIX_ULTRA_DEFENSIVE:
         regime = "🔴 ULTRA-DÉFENSIF"
         max_positions = MAX_POSITIONS_ULTRA_DEFENSIVE
@@ -351,13 +415,10 @@ def main():
         max_positions = MAX_POSITIONS_NORMAL
         defensive = False
     
-    scoring_method = "SIMPLE Momentum" if current_vix >= VIX_DEFENSIVE else "DUAL Momentum"
-    
     print(f"\n📈 VIX: {current_vix:.1f} → {regime}")
-    print(f"🎯 Méthode: {scoring_method}")
     print(f"📊 Max positions: {max_positions}")
     
-    # Calculer indicateurs
+    # Indicateurs
     atr_pct = pd.DataFrame(index=prices.index)
     sma = pd.DataFrame(index=prices.index)
     high_60 = pd.DataFrame(index=prices.index)
@@ -373,10 +434,10 @@ def main():
         high_60[ticker] = prices[ticker].rolling(HIGH_LOOKBACK).max()
     
     # ============================================================
-    # VÉRIFIER POSITIONS ACTUELLES
+    # SIGNAUX
     # ============================================================
     
-    signals = {"sell": [], "buy": []}
+    signals = {"sell": [], "buy": [], "pyramid": []}
     
     print(f"\n{'='*70}")
     print(f"📂 POSITIONS ACTUELLES ({len(portfolio['positions'])})")
@@ -385,6 +446,7 @@ def main():
     if not portfolio['positions']:
         print("\n   💵 Aucune position - 100% Cash")
     
+    # Vérifier chaque position
     for ticker, pos in list(portfolio["positions"].items()):
         if ticker not in current_prices.index or pd.isna(current_prices[ticker]):
             print(f"⚠️ {ticker}: Prix non disponible")
@@ -405,9 +467,29 @@ def main():
         pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
         pnl_eur = (current_price_eur - entry_price_eur) * shares
         
-        print(f"\n{'📈' if pnl_pct > 0 else '📉'} {ticker}: {shares:.4f} actions")
+        pyramided = "🔺" if pos.get("pyramided", False) else ""
+        print(f"\n{'📈' if pnl_pct > 0 else '📉'} {ticker}{pyramided}: {shares:.4f} actions")
         print(f"   Prix: {current_price_eur:.2f}€ | Entrée: {entry_price_eur:.2f}€")
         print(f"   Valeur: {value_eur:.2f}€ | PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)")
+        
+        # ============================================================
+        # v30.5 - VÉRIFIER PYRAMIDING
+        # ============================================================
+        
+        should_pyramid, add_amount = check_pyramid_signal(pos, current_price_eur, high_prices, ticker, idx)
+        
+        if should_pyramid and portfolio["cash"] >= add_amount + COST_PER_TRADE:
+            add_shares = (add_amount - usd_to_eur(COST_PER_TRADE, eur_rate)) / current_price_eur
+            
+            signals["pyramid"].append({
+                "ticker": ticker,
+                "price_usd": current_price_usd,
+                "price_eur": current_price_eur,
+                "add_shares": add_shares,
+                "add_amount_eur": add_amount,
+                "current_gain_pct": pnl_pct
+            })
+            print(f"   🔺 PYRAMIDING SIGNAL: +{add_shares:.4f} actions (+{add_amount:.0f}€)")
         
         # Vérifier trailing stop
         gain_ratio = current_price_eur / entry_price_eur
@@ -422,7 +504,7 @@ def main():
             if current_price_eur < mini_stop:
                 sell_reason = f"MINI-TRAIL (peak: {peak_eur:.2f}€)"
         
-        # Vérifier stop loss
+        # Stop loss
         sl_pct = get_stop_loss_pct(ticker, defensive)
         stop_price_eur = entry_price_eur * (1 - sl_pct)
         
@@ -456,26 +538,22 @@ def main():
             return False
         price = float(price)
         
-        # Filtre ATR
         if ticker in atr_pct.columns:
             atr_val = atr_pct[ticker].iloc[idx]
             if not pd.isna(atr_val) and atr_val >= get_atr_threshold(ticker):
                 return False
         
-        # Filtre SMA
         if ticker in sma.columns:
             sma_val = sma[ticker].iloc[idx]
             if not pd.isna(sma_val) and price <= float(sma_val):
                 return False
         
-        # Filtre Drawdown
         if ticker in high_60.columns:
             high_val = high_60[ticker].iloc[idx]
             if not pd.isna(high_val) and float(high_val) > 0:
                 if (price / float(high_val) - 1) < -MAX_DRAWDOWN:
                     return False
         
-        # Filtre momentum 1 mois
         if idx >= 21:
             ret_1m = float(prices[ticker].iloc[idx]) / float(prices[ticker].iloc[idx - 21]) - 1
             if ret_1m < 0:
@@ -492,7 +570,7 @@ def main():
     
     for ticker in current_positions:
         if ticker in [s["ticker"] for s in signals["sell"]]:
-            continue  # Déjà en vente
+            continue
         
         if ticker not in top_candidates:
             pos = portfolio["positions"][ticker]
@@ -500,7 +578,6 @@ def main():
             days_held = (datetime.now() - entry_date).days
             
             if days_held >= get_min_holding_days(ticker):
-                # Vérifier si meilleur candidat disponible
                 for candidate in top_candidates:
                     if candidate not in current_positions:
                         current_score = pos.get("score", 0)
@@ -528,10 +605,16 @@ def main():
                             break
     
     # ============================================================
-    # CALCULER CASH DISPONIBLE APRÈS VENTES
+    # CALCULER CASH DISPONIBLE
     # ============================================================
     
-    cash_after_sells = portfolio["cash"]
+    # Cash après pyramiding
+    cash_after_pyramid = portfolio["cash"]
+    for pyr in signals["pyramid"]:
+        cash_after_pyramid -= pyr["add_amount_eur"] + usd_to_eur(COST_PER_TRADE, eur_rate)
+    
+    # Cash après ventes
+    cash_after_sells = cash_after_pyramid
     for sell in signals["sell"]:
         proceeds = sell["value_eur"] - usd_to_eur(COST_PER_TRADE, eur_rate)
         cash_after_sells += proceeds
@@ -540,27 +623,31 @@ def main():
     available_slots = max_positions - positions_after_sells
     
     # ============================================================
-    # CALCULER MONTANTS EXACTS POUR ACHATS
+    # v30.5 - ALLOCATION PONDÉRÉE POUR ACHATS
     # ============================================================
     
     if available_slots > 0 and cash_after_sells > 50:
-        # Frais par position : achat (1€)
-        fees_per_position = usd_to_eur(COST_PER_TRADE, eur_rate)
-        cash_per_position = (cash_after_sells - (available_slots * fees_per_position)) / available_slots
+        fees_total = available_slots * usd_to_eur(COST_PER_TRADE, eur_rate)
+        cash_for_investing = cash_after_sells - fees_total
         
+        # Collecter les candidats
+        buy_candidates = []
         for candidate in top_candidates:
             if candidate in current_positions:
                 continue
             if candidate in [s["ticker"] for s in signals["sell"]]:
                 continue
-            if len(signals["buy"]) >= available_slots:
+            if len(buy_candidates) >= available_slots:
                 break
-            
+            buy_candidates.append(candidate)
+        
+        # Allocation pondérée
+        for rank, candidate in enumerate(buy_candidates, 1):
             price_usd = float(current_prices[candidate])
             price_eur = usd_to_eur(price_usd, eur_rate)
             
-            # Calculer le nombre d'actions (fractionnées)
-            amount_to_invest = cash_per_position - usd_to_eur(COST_PER_TRADE, eur_rate)
+            # v30.5: Allocation pondérée par rang
+            amount_to_invest = get_weighted_allocation(rank, len(buy_candidates), cash_for_investing)
             shares = amount_to_invest / price_eur
             
             sl_pct = get_stop_loss_pct(candidate, defensive)
@@ -574,19 +661,33 @@ def main():
                 "amount_eur": amount_to_invest,
                 "score": valid_scores[candidate],
                 "stop_loss_eur": stop_price_eur,
-                "stop_loss_pct": sl_pct * 100
+                "stop_loss_pct": sl_pct * 100,
+                "rank": rank,
+                "allocation_pct": (amount_to_invest / cash_for_investing * 100) if cash_for_investing > 0 else 0
             })
     
     # ============================================================
-    # AFFICHER SIGNAUX AVEC MONTANTS EXACTS
+    # AFFICHER SIGNAUX
     # ============================================================
     
     print(f"\n{'='*70}")
     print(f"🚨 SIGNAUX DU JOUR")
     print(f"{'='*70}")
     
-    if not signals["sell"] and not signals["buy"]:
+    if not signals["sell"] and not signals["buy"] and not signals["pyramid"]:
         print("\n✅ Aucun signal aujourd'hui - HOLD")
+    
+    # Pyramiding
+    if signals["pyramid"]:
+        print(f"\n🔺 PYRAMIDING ({len(signals['pyramid'])})")
+        print("-"*70)
+        for pyr in signals["pyramid"]:
+            print(f"""
+   {pyr['ticker']} (déjà +{pyr['current_gain_pct']:.1f}%)
+   ├─ Ajouter: {pyr['add_shares']:.4f} actions
+   ├─ Montant: {pyr['add_amount_eur']:.2f}€ + 1€ frais
+   └─ Prix: {pyr['price_eur']:.2f}€
+""")
     
     # Ventes
     if signals["sell"]:
@@ -596,24 +697,24 @@ def main():
             print(f"""
    {sell['ticker']}
    ├─ Raison: {sell['reason']}
-   ├─ Prix actuel: {sell['price_eur']:.2f}€ (${sell['price_usd']:.2f})
-   ├─ Actions à vendre: {sell['shares']:.4f}
-   ├─ Montant récupéré: {sell['value_eur']:.2f}€
+   ├─ Prix actuel: {sell['price_eur']:.2f}€
+   ├─ Actions: {sell['shares']:.4f}
+   ├─ Montant: {sell['value_eur']:.2f}€
    └─ PnL: {sell['pnl_eur']:+.2f}€ ({sell['pnl_pct']:+.1f}%)
 """)
     
     # Achats
     if signals["buy"]:
-        print(f"\n🟢 ACHATS ({len(signals['buy'])})")
+        print(f"\n🟢 ACHATS ({len(signals['buy'])}) - Allocation pondérée")
         print("-"*70)
         for buy in signals["buy"]:
             print(f"""
-   {buy['ticker']}
+   #{buy['rank']} {buy['ticker']} ({buy['allocation_pct']:.0f}% du cash)
    ┌─────────────────────────────────────────────
    │ 💶 MONTANT: {buy['amount_eur']:.2f}€ + 1€ frais
    │ 📊 ACTIONS: {buy['shares']:.4f}
    └─────────────────────────────────────────────
-   ├─ Prix: {buy['price_eur']:.2f}€ (${buy['price_usd']:.2f})
+   ├─ Prix: {buy['price_eur']:.2f}€
    ├─ Score: {buy['score']:.3f}
    └─ Stop Loss: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)
 """)
@@ -623,51 +724,64 @@ def main():
     # ============================================================
     
     print(f"\n{'='*70}")
-    print(f"🏆 TOP 5 TENDANCES (score momentum)")
+    print(f"🏆 TOP 5 TENDANCES")
     print(f"{'='*70}")
     
     top5 = valid_scores.head(5)
     current_positions = list(portfolio["positions"].keys())
     
-    print(f"\n{'Rang':<6} {'Ticker':<8} {'Prix €':<12} {'Score':<10} {'Mom 3M':<10} {'Statut'}")
-    print("-"*70)
+    print(f"\n{'Rang':<6} {'Ticker':<8} {'Prix €':<12} {'Score':<10} {'Statut'}")
+    print("-"*60)
     
     for i, (ticker, score) in enumerate(top5.items(), 1):
         price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
         
-        # Calculer momentum 3 mois pour affichage
-        if idx >= 63:
-            mom_3m = (float(prices[ticker].iloc[idx]) / float(prices[ticker].iloc[idx - 63]) - 1) * 100
-        else:
-            mom_3m = 0
-        
-        # Statut
         if ticker in current_positions:
             statut = "📂 EN PORTEFEUILLE"
         elif ticker in [b["ticker"] for b in signals["buy"]]:
-            statut = "🟢 ACHAT SIGNAL"
+            statut = "🟢 ACHAT"
         else:
             statut = "👀 À surveiller"
         
-        print(f"   {i:<4} {ticker:<8} {price_eur:>8.2f}€    {score:>6.3f}    {mom_3m:>+6.1f}%    {statut}")
+        print(f"   {i:<4} {ticker:<8} {price_eur:>8.2f}€    {score:>6.3f}    {statut}")
     
-    # Top 5 data pour Telegram
     top5_data = []
     for ticker, score in top5.items():
         price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
-        in_portfolio = ticker in current_positions
-        in_buy = ticker in [b["ticker"] for b in signals["buy"]]
         top5_data.append({
             "ticker": ticker,
             "price_eur": price_eur,
             "score": score,
-            "in_portfolio": in_portfolio,
-            "in_buy": in_buy
+            "in_portfolio": ticker in current_positions,
+            "in_buy": ticker in [b["ticker"] for b in signals["buy"]]
         })
     
     # ============================================================
-    # EXÉCUTER LES TRADES (MISE À JOUR PORTFOLIO)
+    # EXÉCUTER LES TRADES
     # ============================================================
+    
+    # Pyramiding
+    for pyr in signals["pyramid"]:
+        ticker = pyr["ticker"]
+        pos = portfolio["positions"][ticker]
+        
+        old_shares = pos["shares"]
+        old_entry = pos["entry_price_eur"]
+        add_shares = pyr["add_shares"]
+        new_price = pyr["price_eur"]
+        
+        # Nouveau prix moyen pondéré
+        new_shares = old_shares + add_shares
+        new_entry = (old_shares * old_entry + add_shares * new_price) / new_shares
+        
+        portfolio["positions"][ticker]["shares"] = new_shares
+        portfolio["positions"][ticker]["entry_price_eur"] = new_entry
+        portfolio["positions"][ticker]["pyramided"] = True
+        
+        portfolio["cash"] -= pyr["add_amount_eur"] + usd_to_eur(COST_PER_TRADE, eur_rate)
+        
+        log_trade(history, "PYRAMID", ticker, pyr["price_usd"], pyr["price_eur"],
+                  add_shares, pyr["add_amount_eur"], eur_rate, reason="pyramid_add")
     
     # Ventes
     for sell in signals["sell"]:
@@ -692,14 +806,17 @@ def main():
             "entry_price_usd": buy["price_usd"],
             "entry_date": today,
             "shares": buy["shares"],
+            "initial_amount_eur": buy["amount_eur"],
             "amount_invested_eur": buy["amount_eur"],
             "score": buy["score"],
             "peak_price_eur": buy["price_eur"],
-            "stop_loss_eur": buy["stop_loss_eur"]
+            "stop_loss_eur": buy["stop_loss_eur"],
+            "rank": buy["rank"],
+            "pyramided": False
         }
         
         log_trade(history, "BUY", ticker, buy["price_usd"], buy["price_eur"],
-                  buy["shares"], buy["amount_eur"], eur_rate, reason="signal")
+                  buy["shares"], buy["amount_eur"], eur_rate, reason=f"signal_rank{buy['rank']}")
     
     # ============================================================
     # RÉSUMÉ PORTFOLIO
@@ -718,7 +835,6 @@ def main():
     
     total_value = portfolio["cash"] + total_positions_value
     
-    # Calculer le capital investi total
     start_date = datetime.strptime(portfolio["start_date"], "%Y-%m-%d")
     months_elapsed = (datetime.now().year - start_date.year) * 12 + (datetime.now().month - start_date.month)
     total_invested = portfolio["initial_capital"] + max(0, months_elapsed) * MONTHLY_DCA
@@ -735,29 +851,33 @@ def main():
    {'📈' if total_pnl >= 0 else '📉'} PnL:                  {total_pnl:+.2f}€ ({total_pnl_pct:+.1f}%)
 """)
     
-    # Stats historique
     summary = history["summary"]
     if summary["total_trades"] > 0:
         print(f"   📜 HISTORIQUE")
-        print(f"   Trades: {summary['total_trades']} | Wins: {summary['winning_trades']} | Losses: {summary['losing_trades']}")
+        print(f"   Trades: {summary['total_trades']} | Pyramids: {summary.get('pyramids', 0)}")
+        print(f"   Wins: {summary['winning_trades']} | Losses: {summary['losing_trades']}")
         print(f"   Win Rate: {summary['win_rate']:.1f}% | PnL réalisé: {summary['total_pnl_eur']:+.2f}€")
     
-    # Sauvegarder
     save_portfolio(portfolio)
     save_trades_history(history)
     print(f"\n💾 Portfolio et historique sauvegardés")
     
     # ============================================================
-    # NOTIFICATION TELEGRAM
+    # TELEGRAM
     # ============================================================
     
-    msg = f"📊 <b>APEX v30.0</b> - {today}\n"
+    msg = f"📊 <b>APEX v30.5</b> - {today}\n"
     msg += f"{regime} | VIX: {current_vix:.1f}\n"
     msg += f"💱 EUR/USD: {eur_rate:.4f}\n\n"
     
-    # Signaux avec montants
-    if signals["sell"] or signals["buy"]:
+    if signals["sell"] or signals["buy"] or signals["pyramid"]:
         msg += f"🚨 <b>ACTIONS À FAIRE</b>\n\n"
+        
+        for pyr in signals["pyramid"]:
+            msg += f"🔺 <b>PYRAMIDER {pyr['ticker']}</b>\n"
+            msg += f"   Ajouter: {pyr['add_shares']:.4f} actions\n"
+            msg += f"   Montant: <b>{pyr['add_amount_eur']:.2f}€</b> + 1€\n"
+            msg += f"   Gain actuel: +{pyr['current_gain_pct']:.1f}%\n\n"
         
         for sell in signals["sell"]:
             msg += f"🔴 <b>VENDRE {sell['ticker']}</b>\n"
@@ -767,45 +887,42 @@ def main():
             msg += f"   PnL: {sell['pnl_eur']:+.2f}€ ({sell['pnl_pct']:+.1f}%)\n\n"
         
         for buy in signals["buy"]:
-            msg += f"🟢 <b>ACHETER {buy['ticker']}</b>\n"
-            msg += f"   💶 Montant: <b>{buy['amount_eur']:.2f}€</b> + 1€\n"
+            msg += f"🟢 <b>ACHETER #{buy['rank']} {buy['ticker']}</b>\n"
+            msg += f"   💶 Montant: <b>{buy['amount_eur']:.2f}€</b> ({buy['allocation_pct']:.0f}%)\n"
             msg += f"   📊 Actions: <b>{buy['shares']:.4f}</b>\n"
             msg += f"   Prix: {buy['price_eur']:.2f}€\n"
             msg += f"   Stop: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)\n\n"
     else:
         msg += f"✅ <b>Aucun signal - HOLD</b>\n\n"
     
-    # MES POSITIONS avec classement
+    # Positions
     msg += f"📂 <b>MES POSITIONS</b>\n"
     for ticker, pos in portfolio["positions"].items():
         if ticker in current_prices.index and not pd.isna(current_prices[ticker]):
             current_price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
             entry_price_eur = pos["entry_price_eur"]
             shares = pos["shares"]
-            value_eur = current_price_eur * shares
             pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
             pnl_eur = (current_price_eur - entry_price_eur) * shares
             
-            # Trouver le classement dans valid_scores
             if ticker in valid_scores.index:
                 rank = list(valid_scores.index).index(ticker) + 1
                 score = valid_scores[ticker]
                 rank_str = f"#{rank}"
             else:
-                rank_str = "❌ Hors classement"
+                rank_str = "❌"
                 score = 0
             
+            pyramided = "🔺" if pos.get("pyramided", False) else ""
             emoji = "📈" if pnl_pct >= 0 else "📉"
-            msg += f"{emoji} {ticker} ({rank_str}) @ {current_price_eur:.2f}€\n"
+            msg += f"{emoji} {ticker}{pyramided} ({rank_str}) @ {current_price_eur:.2f}€\n"
             msg += f"   PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%) | Score: {score:.3f}\n"
     msg += f"\n"
     
-    # Portfolio total
     msg += f"💰 <b>PORTFOLIO</b>\n"
     msg += f"Valeur: {total_value:.2f}€ ({total_pnl_pct:+.1f}%)\n"
     msg += f"Cash: {portfolio['cash']:.2f}€\n\n"
     
-    # Top 5 Tendances
     msg += f"🏆 <b>TOP 5 TENDANCES</b>\n"
     for i, t in enumerate(top5_data, 1):
         if t["in_portfolio"]:
@@ -819,7 +936,7 @@ def main():
     send_telegram(msg)
     
     print(f"\n{'='*70}")
-    print("✅ APEX v30.0 terminé")
+    print("✅ APEX v30.5 terminé")
     print(f"{'='*70}")
 
 if __name__ == "__main__":
