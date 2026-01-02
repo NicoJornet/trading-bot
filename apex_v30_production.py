@@ -895,13 +895,21 @@ def main():
     else:
         msg += f"✅ <b>Aucun signal - HOLD</b>\n\n"
     
-    # Positions
+    # Positions avec montants
     msg += f"📂 <b>MES POSITIONS</b>\n"
+    positions_data = []
+    
     for ticker, pos in portfolio["positions"].items():
         if ticker in current_prices.index and not pd.isna(current_prices[ticker]):
             current_price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
             entry_price_eur = pos["entry_price_eur"]
             shares = pos["shares"]
+            value_eur = current_price_eur * shares
+            invested_eur = pos.get("initial_amount_eur", pos.get("amount_invested_eur", entry_price_eur * shares))
+            # Ajouter le montant pyramidé si applicable
+            if pos.get("pyramided", False):
+                invested_eur = invested_eur * 1.5  # Approximation (initial + 50%)
+            
             pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
             pnl_eur = (current_price_eur - entry_price_eur) * shares
             
@@ -913,15 +921,43 @@ def main():
                 rank_str = "❌"
                 score = 0
             
+            positions_data.append({
+                "ticker": ticker,
+                "value_eur": value_eur,
+                "invested_eur": invested_eur,
+                "pnl_eur": pnl_eur,
+                "pnl_pct": pnl_pct,
+                "rank_str": rank_str,
+                "score": score,
+                "pyramided": pos.get("pyramided", False)
+            })
+            
             pyramided = "🔺" if pos.get("pyramided", False) else ""
             emoji = "📈" if pnl_pct >= 0 else "📉"
             msg += f"{emoji} {ticker}{pyramided} ({rank_str}) @ {current_price_eur:.2f}€\n"
-            msg += f"   PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%) | Score: {score:.3f}\n"
+            msg += f"   Investi: {invested_eur:.0f}€ → Valeur: {value_eur:.0f}€\n"
+            msg += f"   PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)\n"
     msg += f"\n"
     
-    msg += f"💰 <b>PORTFOLIO</b>\n"
+    # Répartition du portfolio
+    msg += f"💼 <b>RÉPARTITION</b>\n"
+    total_portfolio = total_value
+    
+    # Trier par valeur décroissante
+    positions_data_sorted = sorted(positions_data, key=lambda x: x["value_eur"], reverse=True)
+    
+    for p in positions_data_sorted:
+        pct_portfolio = (p["value_eur"] / total_portfolio * 100) if total_portfolio > 0 else 0
+        pyramided = "🔺" if p["pyramided"] else ""
+        msg += f"   {p['ticker']}{pyramided}: {p['value_eur']:.0f}€ ({pct_portfolio:.0f}%) - {p['rank_str']}\n"
+    
+    # Cash
+    cash_pct = (portfolio['cash'] / total_portfolio * 100) if total_portfolio > 0 else 0
+    msg += f"   💵 Cash: {portfolio['cash']:.0f}€ ({cash_pct:.0f}%)\n\n"
+    
+    msg += f"💰 <b>PORTFOLIO TOTAL</b>\n"
     msg += f"Valeur: {total_value:.2f}€ ({total_pnl_pct:+.1f}%)\n"
-    msg += f"Cash: {portfolio['cash']:.2f}€\n\n"
+    msg += f"Investi: {total_invested:.0f}€\n\n"
     
     msg += f"🏆 <b>TOP 5 TENDANCES</b>\n"
     for i, t in enumerate(top5_data, 1):
