@@ -1087,6 +1087,7 @@ def main():
             
             pyramided = "🔺" if pos.get("pyramided", False) else ""
             days_zero = pos.get("days_zero_score", 0)
+            print(f"DEBUG {ticker}: days_zero_score = {days_zero}")  # DEBUG
             warning = f" ⚠️{days_zero}j" if days_zero > 0 else ""
             emoji = "📈" if pnl_pct >= 0 else "📉"
             msg += f"{emoji} {ticker}{pyramided}{warning} ({rank_str}) @ {current_price_eur:.2f}€\n"
