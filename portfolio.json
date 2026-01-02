@@ -4,38 +4,50 @@
     "monthly_dca": 100,
     "cash": 100.0,
     "start_date": "2025-12-29",
-    "last_dca_date": "2026-01-01",
+    "last_dca_date": "2026-01-02",
     "positions": {
         "MU": {
-            "entry_price_eur": 244.2,
+            "entry_price_eur": 244.20,
             "entry_price_usd": 286.69,
             "entry_date": "2025-12-29",
             "shares": 2.0475,
-            "amount_invested_eur": 500.0,
+            "initial_amount_eur": 500.00,
+            "amount_invested_eur": 500.00,
             "score": 0.812,
             "peak_price_eur": 249.23,
-            "stop_loss_eur": 214.9
+            "stop_loss_eur": 214.90,
+            "rank": 1,
+            "pyramided": false,
+            "days_zero_score": 0
         },
         "SLV": {
             "entry_price_eur": 58.88,
             "entry_price_usd": 69.12,
             "entry_date": "2025-12-29",
             "shares": 8.4918,
-            "amount_invested_eur": 500.0,
+            "initial_amount_eur": 500.00,
+            "amount_invested_eur": 500.00,
             "score": 0.699,
             "peak_price_eur": 58.88,
-            "stop_loss_eur": 48.28
+            "stop_loss_eur": 48.28,
+            "rank": 99,
+            "pyramided": false,
+            "days_zero_score": 4
         },
         "LRCX": {
             "entry_price_eur": 149.42,
             "entry_price_usd": 175.41,
             "entry_date": "2025-12-29",
             "shares": 3.3463,
-            "amount_invested_eur": 500.0,
-            "score": 0.39,
+            "initial_amount_eur": 500.00,
+            "amount_invested_eur": 500.00,
+            "score": 0.390,
             "peak_price_eur": 149.42,
-            "stop_loss_eur": 131.49
+            "stop_loss_eur": 131.49,
+            "rank": 3,
+            "pyramided": false,
+            "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-02 17:05"
+    "last_updated": "2026-01-02 18:00"
 }
