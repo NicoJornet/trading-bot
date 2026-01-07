@@ -1,18 +1,23 @@
 """
-APEX v30.5 HYBRIDE - PRODUCTION
-================================
+APEX v30.6 OPTIMISÉ - PRODUCTION
+=================================
 
-Améliorations vs v30.0:
-1. Allocation pondérée : 50% rang #1, 30% rang #2, 20% rang #3
-2. Pyramiding : +50% sur position si gain >= +15% ET nouveau high 20j
-3. Rotation forcée : Si score ≤ 0 pendant 10 jours → rotation immédiate
+Améliorations vs v30.5:
+1. DATABASE optimisé : +CEG (winner), -SNOW/PANW/AVGO/COIN/ARM (perdants)
+2. 44 tickers ultra-sélectionnés (vs 48)
+3. GARDE AAPL même si perdant historiquement
+
+Conserve de v30.5:
+- Allocation pondérée : 50% rang #1, 30% rang #2, 20% rang #3
+- Pyramiding : +50% sur position si gain >= +15% ET nouveau high 20j
+- Rotation forcée : Si score ≤ 0 pendant 10 jours → rotation immédiate
 
 Capital: 1,500€ initial + 100€/mois DCA
 Tracking: portfolio.json + trades_history.json
 
-Performance backtestée (2020-2025):
-- v30.0 : +1710% ROI
-- v30.5 : +1927% ROI (+217%)
+Performance backtestée (2015-2025):
+- v30.5 (48 tickers) : +60,783% ROI ($986K)
+- v30.6 (44 tickers) : +31,575% ROI ($513K) avec DATABASE optimisé
 """
 
 import yfinance as yf
@@ -63,13 +68,21 @@ PYRAMID_ADD_PCT = 0.50         # Ajouter 50% de la position initiale
 # v30.5 - Paramètres rotation forcée
 FORCE_ROTATION_DAYS = 10       # Rotation forcée après 10 jours avec score ≤ 0
 
-# Univers
+# ============================================================
+# v30.6 - DATABASE OPTIMISÉ (44 tickers)
+# ============================================================
+# RETIRÉ : AVGO, ARM, PANW, SNOW, COIN (perdants dans V30.7 ELITE)
+# AJOUTÉ : CEG (winner +$17K dans V30.7 ELITE)
+# GARDÉ : AAPL (même si perdant -$2.7K)
+# ============================================================
+
 DATABASE = [
-    "NVDA", "MSFT", "GOOGL", "AMZN", "AAPL", "META", "TSLA", "AVGO",
-    "AMD", "MU", "ASML", "TSM", "ARM", "LRCX", "AMAT",
-    "PLTR", "APP", "CRWD", "PANW", "NET", "DDOG", "ZS", "SNOW",
+    "NVDA", "MSFT", "GOOGL", "AMZN", "AAPL", "META", "TSLA",  # AVGO retiré
+    "AMD", "MU", "ASML", "TSM", "LRCX", "AMAT",                # ARM retiré
+    "PLTR", "APP", "CRWD", "NET", "DDOG", "ZS",                # PANW, SNOW retirés
     "RKLB", "SHOP", "ABNB", "VRT", "SMCI", "UBER",
-    "COIN", "MSTR", "MARA", "RIOT",
+    "MSTR", "MARA", "RIOT",                                     # COIN retiré
+    "CEG",                                                      # ⭐ AJOUTÉ (Constellation Energy)
     "LLY", "NVO", "UNH", "JNJ", "ABBV",
     "WMT", "COST", "PG", "KO",
     "XOM", "CVX",
@@ -77,9 +90,9 @@ DATABASE = [
 ]
 
 ULTRA_VOLATILE = {"SMCI", "RKLB"}
-CRYPTO = {"COIN", "MSTR", "MARA", "RIOT"}
+CRYPTO = {"COIN", "MSTR", "MARA", "RIOT"}  # COIN retiré du DATABASE mais garde dans classification
 SEMI = {"AMD", "LRCX", "MU", "AMAT", "ASML"}
-TECH = {"APP", "TSLA", "NVDA", "ARM", "PLTR", "SNOW", "DDOG"}
+TECH = {"APP", "TSLA", "NVDA", "ARM", "PLTR", "SNOW", "DDOG"}  # ARM, SNOW retirés mais gardés dans classification
 
 STOP_LOSS = {'ultra': 0.10, 'crypto': 0.10, 'semi': 0.12, 'tech': 0.15, 'other': 0.18}
 ATR_THRESHOLD = {'ultra': 0.04, 'crypto': 0.05, 'semi': 0.06, 'tech': 0.06, 'other': 0.04}
@@ -358,7 +371,7 @@ def send_telegram(message):
 def main():
     today = datetime.now().strftime("%Y-%m-%d")
     print(f"{'='*70}")
-    print(f"📊 APEX v30.5 HYBRIDE (Weighted + Pyramid) - {today}")
+    print(f"📊 APEX v30.6 OPTIMISÉ (44 tickers) - {today}")
     print(f"{'='*70}")
     
     portfolio = load_portfolio()
@@ -1011,7 +1024,7 @@ def main():
     # TELEGRAM
     # ============================================================
     
-    msg = f"📊 <b>APEX v30.5</b> - {today}\n"
+    msg = f"📊 <b>APEX v30.6 OPTIMISÉ</b> - {today}\n"
     msg += f"{regime} | VIX: {current_vix:.1f}\n"
     msg += f"💱 EUR/USD: {eur_rate:.4f}\n\n"
     
@@ -1087,7 +1100,6 @@ def main():
             
             pyramided = "🔺" if pos.get("pyramided", False) else ""
             days_zero = pos.get("days_zero_score", 0)
-            print(f"DEBUG {ticker}: days_zero_score = {days_zero}")  # DEBUG
             warning = f" ⚠️{days_zero}j" if days_zero > 0 else ""
             emoji = "📈" if pnl_pct >= 0 else "📉"
             msg += f"{emoji} {ticker}{pyramided}{warning} ({rank_str}) @ {current_price_eur:.2f}€\n"
@@ -1128,7 +1140,7 @@ def main():
     send_telegram(msg)
     
     print(f"\n{'='*70}")
-    print("✅ APEX v30.5 terminé")
+    print("✅ APEX v30.6 OPTIMISÉ terminé")
     print(f"{'='*70}")
 
 if __name__ == "__main__":
