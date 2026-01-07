@@ -14,7 +14,7 @@
             "initial_amount_eur": 797.65,
             "amount_invested_eur": 797.65,
             "score": 0.718,
-            "peak_price_eur": 293.52963230186816,
+            "peak_price_eur": 294.0447378814799,
             "stop_loss_eur": 220.83,
             "rank": 1,
             "pyramided": false,
@@ -42,12 +42,12 @@
             "initial_amount_eur": 317.63,
             "amount_invested_eur": 317.63,
             "score": 0.261,
-            "peak_price_eur": 176.88872832159493,
+            "peak_price_eur": 177.19914458251665,
             "stop_loss_eur": 133.12,
             "rank": 4,
             "pyramided": false,
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-07 07:01"
+    "last_updated": "2026-01-07 22:58"
 }
