@@ -32,7 +32,7 @@
             "stop_loss_eur": 748.3320000000001,
             "rank": 999,
             "pyramided": false,
-            "days_zero_score": 1
+            "days_zero_score": 2
         },
         "LRCX": {
             "entry_price_eur": 151.27,
@@ -49,5 +49,5 @@
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-12 06:20"
+    "last_updated": "2026-01-12 07:47"
 }
