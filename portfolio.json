@@ -13,10 +13,10 @@
             "shares": 3.178,
             "initial_amount_eur": 797.65,
             "amount_invested_eur": 797.65,
-            "score": 0.718,
-            "peak_price_eur": 294.0447378814799,
-            "stop_loss_eur": 220.83,
-            "rank": 1,
+            "score": 4.991341027154859,
+            "peak_price_eur": 295.742112547654,
+            "stop_loss_eur": 205.7708,
+            "rank": 3,
             "pyramided": false,
             "days_zero_score": 0
         },
@@ -27,12 +27,12 @@
             "shares": 0.5138,
             "initial_amount_eur": 468.88,
             "amount_invested_eur": 468.88,
-            "score": 0.32,
+            "score": 0,
             "peak_price_eur": 948.3034028579376,
-            "stop_loss_eur": 775.71,
-            "rank": 2,
+            "stop_loss_eur": 748.3320000000001,
+            "rank": 999,
             "pyramided": false,
-            "days_zero_score": 0
+            "days_zero_score": 1
         },
         "LRCX": {
             "entry_price_eur": 151.27,
@@ -41,13 +41,13 @@
             "shares": 2.1,
             "initial_amount_eur": 317.63,
             "amount_invested_eur": 317.63,
-            "score": 0.261,
-            "peak_price_eur": 177.19914458251665,
-            "stop_loss_eur": 133.12,
-            "rank": 4,
+            "score": 6.24810586857628,
+            "peak_price_eur": 187.13451146576094,
+            "stop_loss_eur": 124.04140000000002,
+            "rank": 1,
             "pyramided": false,
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-09 07:01"
+    "last_updated": "2026-01-12 06:20"
 }
