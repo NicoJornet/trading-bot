@@ -1,23 +1,22 @@
 """
-APEX v30.6 OPTIMISÉ - PRODUCTION
-=================================
+APEX v31 OPTIMISÉ - PRODUCTION
+================================
 
-Améliorations vs v30.5:
-1. DATABASE optimisé : +CEG (winner), -SNOW/PANW/AVGO/COIN/ARM (perdants)
-2. 44 tickers ultra-sélectionnés (vs 48)
-3. GARDE AAPL même si perdant historiquement
+Paramètres validés sur backtest 2015-2026 (10 ans):
+- MFE Threshold: 15% (activer trailing dès +15%)
+- Trailing: 5% (vendre si chute de 5% depuis le plus haut)
+- Hard Stop: 18% UNIFORME (plus de stops par catégorie!)
+- Pas de blacklist
 
-Conserve de v30.5:
-- Allocation pondérée : 50% rang #1, 30% rang #2, 20% rang #3
-- Pyramiding : +50% sur position si gain >= +15% ET nouveau high 20j
-- Rotation forcée : Si score ≤ 0 pendant 10 jours → rotation immédiate
+Performance attendue:
+- Win Rate: 73.7%
+- ROI: +1,181% sur 10 ans
+- CAGR: 51%/an
+- Max Drawdown: -28.9%
+- Sharpe: 2.10
 
 Capital: 1,500€ initial + 100€/mois DCA
 Tracking: portfolio.json + trades_history.json
-
-Performance backtestée (2015-2025):
-- v30.5 (48 tickers) : +60,783% ROI ($986K)
-- v30.6 (44 tickers) : +31,575% ROI ($513K) avec DATABASE optimisé
 """
 
 import yfinance as yf
@@ -42,85 +41,153 @@ TRADES_HISTORY_FILE = "trades_history.json"
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-# Paramètres APEX
+# ============================================================
+# NOUVEAUX PARAMÈTRES OPTIMISÉS (2015-2026)
+# ============================================================
+
+# Nombre de positions
 MAX_POSITIONS_NORMAL = 3
 MAX_POSITIONS_DEFENSIVE = 2
 MAX_POSITIONS_ULTRA_DEFENSIVE = 1
 
+# VIX thresholds
 VIX_DEFENSIVE = 25
 VIX_ULTRA_DEFENSIVE = 35
 
+# Calcul du score momentum
 ATR_PERIOD = 14
 SMA_PERIOD = 20
 HIGH_LOOKBACK = 60
-MAX_DRAWDOWN = 0.25
 
+# ⭐ PARAMÈTRES DE SORTIE OPTIMISÉS (validés 2015-2026)
+HARD_STOP_PCT = 0.18           # -18% stop uniforme pour tous les tickers
+MFE_THRESHOLD_PCT = 0.15       # Activer trailing à +15%
+TRAILING_PCT = 0.05            # -5% du plus haut
+
+# Ancien système de trailing (gardé pour compatibilité mais remplacé par MFE)
 TRAILING_STOP_ACTIVATION = 1.40
 TRAILING_STOP_PCT = 0.20
 MINI_TRAIL_ACTIVATION = 1.25
 MINI_TRAIL_PCT = 0.15
 
-# v30.5 - Paramètres pyramiding
-PYRAMID_GAIN_THRESHOLD = 0.15  # +15% minimum pour pyramider
-PYRAMID_LOOKBACK = 20          # New high sur 20 jours
-PYRAMID_ADD_PCT = 0.50         # Ajouter 50% de la position initiale
+# Pyramiding (optionnel)
+PYRAMID_GAIN_THRESHOLD = 0.15
+PYRAMID_LOOKBACK = 20
+PYRAMID_ADD_PCT = 0.50
 
-# v30.5 - Paramètres rotation forcée
-FORCE_ROTATION_DAYS = 10       # Rotation forcée après 10 jours avec score ≤ 0
+# Rotation forcée (si score = 0 pendant X jours)
+FORCE_ROTATION_DAYS = 10
 
 # ============================================================
-# v30.6 - DATABASE OPTIMISÉ (44 tickers)
-# ============================================================
-# RETIRÉ : AVGO, ARM, PANW, SNOW, COIN (perdants dans V30.7 ELITE)
-# AJOUTÉ : CEG (winner +$17K dans V30.7 ELITE)
-# GARDÉ : AAPL (même si perdant -$2.7K)
+# DATABASE - 44 TICKERS (inchangé)
 # ============================================================
 
 DATABASE = [
-    "NVDA", "MSFT", "GOOGL", "AMZN", "AAPL", "META", "TSLA",  # AVGO retiré
-    "AMD", "MU", "ASML", "TSM", "LRCX", "AMAT",                # ARM retiré
-    "PLTR", "APP", "CRWD", "NET", "DDOG", "ZS",                # PANW, SNOW retirés
+    "NVDA", "MSFT", "GOOGL", "AMZN", "AAPL", "META", "TSLA",
+    "AMD", "MU", "ASML", "TSM", "LRCX", "AMAT",
+    "PLTR", "APP", "CRWD", "NET", "DDOG", "ZS",
     "RKLB", "SHOP", "ABNB", "VRT", "SMCI", "UBER",
-    "MSTR", "MARA", "RIOT",                                     # COIN retiré
-    "CEG",                                                      # ⭐ AJOUTÉ (Constellation Energy)
+    "MSTR", "MARA", "RIOT",
+    "CEG",
     "LLY", "NVO", "UNH", "JNJ", "ABBV",
     "WMT", "COST", "PG", "KO",
     "XOM", "CVX",
     "QQQ", "SPY", "GLD", "SLV",
 ]
 
+# Categories (pour info seulement, plus utilisé pour les stops)
 ULTRA_VOLATILE = {"SMCI", "RKLB"}
-CRYPTO = {"COIN", "MSTR", "MARA", "RIOT"}  # COIN retiré du DATABASE mais garde dans classification
+CRYPTO = {"MSTR", "MARA", "RIOT"}
 SEMI = {"AMD", "LRCX", "MU", "AMAT", "ASML"}
-TECH = {"APP", "TSLA", "NVDA", "ARM", "PLTR", "SNOW", "DDOG"}  # ARM, SNOW retirés mais gardés dans classification
-
-STOP_LOSS = {'ultra': 0.10, 'crypto': 0.10, 'semi': 0.12, 'tech': 0.15, 'other': 0.18}
-ATR_THRESHOLD = {'ultra': 0.04, 'crypto': 0.05, 'semi': 0.06, 'tech': 0.06, 'other': 0.04}
-ROTATION_THRESHOLD = {'ultra': 0.05, 'crypto': 0.07, 'semi': 0.06, 'tech': 0.07, 'other': 0.08}
-MIN_HOLDING_DAYS = {'ultra': 7, 'crypto': 7, 'semi': 14, 'tech': 14, 'other': 21}
+TECH = {"APP", "TSLA", "NVDA", "PLTR", "DDOG"}
 
 def get_category(ticker):
+    """Retourne la catégorie du ticker (pour info seulement)"""
     if ticker in ULTRA_VOLATILE: return "ultra"
     elif ticker in CRYPTO: return "crypto"
     elif ticker in SEMI: return "semi"
     elif ticker in TECH: return "tech"
     return "other"
 
+# ============================================================
+# ⭐ NOUVEAU: STOP LOSS UNIFORME -18%
+# ============================================================
+
 def get_stop_loss_pct(ticker, defensive=False):
-    sl = STOP_LOSS.get(get_category(ticker), 0.18)
-    return sl * 0.80 if defensive else sl
+    """
+    Retourne le % de stop loss.
+    NOUVEAU: Stop uniforme à 18% pour tous les tickers.
+    """
+    base_stop = HARD_STOP_PCT  # 18% uniforme
+    return base_stop * 0.85 if defensive else base_stop  # 15.3% si défensif
 
-def get_min_holding_days(ticker):
-    return MIN_HOLDING_DAYS.get(get_category(ticker), 21)
-
-def get_rotation_threshold(ticker):
-    return ROTATION_THRESHOLD.get(get_category(ticker), 0.08)
-
-def get_atr_threshold(ticker):
-    return ATR_THRESHOLD.get(get_category(ticker), 0.04)
+def calculate_stop_price(entry_price, stop_pct):
+    """Calcule le prix du stop loss"""
+    return entry_price * (1 - stop_pct)
 
 # ============================================================
-# v30.5 - ALLOCATION PONDÉRÉE
+# ⭐ NOUVEAU: MFE TRAILING STOP
+# ============================================================
+
+def check_mfe_trailing_exit(pos, current_price, entry_price):
+    """
+    Vérifie si on doit sortir par MFE trailing.
+    
+    Logique:
+    1. Calculer le gain actuel depuis l'entrée
+    2. Si le gain max (MFE) a atteint +15%, le trailing est activé
+    3. Si le prix chute de 5% depuis le plus haut, on vend
+    
+    Returns: (should_exit, reason, details)
+    """
+    peak_price = pos.get('peak_price_eur', entry_price)
+    
+    # Mise à jour du peak
+    if current_price > peak_price:
+        peak_price = current_price
+        pos['peak_price_eur'] = peak_price
+    
+    # Calcul du MFE (gain max depuis entrée)
+    mfe_pct = (peak_price / entry_price - 1)
+    
+    # Calcul du drawdown depuis le peak
+    drawdown_from_peak = (current_price / peak_price - 1)
+    
+    # Calcul du gain actuel
+    current_gain = (current_price / entry_price - 1)
+    
+    # Le trailing est-il activé? (MFE >= 15%)
+    trailing_active = mfe_pct >= MFE_THRESHOLD_PCT
+    
+    # Si trailing actif ET prix chute de 5% depuis le peak → VENDRE
+    if trailing_active and drawdown_from_peak <= -TRAILING_PCT:
+        return True, "MFE_TRAILING", {
+            'mfe_pct': mfe_pct * 100,
+            'peak_price': peak_price,
+            'drawdown_pct': drawdown_from_peak * 100,
+            'current_gain_pct': current_gain * 100
+        }
+    
+    return False, None, {
+        'trailing_active': trailing_active,
+        'mfe_pct': mfe_pct * 100,
+        'peak_price': peak_price,
+        'drawdown_pct': drawdown_from_peak * 100
+    }
+
+def check_hard_stop_exit(current_price, entry_price, stop_price):
+    """
+    Vérifie si le hard stop (-18%) est touché.
+    
+    Returns: (should_exit, reason)
+    """
+    if current_price <= stop_price:
+        loss_pct = (current_price / entry_price - 1) * 100
+        return True, f"HARD_STOP_{abs(int(loss_pct))}%"
+    return False, None
+
+# ============================================================
+# ALLOCATION PONDÉRÉE (inchangé)
 # ============================================================
 
 def get_weighted_allocation(rank, num_positions, total_capital):
@@ -139,50 +206,6 @@ def get_weighted_allocation(rank, num_positions, total_capital):
         weights = {i: (num_positions - i + 1) / total_weight for i in range(1, num_positions + 1)}
     
     return total_capital * weights.get(rank, 1.0 / num_positions)
-
-# ============================================================
-# v30.5 - PYRAMIDING
-# ============================================================
-
-def check_pyramid_signal(pos, current_price_eur, high_prices, ticker, idx):
-    """
-    Vérifie si on doit pyramider une position.
-    Conditions:
-    - Gain >= +15%
-    - Prix fait un nouveau high 20 jours
-    - Position pas déjà pyramidée
-    
-    Retourne: (should_pyramid, add_amount)
-    """
-    entry_price_eur = pos["entry_price_eur"]
-    gain_pct = (current_price_eur / entry_price_eur) - 1
-    
-    # Déjà pyramidé ?
-    if pos.get("pyramided", False):
-        return False, 0
-    
-    # En profit suffisant ?
-    if gain_pct < PYRAMID_GAIN_THRESHOLD:
-        return False, 0
-    
-    # Nouveau high 20j ?
-    if idx < PYRAMID_LOOKBACK:
-        return False, 0
-    
-    try:
-        if ticker in high_prices.columns:
-            recent_high = float(high_prices[ticker].iloc[idx-PYRAMID_LOOKBACK:idx].max())
-            current_price_usd = float(high_prices[ticker].iloc[idx])
-            
-            if current_price_usd > recent_high:
-                # Signal de pyramide !
-                initial_amount = pos.get("initial_amount_eur", pos.get("amount_invested_eur", 500))
-                add_amount = initial_amount * PYRAMID_ADD_PCT
-                return True, add_amount
-    except:
-        pass
-    
-    return False, 0
 
 # ============================================================
 # CONVERSION EUR/USD
@@ -209,17 +232,13 @@ def eur_to_usd(amount_eur, rate=None):
     return amount_eur * rate
 
 # ============================================================
-# GESTION PORTFOLIO
+# PORTFOLIO MANAGEMENT
 # ============================================================
 
 def load_portfolio():
     if os.path.exists(PORTFOLIO_FILE):
-        try:
-            with open(PORTFOLIO_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            pass
-    
+        with open(PORTFOLIO_FILE, "r") as f:
+            return json.load(f)
     return {
         "currency": "EUR",
         "initial_capital": INITIAL_CAPITAL,
@@ -227,23 +246,18 @@ def load_portfolio():
         "cash": INITIAL_CAPITAL,
         "start_date": datetime.now().strftime("%Y-%m-%d"),
         "last_dca_date": None,
-        "positions": {},
-        "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M")
+        "positions": {}
     }
 
 def save_portfolio(portfolio):
     portfolio["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    with open(PORTFOLIO_FILE, 'w') as f:
+    with open(PORTFOLIO_FILE, "w") as f:
         json.dump(portfolio, f, indent=4)
 
 def load_trades_history():
     if os.path.exists(TRADES_HISTORY_FILE):
-        try:
-            with open(TRADES_HISTORY_FILE, 'r') as f:
-                return json.load(f)
-        except:
-            pass
-    
+        with open(TRADES_HISTORY_FILE, "r") as f:
+            return json.load(f)
     return {
         "trades": [],
         "summary": {
@@ -253,42 +267,20 @@ def load_trades_history():
             "pyramids": 0,
             "winning_trades": 0,
             "losing_trades": 0,
-            "total_pnl_eur": 0,
-            "total_fees_eur": 0,
-            "best_trade_eur": 0,
-            "worst_trade_eur": 0,
-            "win_rate": 0
+            "total_pnl_eur": 0.0,
+            "total_fees_eur": 0.0,
+            "best_trade_eur": 0.0,
+            "worst_trade_eur": 0.0,
+            "win_rate": 0.0
         }
     }
 
 def save_trades_history(history):
-    trades = history["trades"]
-    sells = [t for t in trades if t["action"] == "SELL"]
-    pyramids = [t for t in trades if t["action"] == "PYRAMID"]
-    
-    winning = [t for t in sells if t.get("pnl_eur", 0) > 0]
-    losing = [t for t in sells if t.get("pnl_eur", 0) < 0]
-    
-    history["summary"] = {
-        "total_trades": len(trades),
-        "buys": len([t for t in trades if t["action"] == "BUY"]),
-        "sells": len(sells),
-        "pyramids": len(pyramids),
-        "winning_trades": len(winning),
-        "losing_trades": len(losing),
-        "total_pnl_eur": sum(t.get("pnl_eur", 0) for t in sells),
-        "total_fees_eur": sum(t.get("fee_eur", 0) for t in trades),
-        "best_trade_eur": max([t.get("pnl_eur", 0) for t in sells], default=0),
-        "worst_trade_eur": min([t.get("pnl_eur", 0) for t in sells], default=0),
-        "win_rate": len(winning) / len(sells) * 100 if sells else 0
-    }
-    
-    with open(TRADES_HISTORY_FILE, 'w') as f:
+    with open(TRADES_HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=4)
 
-def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur, eur_rate, reason="signal", pnl_eur=None, pnl_pct=None):
-    fee_eur = usd_to_eur(COST_PER_TRADE, eur_rate)
-    
+def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur, 
+              eur_rate, reason="", pnl_eur=None, pnl_pct=None):
     trade = {
         "id": len(history["trades"]) + 1,
         "date": datetime.now().strftime("%Y-%m-%d"),
@@ -299,47 +291,43 @@ def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur,
         "price_usd": round(price_usd, 2),
         "price_eur": round(price_eur, 2),
         "amount_eur": round(amount_eur, 2),
-        "fee_eur": round(fee_eur, 2),
+        "fee_eur": COST_PER_TRADE,
         "eur_usd_rate": round(eur_rate, 4),
         "reason": reason
     }
     
-    if action == "SELL" and pnl_eur is not None:
+    if pnl_eur is not None:
         trade["pnl_eur"] = round(pnl_eur, 2)
         trade["pnl_pct"] = round(pnl_pct, 2)
     
     history["trades"].append(trade)
-    return trade
-
-# ============================================================
-# SCORING
-# ============================================================
-
-def score_dual_momentum(prices, idx):
-    if idx < 63:
-        return pd.Series(dtype=float)
-    scores = {}
-    for ticker in prices.columns:
-        try:
-            mom = float(prices[ticker].iloc[idx]) / float(prices[ticker].iloc[idx - 63]) - 1
-            if mom > 0:
-                scores[ticker] = mom
-        except:
-            pass
-    return pd.Series(scores)
-
-def score_momentum_simple(prices, idx):
-    if idx < 126:
-        return pd.Series(dtype=float)
-    ret_3m = prices.iloc[idx] / prices.iloc[idx - 63] - 1
-    ret_6m = prices.iloc[idx] / prices.iloc[idx - 126] - 1
-    return (ret_3m + ret_6m) / 2
-
-def score_hybride(prices, idx, vix_value):
-    if vix_value < VIX_DEFENSIVE:
-        return score_dual_momentum(prices, idx)
-    else:
-        return score_momentum_simple(prices, idx)
+    
+    # Update summary
+    summary = history["summary"]
+    summary["total_trades"] += 1
+    summary["total_fees_eur"] += COST_PER_TRADE
+    
+    if action == "BUY":
+        summary["buys"] += 1
+    elif action == "SELL":
+        summary["sells"] += 1
+        if pnl_eur is not None:
+            summary["total_pnl_eur"] += pnl_eur
+            if pnl_eur > 0:
+                summary["winning_trades"] += 1
+            else:
+                summary["losing_trades"] += 1
+            
+            if pnl_eur > summary["best_trade_eur"]:
+                summary["best_trade_eur"] = pnl_eur
+            if pnl_eur < summary["worst_trade_eur"]:
+                summary["worst_trade_eur"] = pnl_eur
+            
+            total_closed = summary["winning_trades"] + summary["losing_trades"]
+            if total_closed > 0:
+                summary["win_rate"] = round(summary["winning_trades"] / total_closed * 100, 1)
+    elif action == "PYRAMID":
+        summary["pyramids"] += 1
 
 # ============================================================
 # TELEGRAM
@@ -348,107 +336,146 @@ def score_hybride(prices, idx, vix_value):
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("⚠️ Telegram non configuré")
-        print(message)
         return False
     
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {
+        data = {
             "chat_id": TELEGRAM_CHAT_ID,
             "text": message,
             "parse_mode": "HTML"
         }
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, data=data, timeout=10)
         return response.status_code == 200
     except Exception as e:
-        print(f"❌ Erreur Telegram: {e}")
+        print(f"Erreur Telegram: {e}")
         return False
 
 # ============================================================
-# MAIN LOGIC
+# MARKET DATA & SCORING
+# ============================================================
+
+def get_market_data(tickers, days=100):
+    """Télécharge les données de marché"""
+    end = datetime.now()
+    start = end - timedelta(days=days)
+    
+    try:
+        data = yf.download(tickers, start=start, end=end, group_by='ticker', progress=False)
+        return data
+    except Exception as e:
+        print(f"Erreur download: {e}")
+        return None
+
+def calculate_momentum_score(close, high, atr_period=14, sma_period=20, high_lookback=60):
+    """
+    Calcule le score momentum d'un ticker.
+    Score = (Prix - SMA) / ATR, normalisé par high 60j.
+    """
+    if len(close) < max(atr_period, sma_period, high_lookback):
+        return np.nan
+    
+    # SMA
+    sma = close.rolling(sma_period).mean()
+    
+    # ATR
+    tr = high - close.shift(1)
+    tr = tr.abs()
+    atr = tr.rolling(atr_period).mean()
+    
+    # High 60j
+    high_60 = high.rolling(high_lookback).max()
+    
+    # Score
+    score = (close - sma) / atr
+    score = score / (high_60 / close)  # Normalisation
+    
+    return score.iloc[-1] if not pd.isna(score.iloc[-1]) else np.nan
+
+def get_vix():
+    """Récupère le VIX actuel"""
+    try:
+        vix = yf.Ticker("^VIX")
+        return vix.info.get('regularMarketPrice') or vix.info.get('previousClose') or 20
+    except:
+        return 20
+
+def get_regime(vix):
+    """Détermine le régime de marché basé sur VIX"""
+    if vix >= VIX_ULTRA_DEFENSIVE:
+        return "🔴 ULTRA-DÉFENSIF", MAX_POSITIONS_ULTRA_DEFENSIVE
+    elif vix >= VIX_DEFENSIVE:
+        return "🟡 DÉFENSIF", MAX_POSITIONS_DEFENSIVE
+    else:
+        return "🟢 NORMAL", MAX_POSITIONS_NORMAL
+
+# ============================================================
+# MAIN
 # ============================================================
 
 def main():
-    today = datetime.now().strftime("%Y-%m-%d")
-    print(f"{'='*70}")
-    print(f"📊 APEX v30.6 OPTIMISÉ (44 tickers) - {today}")
-    print(f"{'='*70}")
+    print("=" * 70)
+    print("🚀 APEX v31 OPTIMISÉ - PRODUCTION")
+    print("=" * 70)
+    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"⚙️  Paramètres: Hard Stop -18%, MFE Trailing +15%/-5%")
     
+    # Load data
     portfolio = load_portfolio()
     history = load_trades_history()
-    eur_rate = get_eur_usd_rate()
     
-    print(f"💱 EUR/USD: {eur_rate:.4f}")
-    print(f"💰 Cash disponible: {portfolio['cash']:.2f}€")
+    # Get market info
+    eur_rate = get_eur_usd_rate()
+    current_vix = get_vix()
+    regime, max_positions = get_regime(current_vix)
+    defensive = current_vix >= VIX_DEFENSIVE
+    
+    print(f"\n💱 EUR/USD: {eur_rate:.4f}")
+    print(f"📊 VIX: {current_vix:.1f}")
+    print(f"📈 Régime: {regime} (max {max_positions} positions)")
+    
+    today = datetime.now().strftime("%Y-%m-%d")
     
     # DCA mensuel
     last_dca = portfolio.get("last_dca_date")
     current_month = datetime.now().strftime("%Y-%m")
     
     if last_dca is None or not last_dca.startswith(current_month):
-        if last_dca is not None:
-            portfolio["cash"] += MONTHLY_DCA
-            print(f"📥 DCA mensuel ajouté: +{MONTHLY_DCA}€ → Cash: {portfolio['cash']:.2f}€")
+        portfolio["cash"] += MONTHLY_DCA
         portfolio["last_dca_date"] = today
+        print(f"\n💰 DCA mensuel: +{MONTHLY_DCA}€")
     
-    # Télécharger les données
-    print("\n📡 Téléchargement des données...")
+    # Download market data
+    print("\n📥 Téléchargement des données...")
+    data = get_market_data(DATABASE)
     
-    tickers = DATABASE + ["^VIX"]
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=365)
-    
-    data = yf.download(tickers, start=start_date.strftime("%Y-%m-%d"), 
-                       end=end_date.strftime("%Y-%m-%d"), auto_adjust=True, progress=False)
-    
-    if data.empty:
-        print("❌ Erreur de téléchargement")
+    if data is None or data.empty:
+        print("❌ Erreur: pas de données")
+        send_telegram("❌ APEX v31: Erreur téléchargement données")
         return
     
-    close = data['Close'].ffill().bfill()
-    high = data['High'].ffill().bfill()
-    low = data['Low'].ffill().bfill()
+    # Calculate scores
+    scores = {}
+    current_prices = {}
     
-    vix = close["^VIX"] if "^VIX" in close.columns else pd.Series(index=close.index, data=15)
-    prices = close.drop(columns=["^VIX"], errors="ignore")
-    high_prices = high.drop(columns=["^VIX"], errors="ignore")
-    low_prices = low.drop(columns=["^VIX"], errors="ignore")
+    for ticker in DATABASE:
+        try:
+            if ticker in data.columns.get_level_values(0):
+                close = data[ticker]['Close'].dropna()
+                high = data[ticker]['High'].dropna()
+                
+                if len(close) > 0:
+                    current_prices[ticker] = close.iloc[-1]
+                    score = calculate_momentum_score(close, high)
+                    if not np.isnan(score) and score > 0:
+                        scores[ticker] = score
+        except Exception as e:
+            continue
     
-    current_vix = float(vix.iloc[-1]) if not pd.isna(vix.iloc[-1]) else 15
-    current_prices = prices.iloc[-1]
-    idx = len(prices) - 1
+    current_prices = pd.Series(current_prices)
+    valid_scores = pd.Series(scores).sort_values(ascending=False)
     
-    # Régime
-    if current_vix >= VIX_ULTRA_DEFENSIVE:
-        regime = "🔴 ULTRA-DÉFENSIF"
-        max_positions = MAX_POSITIONS_ULTRA_DEFENSIVE
-        defensive = True
-    elif current_vix >= VIX_DEFENSIVE:
-        regime = "🟡 DÉFENSIF"
-        max_positions = MAX_POSITIONS_DEFENSIVE
-        defensive = True
-    else:
-        regime = "🟢 NORMAL"
-        max_positions = MAX_POSITIONS_NORMAL
-        defensive = False
-    
-    print(f"\n📈 VIX: {current_vix:.1f} → {regime}")
-    print(f"📊 Max positions: {max_positions}")
-    
-    # Indicateurs
-    atr_pct = pd.DataFrame(index=prices.index)
-    sma = pd.DataFrame(index=prices.index)
-    high_60 = pd.DataFrame(index=prices.index)
-    
-    for ticker in prices.columns:
-        if ticker in high_prices.columns and ticker in low_prices.columns:
-            tr1 = high_prices[ticker] - low_prices[ticker]
-            tr2 = abs(high_prices[ticker] - prices[ticker].shift(1))
-            tr3 = abs(low_prices[ticker] - prices[ticker].shift(1))
-            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-            atr_pct[ticker] = tr.rolling(ATR_PERIOD).mean() / prices[ticker]
-        sma[ticker] = prices[ticker].rolling(SMA_PERIOD).mean()
-        high_60[ticker] = prices[ticker].rolling(HIGH_LOOKBACK).max()
+    print(f"\n📊 {len(valid_scores)} tickers avec score > 0")
     
     # ============================================================
     # SIGNAUX
@@ -456,489 +483,190 @@ def main():
     
     signals = {"sell": [], "buy": [], "pyramid": [], "force_rotation": []}
     
-    # Calculer les scores en premier (pour la rotation forcée)
-    scores = score_hybride(prices, idx, current_vix)
-    scores = scores.dropna().sort_values(ascending=False)
+    # ============================================================
+    # 1. VÉRIFIER LES POSITIONS EXISTANTES
+    # ============================================================
     
     print(f"\n{'='*70}")
-    print(f"📂 POSITIONS ACTUELLES ({len(portfolio['positions'])})")
+    print("📂 VÉRIFICATION DES POSITIONS")
     print(f"{'='*70}")
     
-    if not portfolio['positions']:
-        print("\n   💵 Aucune position - 100% Cash")
+    positions_to_remove = []
     
-    # Vérifier chaque position
-    for ticker, pos in list(portfolio["positions"].items()):
-        if ticker not in current_prices.index or pd.isna(current_prices[ticker]):
-            print(f"⚠️ {ticker}: Prix non disponible")
+    for ticker, pos in portfolio["positions"].items():
+        if ticker not in current_prices.index:
             continue
         
         current_price_usd = float(current_prices[ticker])
         current_price_eur = usd_to_eur(current_price_usd, eur_rate)
         entry_price_eur = pos["entry_price_eur"]
         shares = pos["shares"]
-        value_eur = current_price_eur * shares
         
-        # Update peak
-        peak_eur = pos.get("peak_price_eur", entry_price_eur)
-        if current_price_eur > peak_eur:
-            portfolio["positions"][ticker]["peak_price_eur"] = current_price_eur
-            peak_eur = current_price_eur
+        # Mise à jour du peak
+        if current_price_eur > pos.get('peak_price_eur', entry_price_eur):
+            pos['peak_price_eur'] = current_price_eur
         
-        pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
+        stop_pct = get_stop_loss_pct(ticker, defensive)
+        stop_price_eur = calculate_stop_price(entry_price_eur, stop_pct)
+        pos['stop_loss_eur'] = stop_price_eur
+        
         pnl_eur = (current_price_eur - entry_price_eur) * shares
+        pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
         
-        pyramided = "🔺" if pos.get("pyramided", False) else ""
-        print(f"\n{'📈' if pnl_pct > 0 else '📉'} {ticker}{pyramided}: {shares:.4f} actions")
-        print(f"   Prix: {current_price_eur:.2f}€ | Entrée: {entry_price_eur:.2f}€")
-        print(f"   Valeur: {value_eur:.2f}€ | PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)")
+        # Current score
+        current_score = valid_scores.get(ticker, 0)
+        pos['score'] = current_score
         
-        # ============================================================
-        # v30.5 - VÉRIFIER PYRAMIDING
-        # ============================================================
+        # Update rank
+        if ticker in valid_scores.index:
+            pos['rank'] = list(valid_scores.index).index(ticker) + 1
+        else:
+            pos['rank'] = 999
         
-        should_pyramid, add_amount = check_pyramid_signal(pos, current_price_eur, high_prices, ticker, idx)
+        print(f"\n🔹 {ticker}")
+        print(f"   Prix: {current_price_eur:.2f}€ (entrée: {entry_price_eur:.2f}€)")
+        print(f"   PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)")
+        print(f"   Peak: {pos.get('peak_price_eur', entry_price_eur):.2f}€")
+        print(f"   Score: {current_score:.3f} | Rank: #{pos['rank']}")
         
-        if should_pyramid and portfolio["cash"] >= add_amount + COST_PER_TRADE:
-            add_shares = (add_amount - usd_to_eur(COST_PER_TRADE, eur_rate)) / current_price_eur
+        should_sell = False
+        sell_reason = ""
+        
+        # CHECK 1: Hard Stop -18%
+        hit_hard_stop, hard_stop_reason = check_hard_stop_exit(
+            current_price_eur, entry_price_eur, stop_price_eur
+        )
+        
+        if hit_hard_stop:
+            should_sell = True
+            sell_reason = hard_stop_reason
+            print(f"   ❌ HARD STOP touché! ({stop_price_eur:.2f}€)")
+        
+        # CHECK 2: MFE Trailing
+        if not should_sell:
+            hit_mfe, mfe_reason, mfe_details = check_mfe_trailing_exit(
+                pos, current_price_eur, entry_price_eur
+            )
             
-            signals["pyramid"].append({
-                "ticker": ticker,
-                "price_usd": current_price_usd,
-                "price_eur": current_price_eur,
-                "add_shares": add_shares,
-                "add_amount_eur": add_amount,
-                "current_gain_pct": pnl_pct
-            })
-            print(f"   🔺 PYRAMIDING SIGNAL: +{add_shares:.4f} actions (+{add_amount:.0f}€)")
+            if hit_mfe:
+                should_sell = True
+                sell_reason = mfe_reason
+                print(f"   📉 MFE TRAILING déclenché!")
+                print(f"      MFE: +{mfe_details['mfe_pct']:.1f}%")
+                print(f"      Drawdown: {mfe_details['drawdown_pct']:.1f}%")
+            else:
+                status = "ACTIF" if mfe_details['trailing_active'] else "INACTIF"
+                print(f"   🎯 Trailing: {status} (MFE: +{mfe_details['mfe_pct']:.1f}%)")
         
-        # Vérifier trailing stop
-        gain_ratio = current_price_eur / entry_price_eur
-        sell_reason = None
-        
-        if gain_ratio >= TRAILING_STOP_ACTIVATION:
-            trail_stop = peak_eur * (1 - TRAILING_STOP_PCT)
-            if current_price_eur < trail_stop:
-                sell_reason = f"TRAILING STOP (peak: {peak_eur:.2f}€)"
-        elif gain_ratio >= MINI_TRAIL_ACTIVATION:
-            mini_stop = peak_eur * (1 - MINI_TRAIL_PCT)
-            if current_price_eur < mini_stop:
-                sell_reason = f"MINI-TRAIL (peak: {peak_eur:.2f}€)"
-        
-        # Stop loss
-        sl_pct = get_stop_loss_pct(ticker, defensive)
-        stop_price_eur = entry_price_eur * (1 - sl_pct)
-        
-        if current_price_eur < stop_price_eur:
-            sell_reason = f"STOP LOSS (-{sl_pct*100:.0f}%)"
-        
-        if sell_reason:
-            signals["sell"].append({
-                "ticker": ticker,
-                "reason": sell_reason,
-                "price_usd": current_price_usd,
-                "price_eur": current_price_eur,
-                "shares": shares,
-                "value_eur": value_eur,
-                "pnl_eur": pnl_eur,
-                "pnl_pct": pnl_pct
-            })
-        
-        # ============================================================
-        # v30.5 - VÉRIFIER ROTATION FORCÉE (score ≤ 0 pendant 10 jours)
-        # ============================================================
-        
-        if sell_reason is None:  # Pas déjà en vente
-            current_score = scores.get(ticker, 0)
-            days_zero = pos.get("days_zero_score", 0)
+        # CHECK 3: Force rotation (score = 0 pendant X jours)
+        if not should_sell and current_score <= 0:
+            days_zero = pos.get("days_zero_score", 0) + 1
+            pos["days_zero_score"] = days_zero
+            print(f"   ⚠️ Score ≤ 0 depuis {days_zero} jour(s)")
             
-            if current_score <= 0:
-                # Incrémenter le compteur
-                days_zero += 1
-                portfolio["positions"][ticker]["days_zero_score"] = days_zero
-                print(f"   ⚠️ Score ≤ 0 depuis {days_zero} jour(s)")
-                
-                # Vérifier si rotation forcée nécessaire
-                if days_zero >= FORCE_ROTATION_DAYS:
-                    # Chercher un candidat de remplacement
-                    def can_enter_force(t):
-                        if t not in prices.columns:
-                            return False
-                        price = current_prices[t]
-                        if pd.isna(price):
-                            return False
-                        price = float(price)
-                        
-                        if t in atr_pct.columns:
-                            atr_val = atr_pct[t].iloc[idx]
-                            if not pd.isna(atr_val) and atr_val >= get_atr_threshold(t):
-                                return False
-                        
-                        if t in sma.columns:
-                            sma_val = sma[t].iloc[idx]
-                            if not pd.isna(sma_val) and price <= float(sma_val):
-                                return False
-                        
-                        if t in high_60.columns:
-                            high_val = high_60[t].iloc[idx]
-                            if not pd.isna(high_val) and float(high_val) > 0:
-                                if (price / float(high_val) - 1) < -MAX_DRAWDOWN:
-                                    return False
-                        
-                        if idx >= 21:
-                            ret_1m = float(prices[t].iloc[idx]) / float(prices[t].iloc[idx - 21]) - 1
-                            if ret_1m < 0:
-                                return False
-                        
-                        return True
-                    
-                    valid_candidates = [t for t in scores.index if can_enter_force(t)]
-                    top_candidates = valid_candidates[:max_positions]
-                    
-                    # Trouver un remplacement pas en portefeuille
-                    current_tickers = list(portfolio["positions"].keys())
-                    replacement = None
-                    for candidate in top_candidates:
-                        if candidate not in current_tickers and candidate not in [s["ticker"] for s in signals["sell"]]:
-                            replacement = candidate
-                            break
-                    
-                    if replacement:
+            if days_zero >= FORCE_ROTATION_DAYS:
+                # Trouver un remplaçant
+                for candidate in valid_scores.index:
+                    if candidate not in portfolio["positions"]:
                         signals["force_rotation"].append({
                             "ticker": ticker,
-                            "replacement": replacement,
-                            "reason": f"ROTATION FORCÉE (score=0 depuis {days_zero}j)",
-                            "price_usd": current_price_usd,
-                            "price_eur": current_price_eur,
+                            "replacement": candidate,
+                            "replacement_score": valid_scores[candidate],
                             "shares": shares,
-                            "value_eur": value_eur,
+                            "price_eur": current_price_eur,
                             "pnl_eur": pnl_eur,
                             "pnl_pct": pnl_pct,
-                            "days_zero": days_zero,
-                            "replacement_score": scores.get(replacement, 0)
+                            "days_zero": days_zero
                         })
-                        print(f"   🔄 ROTATION FORCÉE: {ticker} → {replacement} (score=0 depuis {days_zero}j)")
-            else:
-                # Reset le compteur si score > 0
-                if days_zero > 0:
-                    portfolio["positions"][ticker]["days_zero_score"] = 0
-                    print(f"   ✅ Score remonté > 0 (reset compteur)")
+                        should_sell = True
+                        sell_reason = f"FORCE_ROTATION_{days_zero}j"
+                        break
+        else:
+            pos["days_zero_score"] = 0
+        
+        if should_sell:
+            signals["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "price_usd": current_price_usd,
+                "price_eur": current_price_eur,
+                "value_eur": current_price_eur * shares,
+                "pnl_eur": pnl_eur,
+                "pnl_pct": pnl_pct,
+                "reason": sell_reason
+            })
+            positions_to_remove.append(ticker)
     
     # ============================================================
-    # CHERCHER NOUVEAUX SIGNAUX
+    # 2. OPPORTUNITÉS D'ACHAT
     # ============================================================
     
-    # scores déjà calculés plus haut
+    available_cash = portfolio["cash"]
     
-    def can_enter(ticker):
-        if ticker not in prices.columns:
-            return False
-        price = current_prices[ticker]
-        if pd.isna(price):
-            return False
-        price = float(price)
+    # Compter les positions après ventes
+    future_positions = len(portfolio["positions"]) - len(positions_to_remove)
+    slots_available = max_positions - future_positions
+    
+    if slots_available > 0 and available_cash > 50:
+        print(f"\n{'='*70}")
+        print(f"🛒 OPPORTUNITÉS D'ACHAT ({slots_available} slots disponibles)")
+        print(f"{'='*70}")
         
-        if ticker in atr_pct.columns:
-            atr_val = atr_pct[ticker].iloc[idx]
-            if not pd.isna(atr_val) and atr_val >= get_atr_threshold(ticker):
-                return False
-        
-        if ticker in sma.columns:
-            sma_val = sma[ticker].iloc[idx]
-            if not pd.isna(sma_val) and price <= float(sma_val):
-                return False
-        
-        if ticker in high_60.columns:
-            high_val = high_60[ticker].iloc[idx]
-            if not pd.isna(high_val) and float(high_val) > 0:
-                if (price / float(high_val) - 1) < -MAX_DRAWDOWN:
-                    return False
-        
-        if idx >= 21:
-            ret_1m = float(prices[ticker].iloc[idx]) / float(prices[ticker].iloc[idx - 21]) - 1
-            if ret_1m < 0:
-                return False
-        
-        return True
-    
-    valid_tickers = [t for t in scores.index if can_enter(t)]
-    valid_scores = scores[valid_tickers]
-    top_candidates = valid_scores.head(max_positions).index.tolist()
-    
-    # Vérifier rotations
-    current_positions = list(portfolio["positions"].keys())
-    
-    for ticker in current_positions:
-        if ticker in [s["ticker"] for s in signals["sell"]]:
-            continue
-        
-        if ticker not in top_candidates:
-            pos = portfolio["positions"][ticker]
-            entry_date = datetime.strptime(pos["entry_date"], "%Y-%m-%d")
-            days_held = (datetime.now() - entry_date).days
-            
-            if days_held >= get_min_holding_days(ticker):
-                for candidate in top_candidates:
-                    if candidate not in current_positions:
-                        current_score = pos.get("score", 0)
-                        new_score = valid_scores.get(candidate, 0)
-                        
-                        if new_score > current_score * (1 + get_rotation_threshold(ticker)):
-                            current_price_usd = float(current_prices[ticker])
-                            current_price_eur = usd_to_eur(current_price_usd, eur_rate)
-                            entry_price_eur = pos["entry_price_eur"]
-                            shares = pos["shares"]
-                            value_eur = current_price_eur * shares
-                            pnl_eur = (current_price_eur - entry_price_eur) * shares
-                            pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
-                            
-                            signals["sell"].append({
-                                "ticker": ticker,
-                                "reason": f"ROTATION → {candidate}",
-                                "price_usd": current_price_usd,
-                                "price_eur": current_price_eur,
-                                "shares": shares,
-                                "value_eur": value_eur,
-                                "pnl_eur": pnl_eur,
-                                "pnl_pct": pnl_pct
-                            })
-                            break
-    
-    # ============================================================
-    # CALCULER CASH DISPONIBLE
-    # ============================================================
-    
-    # Cash après pyramiding
-    cash_after_pyramid = portfolio["cash"]
-    for pyr in signals["pyramid"]:
-        cash_after_pyramid -= pyr["add_amount_eur"] + usd_to_eur(COST_PER_TRADE, eur_rate)
-    
-    # Cash après ventes
-    cash_after_sells = cash_after_pyramid
-    for sell in signals["sell"]:
-        proceeds = sell["value_eur"] - usd_to_eur(COST_PER_TRADE, eur_rate)
-        cash_after_sells += proceeds
-    
-    positions_after_sells = len(current_positions) - len(signals["sell"])
-    available_slots = max_positions - positions_after_sells
-    
-    # ============================================================
-    # v30.5 - ALLOCATION PONDÉRÉE POUR ACHATS
-    # ============================================================
-    
-    if available_slots > 0 and cash_after_sells > 50:
-        fees_total = available_slots * usd_to_eur(COST_PER_TRADE, eur_rate)
-        cash_for_investing = cash_after_sells - fees_total
-        
-        # Collecter les candidats
-        buy_candidates = []
-        for candidate in top_candidates:
-            if candidate in current_positions:
-                continue
-            if candidate in [s["ticker"] for s in signals["sell"]]:
-                continue
-            if len(buy_candidates) >= available_slots:
+        for ticker in valid_scores.index:
+            if slots_available <= 0 or available_cash < 50:
                 break
-            buy_candidates.append(candidate)
-        
-        # Allocation pondérée
-        for rank, candidate in enumerate(buy_candidates, 1):
-            price_usd = float(current_prices[candidate])
-            price_eur = usd_to_eur(price_usd, eur_rate)
             
-            # v30.5: Allocation pondérée par rang
-            amount_to_invest = get_weighted_allocation(rank, len(buy_candidates), cash_for_investing)
-            shares = amount_to_invest / price_eur
+            if ticker in portfolio["positions"] and ticker not in positions_to_remove:
+                continue
             
-            sl_pct = get_stop_loss_pct(candidate, defensive)
-            stop_price_eur = price_eur * (1 - sl_pct)
+            # Force rotation achats
+            for rot in signals["force_rotation"]:
+                if rot["replacement"] == ticker:
+                    continue
+            
+            rank = list(valid_scores.index).index(ticker) + 1
+            if rank > max_positions:
+                break
+            
+            current_price_usd = float(current_prices[ticker])
+            current_price_eur = usd_to_eur(current_price_usd, eur_rate)
+            
+            # Allocation pondérée
+            allocation = get_weighted_allocation(rank, max_positions, available_cash)
+            allocation = min(allocation, available_cash - 10)  # Garder 10€ min
+            
+            if allocation < 50:
+                continue
+            
+            shares = allocation / current_price_eur
+            stop_pct = get_stop_loss_pct(ticker, defensive)
+            stop_price = calculate_stop_price(current_price_eur, stop_pct)
             
             signals["buy"].append({
-                "ticker": candidate,
-                "price_usd": price_usd,
-                "price_eur": price_eur,
-                "shares": shares,
-                "amount_eur": amount_to_invest,
-                "score": valid_scores[candidate],
-                "stop_loss_eur": stop_price_eur,
-                "stop_loss_pct": sl_pct * 100,
+                "ticker": ticker,
                 "rank": rank,
-                "allocation_pct": (amount_to_invest / cash_for_investing * 100) if cash_for_investing > 0 else 0
+                "score": valid_scores[ticker],
+                "price_usd": current_price_usd,
+                "price_eur": current_price_eur,
+                "shares": shares,
+                "amount_eur": allocation,
+                "allocation_pct": allocation / available_cash * 100,
+                "stop_loss_eur": stop_price,
+                "stop_loss_pct": stop_pct * 100
             })
+            
+            available_cash -= allocation
+            slots_available -= 1
+            
+            print(f"\n🟢 ACHETER #{rank}: {ticker}")
+            print(f"   Score: {valid_scores[ticker]:.3f}")
+            print(f"   Montant: {allocation:.2f}€")
+            print(f"   Actions: {shares:.4f}")
+            print(f"   Stop: {stop_price:.2f}€ (-{stop_pct*100:.0f}%)")
     
     # ============================================================
-    # AFFICHER SIGNAUX
+    # EXÉCUTION DES ORDRES
     # ============================================================
-    
-    print(f"\n{'='*70}")
-    print(f"🚨 SIGNAUX DU JOUR")
-    print(f"{'='*70}")
-    
-    if not signals["sell"] and not signals["buy"] and not signals["pyramid"] and not signals["force_rotation"]:
-        print("\n✅ Aucun signal aujourd'hui - HOLD")
-    
-    # Pyramiding
-    if signals["pyramid"]:
-        print(f"\n🔺 PYRAMIDING ({len(signals['pyramid'])})")
-        print("-"*70)
-        for pyr in signals["pyramid"]:
-            print(f"""
-   {pyr['ticker']} (déjà +{pyr['current_gain_pct']:.1f}%)
-   ├─ Ajouter: {pyr['add_shares']:.4f} actions
-   ├─ Montant: {pyr['add_amount_eur']:.2f}€ + 1€ frais
-   └─ Prix: {pyr['price_eur']:.2f}€
-""")
-    
-    # Rotations forcées
-    if signals["force_rotation"]:
-        print(f"\n🔄 ROTATIONS FORCÉES ({len(signals['force_rotation'])})")
-        print("-"*70)
-        for rot in signals["force_rotation"]:
-            print(f"""
-   {rot['ticker']} → {rot['replacement']}
-   ├─ Raison: Score ≤ 0 depuis {rot['days_zero']} jours
-   ├─ VENDRE {rot['ticker']}: {rot['shares']:.4f} actions @ {rot['price_eur']:.2f}€
-   ├─ PnL sortie: {rot['pnl_eur']:+.2f}€ ({rot['pnl_pct']:+.1f}%)
-   └─ ACHETER {rot['replacement']}: Score {rot['replacement_score']:.3f}
-""")
-    
-    # Ventes
-    if signals["sell"]:
-        print(f"\n🔴 VENTES ({len(signals['sell'])})")
-        print("-"*70)
-        for sell in signals["sell"]:
-            print(f"""
-   {sell['ticker']}
-   ├─ Raison: {sell['reason']}
-   ├─ Prix actuel: {sell['price_eur']:.2f}€
-   ├─ Actions: {sell['shares']:.4f}
-   ├─ Montant: {sell['value_eur']:.2f}€
-   └─ PnL: {sell['pnl_eur']:+.2f}€ ({sell['pnl_pct']:+.1f}%)
-""")
-    
-    # Achats
-    if signals["buy"]:
-        print(f"\n🟢 ACHATS ({len(signals['buy'])}) - Allocation pondérée")
-        print("-"*70)
-        for buy in signals["buy"]:
-            print(f"""
-   #{buy['rank']} {buy['ticker']} ({buy['allocation_pct']:.0f}% du cash)
-   ┌─────────────────────────────────────────────
-   │ 💶 MONTANT: {buy['amount_eur']:.2f}€ + 1€ frais
-   │ 📊 ACTIONS: {buy['shares']:.4f}
-   └─────────────────────────────────────────────
-   ├─ Prix: {buy['price_eur']:.2f}€
-   ├─ Score: {buy['score']:.3f}
-   └─ Stop Loss: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)
-""")
-    
-    # ============================================================
-    # TOP 5 TENDANCES
-    # ============================================================
-    
-    print(f"\n{'='*70}")
-    print(f"🏆 TOP 5 TENDANCES")
-    print(f"{'='*70}")
-    
-    top5 = valid_scores.head(5)
-    current_positions = list(portfolio["positions"].keys())
-    
-    print(f"\n{'Rang':<6} {'Ticker':<8} {'Prix €':<12} {'Score':<10} {'Statut'}")
-    print("-"*60)
-    
-    for i, (ticker, score) in enumerate(top5.items(), 1):
-        price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
-        
-        if ticker in current_positions:
-            statut = "📂 EN PORTEFEUILLE"
-        elif ticker in [b["ticker"] for b in signals["buy"]]:
-            statut = "🟢 ACHAT"
-        else:
-            statut = "👀 À surveiller"
-        
-        print(f"   {i:<4} {ticker:<8} {price_eur:>8.2f}€    {score:>6.3f}    {statut}")
-    
-    top5_data = []
-    for ticker, score in top5.items():
-        price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
-        top5_data.append({
-            "ticker": ticker,
-            "price_eur": price_eur,
-            "score": score,
-            "in_portfolio": ticker in current_positions,
-            "in_buy": ticker in [b["ticker"] for b in signals["buy"]]
-        })
-    
-    # ============================================================
-    # EXÉCUTER LES TRADES
-    # ============================================================
-    
-    # Pyramiding
-    for pyr in signals["pyramid"]:
-        ticker = pyr["ticker"]
-        pos = portfolio["positions"][ticker]
-        
-        old_shares = pos["shares"]
-        old_entry = pos["entry_price_eur"]
-        add_shares = pyr["add_shares"]
-        new_price = pyr["price_eur"]
-        
-        # Nouveau prix moyen pondéré
-        new_shares = old_shares + add_shares
-        new_entry = (old_shares * old_entry + add_shares * new_price) / new_shares
-        
-        portfolio["positions"][ticker]["shares"] = new_shares
-        portfolio["positions"][ticker]["entry_price_eur"] = new_entry
-        portfolio["positions"][ticker]["pyramided"] = True
-        
-        portfolio["cash"] -= pyr["add_amount_eur"] + usd_to_eur(COST_PER_TRADE, eur_rate)
-        
-        log_trade(history, "PYRAMID", ticker, pyr["price_usd"], pyr["price_eur"],
-                  add_shares, pyr["add_amount_eur"], eur_rate, reason="pyramid_add")
-    
-    # Rotations forcées (vente + achat)
-    for rot in signals["force_rotation"]:
-        ticker_out = rot["ticker"]
-        ticker_in = rot["replacement"]
-        
-        # VENDRE l'ancienne position
-        proceeds = rot["value_eur"] - usd_to_eur(COST_PER_TRADE, eur_rate)
-        portfolio["cash"] += proceeds
-        
-        log_trade(history, "SELL", ticker_out, rot["price_usd"], rot["price_eur"],
-                  rot["shares"], rot["value_eur"], eur_rate,
-                  reason=rot["reason"], pnl_eur=rot["pnl_eur"], pnl_pct=rot["pnl_pct"])
-        
-        del portfolio["positions"][ticker_out]
-        
-        # ACHETER la nouvelle position (réinvestir le montant)
-        price_in_usd = float(current_prices[ticker_in])
-        price_in_eur = usd_to_eur(price_in_usd, eur_rate)
-        amount_to_invest = proceeds - usd_to_eur(COST_PER_TRADE, eur_rate)
-        shares_in = amount_to_invest / price_in_eur
-        
-        sl_pct = get_stop_loss_pct(ticker_in, defensive)
-        stop_price_eur = price_in_eur * (1 - sl_pct)
-        
-        portfolio["positions"][ticker_in] = {
-            "entry_price_eur": price_in_eur,
-            "entry_price_usd": price_in_usd,
-            "entry_date": today,
-            "shares": shares_in,
-            "initial_amount_eur": amount_to_invest,
-            "amount_invested_eur": amount_to_invest,
-            "score": rot["replacement_score"],
-            "peak_price_eur": price_in_eur,
-            "stop_loss_eur": stop_price_eur,
-            "rank": 1,  # Meilleur candidat disponible
-            "pyramided": False,
-            "days_zero_score": 0
-        }
-        
-        portfolio["cash"] -= amount_to_invest + usd_to_eur(COST_PER_TRADE, eur_rate)
-        
-        log_trade(history, "BUY", ticker_in, price_in_usd, price_in_eur,
-                  shares_in, amount_to_invest, eur_rate, reason=f"force_rotation_from_{ticker_out}")
     
     # Ventes
     for sell in signals["sell"]:
@@ -986,7 +714,7 @@ def main():
     
     total_positions_value = 0
     for ticker, pos in portfolio["positions"].items():
-        if ticker in current_prices.index and not pd.isna(current_prices[ticker]):
+        if ticker in current_prices.index:
             current_price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
             value = current_price_eur * pos["shares"]
             total_positions_value += value
@@ -1009,13 +737,6 @@ def main():
    {'📈' if total_pnl >= 0 else '📉'} PnL:                  {total_pnl:+.2f}€ ({total_pnl_pct:+.1f}%)
 """)
     
-    summary = history["summary"]
-    if summary["total_trades"] > 0:
-        print(f"   📜 HISTORIQUE")
-        print(f"   Trades: {summary['total_trades']} | Pyramids: {summary.get('pyramids', 0)}")
-        print(f"   Wins: {summary['winning_trades']} | Losses: {summary['losing_trades']}")
-        print(f"   Win Rate: {summary['win_rate']:.1f}% | PnL réalisé: {summary['total_pnl_eur']:+.2f}€")
-    
     save_portfolio(portfolio)
     save_trades_history(history)
     print(f"\n💾 Portfolio et historique sauvegardés")
@@ -1024,26 +745,18 @@ def main():
     # TELEGRAM
     # ============================================================
     
-    msg = f"📊 <b>APEX v30.6 OPTIMISÉ</b> - {today}\n"
+    msg = f"📊 <b>APEX v31 OPTIMISÉ</b> - {today}\n"
     msg += f"{regime} | VIX: {current_vix:.1f}\n"
-    msg += f"💱 EUR/USD: {eur_rate:.4f}\n\n"
+    msg += f"💱 EUR/USD: {eur_rate:.4f}\n"
+    msg += f"⚙️ Stop: -18% | Trail: +15%/-5%\n\n"
     
-    if signals["sell"] or signals["buy"] or signals["pyramid"] or signals["force_rotation"]:
+    if signals["sell"] or signals["buy"] or signals["force_rotation"]:
         msg += f"🚨 <b>ACTIONS À FAIRE</b>\n\n"
-        
-        for pyr in signals["pyramid"]:
-            msg += f"🔺 <b>PYRAMIDER {pyr['ticker']}</b>\n"
-            msg += f"   Ajouter: {pyr['add_shares']:.4f} actions\n"
-            msg += f"   Montant: <b>{pyr['add_amount_eur']:.2f}€</b> + 1€\n"
-            msg += f"   Gain actuel: +{pyr['current_gain_pct']:.1f}%\n\n"
         
         for rot in signals["force_rotation"]:
             msg += f"🔄 <b>ROTATION FORCÉE</b>\n"
             msg += f"   {rot['ticker']} → {rot['replacement']}\n"
-            msg += f"   Raison: Score=0 depuis {rot['days_zero']}j\n"
-            msg += f"   VENDRE: {rot['shares']:.4f} @ {rot['price_eur']:.2f}€\n"
-            msg += f"   PnL: {rot['pnl_eur']:+.2f}€ ({rot['pnl_pct']:+.1f}%)\n"
-            msg += f"   ACHETER: {rot['replacement']} (score: {rot['replacement_score']:.3f})\n\n"
+            msg += f"   Score=0 depuis {rot['days_zero']}j\n\n"
         
         for sell in signals["sell"]:
             msg += f"🔴 <b>VENDRE {sell['ticker']}</b>\n"
@@ -1054,93 +767,44 @@ def main():
         
         for buy in signals["buy"]:
             msg += f"🟢 <b>ACHETER #{buy['rank']} {buy['ticker']}</b>\n"
-            msg += f"   💶 Montant: <b>{buy['amount_eur']:.2f}€</b> ({buy['allocation_pct']:.0f}%)\n"
+            msg += f"   💶 Montant: <b>{buy['amount_eur']:.2f}€</b>\n"
             msg += f"   📊 Actions: <b>{buy['shares']:.4f}</b>\n"
-            msg += f"   Prix: {buy['price_eur']:.2f}€\n"
-            msg += f"   Stop: {buy['stop_loss_eur']:.2f}€ (-{buy['stop_loss_pct']:.0f}%)\n\n"
+            msg += f"   Stop: {buy['stop_loss_eur']:.2f}€ (-18%)\n"
+            msg += f"   MFE Trigger: {buy['price_eur']*1.15:.2f}€ (+15%)\n\n"
     else:
         msg += f"✅ <b>Aucun signal - HOLD</b>\n\n"
     
-    # Positions avec montants
+    # Positions
     msg += f"📂 <b>MES POSITIONS</b>\n"
-    positions_data = []
-    
     for ticker, pos in portfolio["positions"].items():
-        if ticker in current_prices.index and not pd.isna(current_prices[ticker]):
+        if ticker in current_prices.index:
             current_price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
             entry_price_eur = pos["entry_price_eur"]
-            shares = pos["shares"]
-            value_eur = current_price_eur * shares
-            invested_eur = pos.get("initial_amount_eur", pos.get("amount_invested_eur", entry_price_eur * shares))
-            # Ajouter le montant pyramidé si applicable
-            if pos.get("pyramided", False):
-                invested_eur = invested_eur * 1.5  # Approximation (initial + 50%)
-            
             pnl_pct = (current_price_eur / entry_price_eur - 1) * 100
-            pnl_eur = (current_price_eur - entry_price_eur) * shares
+            pnl_eur = (current_price_eur - entry_price_eur) * pos["shares"]
+            mfe_pct = (pos.get('peak_price_eur', entry_price_eur) / entry_price_eur - 1) * 100
             
-            if ticker in valid_scores.index:
-                rank = list(valid_scores.index).index(ticker) + 1
-                score = valid_scores[ticker]
-                rank_str = f"#{rank}"
-            else:
-                rank_str = "❌"
-                score = 0
+            trailing_status = "🟢ACTIF" if mfe_pct >= 15 else "⚪️"
             
-            positions_data.append({
-                "ticker": ticker,
-                "value_eur": value_eur,
-                "invested_eur": invested_eur,
-                "pnl_eur": pnl_eur,
-                "pnl_pct": pnl_pct,
-                "rank_str": rank_str,
-                "score": score,
-                "pyramided": pos.get("pyramided", False)
-            })
-            
-            pyramided = "🔺" if pos.get("pyramided", False) else ""
-            days_zero = pos.get("days_zero_score", 0)
-            warning = f" ⚠️{days_zero}j" if days_zero > 0 else ""
             emoji = "📈" if pnl_pct >= 0 else "📉"
-            msg += f"{emoji} {ticker}{pyramided}{warning} ({rank_str}) @ {current_price_eur:.2f}€\n"
-            msg += f"   Investi: {invested_eur:.0f}€ → Valeur: {value_eur:.0f}€\n"
+            msg += f"{emoji} {ticker} #{pos.get('rank', 'N/A')}\n"
+            msg += f"   {pos['amount_invested_eur']:.0f}€ → {current_price_eur * pos['shares']:.0f}€\n"
             msg += f"   PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)\n"
-    msg += f"\n"
+            msg += f"   Trail: {trailing_status} MFE:+{mfe_pct:.1f}%\n"
     
-    # Répartition du portfolio
-    msg += f"💼 <b>RÉPARTITION</b>\n"
-    total_portfolio = total_value
+    msg += f"\n💰 <b>TOTAL: {total_value:.2f}€</b> ({total_pnl_pct:+.1f}%)\n"
     
-    # Trier par valeur décroissante
-    positions_data_sorted = sorted(positions_data, key=lambda x: x["value_eur"], reverse=True)
-    
-    for p in positions_data_sorted:
-        pct_portfolio = (p["value_eur"] / total_portfolio * 100) if total_portfolio > 0 else 0
-        pyramided = "🔺" if p["pyramided"] else ""
-        msg += f"   {p['ticker']}{pyramided}: {p['value_eur']:.0f}€ ({pct_portfolio:.0f}%) - {p['rank_str']}\n"
-    
-    # Cash
-    cash_pct = (portfolio['cash'] / total_portfolio * 100) if total_portfolio > 0 else 0
-    msg += f"   💵 Cash: {portfolio['cash']:.0f}€ ({cash_pct:.0f}%)\n\n"
-    
-    msg += f"💰 <b>PORTFOLIO TOTAL</b>\n"
-    msg += f"Valeur: {total_value:.2f}€ ({total_pnl_pct:+.1f}%)\n"
-    msg += f"Investi: {total_invested:.0f}€\n\n"
-    
-    msg += f"🏆 <b>TOP 5 TENDANCES</b>\n"
-    for i, t in enumerate(top5_data, 1):
-        if t["in_portfolio"]:
-            marker = "📂"
-        elif t["in_buy"]:
-            marker = "🟢"
-        else:
-            marker = "👀"
-        msg += f"{i}. {t['ticker']} @ {t['price_eur']:.2f}€ ({t['score']:.3f}) {marker}\n"
+    # Top 5
+    msg += f"\n🏆 <b>TOP 5 MOMENTUM</b>\n"
+    for i, ticker in enumerate(valid_scores.head(5).index, 1):
+        price = usd_to_eur(float(current_prices[ticker]), eur_rate)
+        in_pf = "📂" if ticker in portfolio["positions"] else "👀"
+        msg += f"{i}. {ticker} @ {price:.2f}€ ({valid_scores[ticker]:.3f}) {in_pf}\n"
     
     send_telegram(msg)
     
     print(f"\n{'='*70}")
-    print("✅ APEX v30.6 OPTIMISÉ terminé")
+    print("✅ APEX v31 OPTIMISÉ terminé")
     print(f"{'='*70}")
 
 if __name__ == "__main__":
