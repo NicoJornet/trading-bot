@@ -34,7 +34,7 @@
       "rank": 30,
       "pyramided": false,
       "days_zero_score": 0,
-      "bad_rank_days": 1
+      "bad_rank_days": 2
     },
     "SLV": {
       "entry_price_eur": 71.75518232750248,
@@ -44,7 +44,7 @@
       "initial_amount_eur": 241.13,
       "amount_invested_eur": 241.13,
       "score": 8.444595285819863,
-      "peak_price_eur": 71.75518232750248,
+      "peak_price_eur": 71.76351492529422,
       "stop_loss_eur": 58.83924950855204,
       "rank": 1,
       "pyramided": false,
@@ -52,5 +52,5 @@
       "bad_rank_days": 0
     }
   },
-  "last_updated": "2026-01-15 21:27"
+  "last_updated": "2026-01-15 21:31"
 }
