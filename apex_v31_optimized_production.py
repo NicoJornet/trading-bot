@@ -60,9 +60,9 @@ SMA_PERIOD = 20
 HIGH_LOOKBACK = 60
 
 # ⭐ PARAMÈTRES DE SORTIE OPTIMISÉS (validés 2015-2026)
-HARD_STOP_PCT = 0.18           # -18% stop uniforme pour tous les tickers
-MFE_THRESHOLD_PCT = 0.15       # Activer trailing à +15%
-TRAILING_PCT = 0.05            # -5% du plus haut
+HARD_STOP_PCT = 0.18            # -18% stop uniforme pour tous les tickers
+MFE_THRESHOLD_PCT = 0.15        # Activer trailing à +15%
+TRAILING_PCT = 0.05             # -5% du plus haut
 
 # Ancien système de trailing (gardé pour compatibilité mais remplacé par MFE)
 TRAILING_STOP_ACTIVATION = 1.40
@@ -238,7 +238,10 @@ def eur_to_usd(amount_eur, rate=None):
 def load_portfolio():
     if os.path.exists(PORTFOLIO_FILE):
         with open(PORTFOLIO_FILE, "r") as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                pass
     return {
         "currency": "EUR",
         "initial_capital": INITIAL_CAPITAL,
@@ -255,10 +258,8 @@ def save_portfolio(portfolio):
         json.dump(portfolio, f, indent=4)
 
 def load_trades_history():
-    if os.path.exists(TRADES_HISTORY_FILE):
-        with open(TRADES_HISTORY_FILE, "r") as f:
-            return json.load(f)
-    return {
+    """Charge l'historique des trades avec validation de structure"""
+    default_history = {
         "trades": [],
         "summary": {
             "total_trades": 0,
@@ -274,6 +275,37 @@ def load_trades_history():
             "win_rate": 0.0
         }
     }
+    
+    if os.path.exists(TRADES_HISTORY_FILE):
+        try:
+            with open(TRADES_HISTORY_FILE, "r") as f:
+                content = f.read().strip()
+                if not content:
+                    return default_history
+                
+                history = json.loads(content)
+                
+                # Validation et réparation de la structure
+                if not isinstance(history, dict):
+                    return default_history
+                    
+                if "trades" not in history:
+                    history["trades"] = []
+                
+                if "summary" not in history:
+                    history["summary"] = default_history["summary"]
+                else:
+                    # Compléter les champs summary manquants
+                    for k, v in default_history["summary"].items():
+                        if k not in history["summary"]:
+                            history["summary"][k] = v
+                            
+                return history
+        except Exception as e:
+            print(f"⚠️ Erreur chargement historique ({e}): Réinitialisation.")
+            return default_history
+            
+    return default_history
 
 def save_trades_history(history):
     with open(TRADES_HISTORY_FILE, "w") as f:
@@ -281,6 +313,11 @@ def save_trades_history(history):
 
 def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur, 
               eur_rate, reason="", pnl_eur=None, pnl_pct=None):
+    
+    # Sécurité supplémentaire
+    if "trades" not in history:
+        history["trades"] = []
+    
     trade = {
         "id": len(history["trades"]) + 1,
         "date": datetime.now().strftime("%Y-%m-%d"),
@@ -303,6 +340,13 @@ def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur,
     history["trades"].append(trade)
     
     # Update summary
+    if "summary" not in history:
+        history["summary"] = {
+            "total_trades": 0, "buys": 0, "sells": 0, "pyramids": 0,
+            "winning_trades": 0, "losing_trades": 0, "total_pnl_eur": 0.0,
+            "total_fees_eur": 0.0, "best_trade_eur": 0.0, "worst_trade_eur": 0.0, "win_rate": 0.0
+        }
+        
     summary = history["summary"]
     summary["total_trades"] += 1
     summary["total_fees_eur"] += COST_PER_TRADE
@@ -318,9 +362,9 @@ def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur,
             else:
                 summary["losing_trades"] += 1
             
-            if pnl_eur > summary["best_trade_eur"]:
+            if pnl_eur > summary.get("best_trade_eur", 0):
                 summary["best_trade_eur"] = pnl_eur
-            if pnl_eur < summary["worst_trade_eur"]:
+            if pnl_eur < summary.get("worst_trade_eur", 0):
                 summary["worst_trade_eur"] = pnl_eur
             
             total_closed = summary["winning_trades"] + summary["losing_trades"]
@@ -460,15 +504,23 @@ def main():
     
     for ticker in DATABASE:
         try:
-            if ticker in data.columns.get_level_values(0):
-                close = data[ticker]['Close'].dropna()
-                high = data[ticker]['High'].dropna()
-                
-                if len(close) > 0:
-                    current_prices[ticker] = close.iloc[-1]
-                    score = calculate_momentum_score(close, high)
-                    if not np.isnan(score) and score > 0:
-                        scores[ticker] = score
+            # Gestion multi-index ou simple index selon le nombre de tickers
+            if isinstance(data.columns, pd.MultiIndex):
+                if ticker in data.columns.get_level_values(0):
+                    close = data[ticker]['Close'].dropna()
+                    high = data[ticker]['High'].dropna()
+                else:
+                    continue
+            else:
+                 # Cas rare si 1 seul ticker téléchargé
+                 close = data['Close'].dropna()
+                 high = data['High'].dropna()
+
+            if len(close) > 0:
+                current_prices[ticker] = close.iloc[-1]
+                score = calculate_momentum_score(close, high)
+                if not np.isnan(score) and score > 0:
+                    scores[ticker] = score
         except Exception as e:
             continue
     
@@ -620,13 +672,15 @@ def main():
                 continue
             
             # Force rotation achats
+            is_replacement = False
             for rot in signals["force_rotation"]:
                 if rot["replacement"] == ticker:
-                    continue
+                    is_replacement = True
             
+            # Si c'est un replacement, on l'accepte, sinon on vérifie le rang
             rank = list(valid_scores.index).index(ticker) + 1
-            if rank > max_positions:
-                break
+            if rank > max_positions and not is_replacement:
+                continue
             
             current_price_usd = float(current_prices[ticker])
             current_price_eur = usd_to_eur(current_price_usd, eur_rate)
@@ -678,7 +732,8 @@ def main():
                   sell["shares"], sell["value_eur"], eur_rate,
                   reason=sell["reason"], pnl_eur=sell["pnl_eur"], pnl_pct=sell["pnl_pct"])
         
-        del portfolio["positions"][ticker]
+        if ticker in portfolio["positions"]:
+            del portfolio["positions"][ticker]
     
     # Achats
     for buy in signals["buy"]:
@@ -729,12 +784,12 @@ def main():
     total_pnl_pct = (total_value / total_invested - 1) * 100 if total_invested > 0 else 0
     
     print(f"""
-   💵 Cash disponible:     {portfolio['cash']:.2f}€
-   📈 Valeur positions:    {total_positions_value:.2f}€
-   ────────────────────────────────────
-   💰 VALEUR TOTALE:       {total_value:.2f}€
-   📊 Total investi:       {total_invested:.2f}€
-   {'📈' if total_pnl >= 0 else '📉'} PnL:                  {total_pnl:+.2f}€ ({total_pnl_pct:+.1f}%)
+    💵 Cash disponible:     {portfolio['cash']:.2f}€
+    📈 Valeur positions:    {total_positions_value:.2f}€
+    ────────────────────────────────────
+    💰 VALEUR TOTALE:       {total_value:.2f}€
+    📊 Total investi:       {total_invested:.2f}€
+    {'📈' if total_pnl >= 0 else '📉'} PnL:                  {total_pnl:+.2f}€ ({total_pnl_pct:+.1f}%)
 """)
     
     save_portfolio(portfolio)
