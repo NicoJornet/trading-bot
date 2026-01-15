@@ -1,53 +1,40 @@
 {
-    "currency": "EUR",
-    "initial_capital": 1500,
-    "monthly_dca": 100,
-    "cash": 100.0,
-    "start_date": "2025-12-29",
-    "last_dca_date": "2026-01-02",
-    "positions": {
-        "MU": {
-            "entry_price_eur": 250.94,
-            "entry_price_usd": 294.35,
-            "entry_date": "2025-12-29",
-            "shares": 2.944984,
-            "initial_amount_eur": 739.0,
-            "amount_invested_eur": 739.0,
-            "score": 6.005050527616216,
-            "peak_price_eur": 296.54895202751317,
-            "stop_loss_eur": 205.7708,
-            "rank": 11,
-            "pyramided": false,
-            "days_zero_score": 0
-        },
-        "LLY": {
-            "entry_price_eur": 912.6,
-            "entry_price_usd": 1070.36,
-            "entry_date": "2026-01-03",
-            "shares": 0.509533,
-            "initial_amount_eur": 465.0,
-            "amount_invested_eur": 465.0,
-            "score": 0.5992648471996911,
-            "peak_price_eur": 948.3034028579376,
-            "stop_loss_eur": 748.3320000000001,
-            "rank": 29,
-            "pyramided": false,
-            "days_zero_score": 0
-        },
-        "LRCX": {
-            "entry_price_eur": 151.27,
-            "entry_price_usd": 177.39,
-            "entry_date": "2025-12-29",
-            "shares": 2.014416,
-            "initial_amount_eur": 304.72,
-            "amount_invested_eur": 304.72,
-            "score": 7.907209594084819,
-            "peak_price_eur": 192.36238838146002,
-            "stop_loss_eur": 124.04140000000002,
-            "rank": 4,
-            "pyramided": false,
-            "days_zero_score": 0
-        }
+  "currency": "EUR",
+  "initial_capital": 1500,
+  "monthly_dca": 100,
+  "cash": 482.26,
+  "start_date": "2025-12-29",
+  "last_dca_date": "2026-01-02",
+  "positions": {
+    "MU": {
+      "entry_price_eur": 250.94,
+      "entry_price_usd": 294.35,
+      "entry_date": "2025-12-29",
+      "shares": 3.178,
+      "initial_amount_eur": 797.65,
+      "amount_invested_eur": 797.65,
+      "score": 5.178873848363187,
+      "peak_price_eur": 296.54895202751317,
+      "stop_loss_eur": 205.7708,
+      "rank": 5,
+      "pyramided": false,
+      "days_zero_score": 0,
+      "bad_rank_days": 0
     },
-    "last_updated": "2026-01-15 21:53"
+    "LLY": {
+      "entry_price_eur": 912.6,
+      "entry_price_usd": 1070.36,
+      "entry_date": "2026-01-03",
+      "shares": 0.5138,
+      "initial_amount_eur": 468.88,
+      "amount_invested_eur": 468.88,
+      "score": 0.7582869753697059,
+      "peak_price_eur": 948.3034028579376,
+      "stop_loss_eur": 748.3320000000001,
+      "rank": 29,
+      "pyramided": false,
+      "days_zero_score": 0,
+      "bad_rank_days": 0
+    }
+  }
 }
