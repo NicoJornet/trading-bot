@@ -1,10 +1,17 @@
 """
-APEX v31 OPTIMISÉ - PRODUCTION
-===============================
-Paramètres validés sur backtest 2015-2026 (10 ans):
+APEX v32 BASELINE WINNER - PRODUCTION
+======================================
+Version optimisée basée sur backtest 2015-2026:
+- ROI +435%, CAGR 41%, Sharpe 1.53, WR 70%
+
+CHANGEMENTS vs v31:
+1. SUPPRESSION des filtres freshness/anti-chasse (divisaient ROI par 5x)
+2. Hard Stop: -18% (au lieu de -15%)
+
+Paramètres validés:
 - MFE Threshold: 15% (activer trailing dès +15%)
 - Trailing: 5% (vendre si chute de 5% depuis le plus haut)
-- Hard Stop: 15% UNIFORME (plus de stops par catégorie!)
+- Hard Stop: 18% UNIFORME
 - Pas de blacklist
 
 Capital: 1,500€ initial + 100€/mois DCA
@@ -24,14 +31,14 @@ import requests
 # ============================================================
 INITIAL_CAPITAL = 1500
 MONTHLY_DCA = 100
-COST_PER_TRADE = 1.0  # ✅ frais en EUR
+COST_PER_TRADE = 1.0  # frais en EUR
 PORTFOLIO_FILE = "portfolio.json"
 TRADES_HISTORY_FILE = "trades_history.json"
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # ============================================================
-# PARAMÈTRES OPTIMISÉS
+# PARAMÈTRES OPTIMISÉS - BASELINE WINNER
 # ============================================================
 MAX_POSITIONS_NORMAL = 3
 MAX_POSITIONS_DEFENSIVE = 2
@@ -44,7 +51,8 @@ ATR_PERIOD = 14
 SMA_PERIOD = 20
 HIGH_LOOKBACK = 60
 
-HARD_STOP_PCT = 0.15
+# ✅ CHANGEMENT: Hard stop -18% (au lieu de -15%)
+HARD_STOP_PCT = 0.18
 MFE_THRESHOLD_PCT = 0.15
 TRAILING_PCT = 0.05
 
@@ -83,7 +91,7 @@ def get_category(ticker):
     return "other"
 
 # ============================================================
-# STOP LOSS UNIFORME -15%
+# STOP LOSS UNIFORME -18%
 # ============================================================
 def get_stop_loss_pct(ticker, defensive=False):
     base_stop = HARD_STOP_PCT
@@ -400,10 +408,11 @@ def get_regime(vix):
 # ============================================================
 def main():
     print("=" * 70)
-    print("🚀 APEX v31 OPTIMISÉ - PRODUCTION")
+    print("🚀 APEX v32 BASELINE WINNER - PRODUCTION")
     print("=" * 70)
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print("⚙️ Paramètres: Hard Stop -15%, MFE Trailing +15%/-5%")
+    print("⚙️ Paramètres: Hard Stop -18%, MFE Trailing +15%/-5%")
+    print("⚙️ SANS filtres freshness/anti-chasse (baseline gagnant)")
 
     portfolio = load_portfolio()
     history = load_trades_history()
@@ -432,7 +441,7 @@ def main():
     data = get_market_data(DATABASE)
     if data is None or data.empty:
         print("❌ Erreur: pas de données")
-        send_telegram("❌ APEX v31: Erreur téléchargement données")
+        send_telegram("❌ APEX v32: Erreur téléchargement données")
         return
 
     # Scores
@@ -614,29 +623,9 @@ def main():
             if len(close) < 60 or len(high) < 60:
                 continue
 
-            # Freshness
-            last_date = close.index[-1]
-            last_high_date_20 = high.tail(20).idxmax()
-            days_since_high_20 = (last_date - last_high_date_20).days
-            retour_20j = close.pct_change(20).iloc[-1]
-            freshness_ok = (days_since_high_20 <= 8) or (retour_20j >= 0.05)
-
-            # Anti-chasse (ATR14)
-            prev_close = close.shift(1)
-            tr = pd.concat([
-                (high - low).abs(),
-                (high - prev_close).abs(),
-                (low - prev_close).abs()
-            ], axis=1).max(axis=1)
-            atr14 = tr.rolling(14).mean().iloc[-1]
-            if pd.isna(atr14) or atr14 <= 0:
-                continue
-            sma20 = close.rolling(20).mean().iloc[-1]
-            dist_sma20 = (close.iloc[-1] - sma20) / atr14
-            anti_chasse_ok = dist_sma20 <= 2.0
-
-            if not freshness_ok or not anti_chasse_ok:
-                continue
+            # ✅ CHANGEMENT: SUPPRESSION DES FILTRES FRESHNESS ET ANTI-CHASSE
+            # Ces filtres divisaient le ROI par 5x selon nos backtests
+            # Le MFE trailing fait le travail de sortie
 
             is_replacement = any(rot["replacement"] == ticker for rot in signals["force_rotation"])
 
@@ -688,7 +677,7 @@ def main():
     # Ventes
     for sell in signals["sell"]:
         ticker = sell["ticker"]
-        proceeds = max(0.0, sell["value_eur"] - COST_PER_TRADE)  # ✅ frais en EUR
+        proceeds = max(0.0, sell["value_eur"] - COST_PER_TRADE)
         portfolio["cash"] = float(portfolio["cash"]) + proceeds
 
         log_trade(
@@ -707,7 +696,7 @@ def main():
     # Achats
     for buy in signals["buy"]:
         ticker = buy["ticker"]
-        cost = buy["amount_eur"] + COST_PER_TRADE  # ✅ frais en EUR
+        cost = buy["amount_eur"] + COST_PER_TRADE
         if float(portfolio["cash"]) < cost:
             continue
         portfolio["cash"] = float(portfolio["cash"]) - cost
@@ -773,10 +762,10 @@ def main():
     # ============================================================
     # TELEGRAM MESSAGE
     # ============================================================
-    msg = f"📊 <b>APEX v31 OPTIMISÉ</b> - {today}\n"
+    msg = f"📊 <b>APEX v32 BASELINE WINNER</b> - {today}\n"
     msg += f"{regime} | VIX: {current_vix:.1f}\n"
     msg += f"💱 EUR/USD: {eur_rate:.4f}\n"
-    msg += "⚙️ Stop: -15% | Trail: +15%/-5%\n\n"
+    msg += "⚙️ Stop: -18% | Trail: +15%/-5%\n\n"
 
     if signals["sell"] or signals["buy"] or signals["force_rotation"]:
         msg += "🚨 <b>ACTIONS À FAIRE</b>\n\n"
@@ -829,7 +818,7 @@ def main():
     send_telegram(msg)
 
     print(f"\n{'='*70}")
-    print("✅ APEX v31 OPTIMISÉ terminé")
+    print("✅ APEX v32 BASELINE WINNER terminé")
     print(f"{'='*70}")
 
 if __name__ == "__main__":
