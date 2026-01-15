@@ -11,8 +11,8 @@
             "entry_price_usd": 294.35,
             "entry_date": "2025-12-29",
             "shares": 2.944984,
-            "initial_amount_eur": 739.0,
-            "amount_invested_eur": 739.0,
+            "initial_amount_eur": 739.00,
+            "amount_invested_eur": 739.00,
             "score": 0.718,
             "peak_price_eur": 294.0447378814799,
             "stop_loss_eur": 205.77,
@@ -25,8 +25,8 @@
             "entry_price_usd": 1070.36,
             "entry_date": "2026-01-03",
             "shares": 0.509533,
-            "initial_amount_eur": 465.0,
-            "amount_invested_eur": 465.0,
+            "initial_amount_eur": 465.00,
+            "amount_invested_eur": 465.00,
             "score": 0.32,
             "peak_price_eur": 948.3034028579376,
             "stop_loss_eur": 748.33,
@@ -49,64 +49,5 @@
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-12 05:56",
-    "trades": [
-        {
-            "id": 1,
-            "date": "2026-01-15",
-            "time": "08:22",
-            "action": "SELL",
-            "ticker": "LRCX",
-            "shares": 2.0144,
-            "price_usd": 208.79,
-            "price_eur": 179.43,
-            "amount_eur": 361.45,
-            "fee_eur": 1.0,
-            "eur_usd_rate": 1.1636,
-            "reason": "MFE_TRAILING",
-            "pnl_eur": 56.73,
-            "pnl_pct": 18.62
-        },
-        {
-            "id": 2,
-            "date": "2026-01-15",
-            "time": "08:22",
-            "action": "BUY",
-            "ticker": "COST",
-            "shares": 0.0612,
-            "price_usd": 950.98,
-            "price_eur": 817.27,
-            "amount_eur": 50.0,
-            "fee_eur": 1.0,
-            "eur_usd_rate": 1.1636,
-            "reason": "signal_rank1"
-        },
-        {
-            "id": 3,
-            "date": "2026-01-15",
-            "time": "08:37",
-            "action": "REINFORCE",
-            "ticker": "COST",
-            "shares": 0.4891,
-            "price_usd": 950.98,
-            "price_eur": 817.27,
-            "amount_eur": 399.74,
-            "fee_eur": 1.0,
-            "eur_usd_rate": 1.1636,
-            "reason": "Allocation"
-        }
-    ],
-    "summary": {
-        "total_trades": 3,
-        "buys": 2,
-        "sells": 1,
-        "pyramids": 0,
-        "winning_trades": 1,
-        "losing_trades": 0,
-        "total_pnl_eur": 56.734227510736844,
-        "total_fees_eur": 2.0,
-        "best_trade_eur": 56.734227510736844,
-        "worst_trade_eur": 0.0,
-        "win_rate": 100.0
-    }
+    "last_updated": "2026-01-12 05:56"
 }
