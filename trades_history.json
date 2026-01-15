@@ -80,11 +80,25 @@
             "fee_eur": 1.0,
             "eur_usd_rate": 1.1636,
             "reason": "signal_rank1"
+        },
+        {
+            "id": 3,
+            "date": "2026-01-15",
+            "time": "08:37",
+            "action": "REINFORCE",
+            "ticker": "COST",
+            "shares": 0.4891,
+            "price_usd": 950.98,
+            "price_eur": 817.27,
+            "amount_eur": 399.74,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 1.1636,
+            "reason": "Allocation"
         }
     ],
     "summary": {
-        "total_trades": 2,
-        "buys": 1,
+        "total_trades": 3,
+        "buys": 2,
         "sells": 1,
         "pyramids": 0,
         "winning_trades": 1,

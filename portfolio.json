@@ -2,7 +2,7 @@
     "currency": "EUR",
     "initial_capital": 1500,
     "monthly_dca": 100,
-    "cash": 409.7361359586844,
+    "cash": 9.14060006397375,
     "start_date": "2025-12-29",
     "last_dca_date": "2026-01-02",
     "positions": {
@@ -38,9 +38,9 @@
             "entry_price_eur": 817.2721343771061,
             "entry_price_usd": 950.97998046875,
             "entry_date": "2026-01-15",
-            "shares": 0.061179132258201985,
+            "shares": 0.5502893308621812,
             "initial_amount_eur": 50.0,
-            "amount_invested_eur": 50.0,
+            "amount_invested_eur": 449.7361359586844,
             "score": 5.387626091620196,
             "peak_price_eur": 817.2721343771061,
             "stop_loss_eur": 670.163150189227,
@@ -49,5 +49,5 @@
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-15 08:30"
+    "last_updated": "2026-01-15 08:37"
 }
