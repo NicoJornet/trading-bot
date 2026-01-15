@@ -2,7 +2,7 @@
     "currency": "EUR",
     "initial_capital": 1500,
     "monthly_dca": 100,
-    "cash": 9.14060006397375,
+    "cash": 100.0,
     "start_date": "2025-12-29",
     "last_dca_date": "2026-01-02",
     "positions": {
@@ -13,10 +13,12 @@
             "shares": 2.944984,
             "initial_amount_eur": 739.0,
             "amount_invested_eur": 739.0,
-            "score": 3.31024793815473,
+            "score": 5.178873848363187,
+            "score": 4.151109194158184,
             "peak_price_eur": 296.54895202751317,
             "stop_loss_eur": 205.7708,
-            "rank": 14,
+            "rank": 5,
+            "rank": 7,
             "pyramided": false,
             "days_zero_score": 0
         },
@@ -27,27 +29,32 @@
             "shares": 0.509533,
             "initial_amount_eur": 465.0,
             "amount_invested_eur": 465.0,
-            "score": 0.09897263487822291,
+            "score": 0.7582869753697059,
+            "score": 0.3740472717278135,
             "peak_price_eur": 948.3034028579376,
             "stop_loss_eur": 748.3320000000001,
             "rank": 27,
+            "rank": 30,
             "pyramided": false,
             "days_zero_score": 0
         },
-        "COST": {
-            "entry_price_eur": 817.2721343771061,
-            "entry_price_usd": 950.97998046875,
-            "entry_date": "2026-01-15",
-            "shares": 0.5502893308621812,
-            "initial_amount_eur": 50.0,
-            "amount_invested_eur": 449.7361359586844,
-            "score": 5.387626091620196,
-            "peak_price_eur": 817.2721343771061,
-            "stop_loss_eur": 670.163150189227,
+        "LRCX": {
+            "entry_price_eur": 151.27,
+            "entry_price_usd": 177.39,
+            "entry_date": "2025-12-29",
+            "shares": 2.014416,
+            "initial_amount_eur": 304.72,
+            "amount_invested_eur": 304.72,
+            "score": 6.481605329642146,
+            "score": 5.098442271204243,
+            "peak_price_eur": 188.97096637344245,
+            "stop_loss_eur": 124.04140000000002,
             "rank": 1,
+            "rank": 3,
             "pyramided": false,
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-15 09:03"
+    "last_updated": "2026-01-13 09:05"
+    "last_updated": "2026-01-14 07:45"
 }
