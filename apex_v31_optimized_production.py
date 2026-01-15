@@ -853,10 +853,13 @@ def main() -> None:
             msg += f" PnL: {s['pnl_eur']:+.2f}€ ({s['pnl_pct']:+.1f}%)\n\n"
 
         for b in signals["buy"]:
-            msg += f"🟢 <b>ACHETER #{b['rank']} {b['ticker']}</b>\n"
-            msg += f" Montant: <b>{b['amount_eur']:.2f}€</b>\n"
-            msg += f" Stop: {b['stop_loss_eur']:.2f}€\n"
-            msg += f" MFE trigger: {b['price_eur']*1.15:.2f}€\n\n"
+              msg += f"🟢 <b>ACHETER #{buy['rank']} {buy['ticker']}</b>\n"
+              msg += f" 💶 Montant: <b>{buy['amount_eur']:.2f}€</b>\n"
+              msg += f" 📊 Actions: <b>{buy['shares']:.4f}</b>\n"
+              msg += f" 💵 Prix: {buy['price_eur']:.2f}€\n"
+              msg += f" Stop: {buy['stop_loss_eur']:.2f}€ (-18%)\n"
+              msg += f" MFE Trigger: {buy['price_eur']*1.15:.2f}€ (+15%)\n\n"
+   
     else:
         msg += "✅ <b>Aucun signal - HOLD</b>\n\n"
 
