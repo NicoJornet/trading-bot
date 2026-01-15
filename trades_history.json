@@ -98,6 +98,13 @@
         "total_trades": 3,
         "buys": 3,
         "sells": 0,
-        "total_pnl_eur": 0.0
+        "total_pnl_eur": 0.0,
+        "pyramids": 0,
+        "winning_trades": 0,
+        "losing_trades": 0,
+        "total_fees_eur": 0.0,
+        "best_trade_eur": 0.0,
+        "worst_trade_eur": 0.0,
+        "win_rate": 0.0
     }
 }

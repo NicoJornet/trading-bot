@@ -14,7 +14,7 @@
             "amount_invested_eur": 800.0,
             "initial_amount_eur": 800.0,
             "score": 5.387626091620196,
-            "peak_price_eur": 817.0820487666053,
+            "peak_price_eur": 817.2721343771061,
             "stop_loss_eur": 670.0072799886165,
             "rank": 1,
             "days_zero_score": 0
@@ -27,7 +27,7 @@
             "amount_invested_eur": 480.0,
             "initial_amount_eur": 480.0,
             "score": 4.825518425242102,
-            "peak_price_eur": 187.77817400893878,
+            "peak_price_eur": 187.82185864122152,
             "stop_loss_eur": 153.9781026873298,
             "rank": 2,
             "days_zero_score": 0
@@ -40,11 +40,11 @@
             "amount_invested_eur": 310.0,
             "initial_amount_eur": 310.0,
             "score": 4.713316970090374,
-            "peak_price_eur": 111.86784416159574,
+            "peak_price_eur": 111.89386904793973,
             "stop_loss_eur": 91.73163221250852,
             "rank": 3,
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-15 09:12"
+    "last_updated": "2026-01-15 09:16"
 }
