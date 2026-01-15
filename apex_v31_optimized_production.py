@@ -178,7 +178,13 @@ def load_portfolio():
     if os.path.exists(PORTFOLIO_FILE):
         with open(PORTFOLIO_FILE, "r") as f:
             try:
-                return json.load(f)
+                data = json.load(f)
+                # sécurité sur champs potentiellement None
+                if data.get("cash") is None:
+                    data["cash"] = INITIAL_CAPITAL
+                if data.get("positions") is None:
+                    data["positions"] = {}
+                return data
             except:
                 pass
     return {
@@ -203,9 +209,9 @@ def load_trades_history():
         try:
             with open(TRADES_HISTORY_FILE, "r") as f:
                 data = json.load(f)
-                if "trades" not in data:
+                if "trades" not in data or data["trades"] is None:
                     data["trades"] = []
-                if "summary" not in data:
+                if "summary" not in data or data["summary"] is None:
                     data["summary"] = default["summary"]
                 return data
         except:
@@ -224,16 +230,16 @@ def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur,
         "time": datetime.now().strftime("%H:%M"),
         "action": action,
         "ticker": ticker,
-        "shares": round(shares, 6),
-        "price_usd": round(price_usd, 2),
-        "price_eur": round(price_eur, 2),
-        "amount_eur": round(amount_eur, 2),
-        "fee_eur": COST_PER_TRADE,
-        "eur_usd_rate": round(eur_rate, 4),
+        "shares": round(float(shares), 6),
+        "price_usd": round(float(price_usd), 2),
+        "price_eur": round(float(price_eur), 2),
+        "amount_eur": round(float(amount_eur), 2),
+        "fee_eur": float(COST_PER_TRADE),
+        "eur_usd_rate": round(float(eur_rate), 4),
         "reason": reason
     }
     if pnl_eur is not None:
-        trade["pnl_eur"], trade["pnl_pct"] = round(pnl_eur, 2), round(pnl_pct, 2)
+        trade["pnl_eur"], trade["pnl_pct"] = round(float(pnl_eur), 2), round(float(pnl_pct), 2)
 
     history["trades"].append(trade)
     history["summary"]["total_trades"] += 1
@@ -242,7 +248,7 @@ def log_trade(history, action, ticker, price_usd, price_eur, shares, amount_eur,
     elif action == "SELL":
         history["summary"]["sells"] += 1
         if pnl_eur:
-            history["summary"]["total_pnl_eur"] += pnl_eur
+            history["summary"]["total_pnl_eur"] += float(pnl_eur)
 
 def send_telegram(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -314,10 +320,13 @@ def main():
     print(f"💱 EUR/USD: {eur_rate:.4f}")
     print(f"📊 VIX: {current_vix:.1f} | Régime: {regime}")
 
-    # DCA
+    # =========================
+    # DCA (FIX BUG NoneType)
+    # =========================
     today = datetime.now().strftime("%Y-%m-%d")
-    if not portfolio.get("last_dca_date", "").startswith(datetime.now().strftime("%Y-%m")):
-        portfolio["cash"] += MONTHLY_DCA
+    last_dca = portfolio.get("last_dca_date") or ""   # ✅ FIX: None -> ""
+    if not str(last_dca).startswith(datetime.now().strftime("%Y-%m")):
+        portfolio["cash"] = float(portfolio.get("cash") or 0.0) + float(MONTHLY_DCA)
         portfolio["last_dca_date"] = today
         print(f"💰 DCA ajouté: +{MONTHLY_DCA}€")
 
@@ -359,56 +368,59 @@ def main():
     signals = {"sell": [], "trim": [], "buy": []}
     positions_to_remove = []
 
-    # ⭐ CASH PROJETÉ = Cash Actuel + Ventes prévues
-    projected_cash = float(portfolio.get("cash", 0.0))
+    projected_cash = float(portfolio.get("cash") or 0.0)
 
-    # Valeur totale estimée (pour allocation pondérée)
+    # Valeur totale estimée
     total_pf_value = projected_cash + sum(
-        usd_to_eur(float(current_prices[t]), eur_rate) * p["shares"]
-        for t, p in portfolio["positions"].items()
+        usd_to_eur(float(current_prices[t]), eur_rate) * float(p.get("shares") or 0.0)
+        for t, p in (portfolio.get("positions") or {}).items()
         if t in current_prices
     )
 
-    for ticker, pos in list(portfolio["positions"].items()):
+    for ticker, pos in list((portfolio.get("positions") or {}).items()):
         if ticker not in current_prices:
             continue
 
         # Données
         price_usd = float(current_prices[ticker])
         price_eur = usd_to_eur(price_usd, eur_rate)
-        shares = float(pos["shares"])
+        shares = float(pos.get("shares") or 0.0)
+
+        if shares <= 0:
+            continue
 
         # Update Peak
-        if price_eur > pos.get('peak_price_eur', 0):
+        if price_eur > float(pos.get('peak_price_eur') or 0.0):
             pos['peak_price_eur'] = price_eur
 
         # Stops
+        entry_eur = float(pos.get("entry_price_eur") or price_eur)
         stop_pct = get_stop_loss_pct(ticker, defensive)
-        stop_price = calculate_stop_price(pos["entry_price_eur"], stop_pct)
+        stop_price = calculate_stop_price(entry_eur, stop_pct)
         pos['stop_loss_eur'] = stop_price
 
         # Infos affichage
-        pnl_eur = (price_eur - pos["entry_price_eur"]) * shares
-        pnl_pct = (price_eur / pos["entry_price_eur"] - 1) * 100
+        pnl_eur = (price_eur - entry_eur) * shares
+        pnl_pct = (price_eur / entry_eur - 1) * 100 if entry_eur > 0 else 0.0
         curr_score = float(valid_scores.get(ticker, 0))
         pos['score'] = curr_score
         rank_display = f"#{list(valid_scores.index).index(ticker) + 1}" if ticker in valid_scores.index else "N/A"
 
         print(f"\n🔹 {ticker}")
-        print(f"   Prix: {price_eur:.2f}€ (Entrée: {pos['entry_price_eur']:.2f}€)")
+        print(f"   Prix: {price_eur:.2f}€ (Entrée: {entry_eur:.2f}€)")
         print(f"   PnL: {pnl_eur:+.2f}€ ({pnl_pct:+.1f}%)")
         print(f"   Score: {curr_score:.3f} | Rank: {rank_display}")
 
         # Logic Vente
         sell, reason = False, ""
 
-        hit_stop, r = check_hard_stop_exit(price_eur, pos["entry_price_eur"], stop_price)
+        hit_stop, r = check_hard_stop_exit(price_eur, entry_eur, stop_price)
         if hit_stop:
             sell, reason = True, r
             print(f"   ❌ HARD STOP touché ({stop_price:.2f}€)")
 
         if not sell:
-            hit_trail, r, det = check_mfe_trailing_exit(pos, price_eur, pos["entry_price_eur"])
+            hit_trail, r, det = check_mfe_trailing_exit(pos, price_eur, entry_eur)
             if hit_trail:
                 sell, reason = True, r
                 print(f"   📉 MFE TRAILING déclenché (MFE +{det['mfe_pct']:.1f}%)")
@@ -418,7 +430,7 @@ def main():
 
         # Rotation Forcée
         if not sell and curr_score <= 0:
-            pos["days_zero_score"] = pos.get("days_zero_score", 0) + 1
+            pos["days_zero_score"] = int(pos.get("days_zero_score") or 0) + 1
             print(f"   ⚠️ Score ≤ 0 depuis {pos['days_zero_score']} jours")
             if pos["days_zero_score"] >= FORCE_ROTATION_DAYS:
                 sell, reason = True, f"ROTATION_{pos['days_zero_score']}J"
@@ -439,44 +451,39 @@ def main():
     # 2) SOFT TRIM (#1 uniquement) + OPPORTUNITÉS D'ACHAT
     # ============================================================
 
-    # Positions qui vont rester (après sells complets)
-    future_positions = [t for t in portfolio["positions"] if t not in positions_to_remove]
+    positions_dict = portfolio.get("positions") or {}
+    future_positions = [t for t in positions_dict if t not in positions_to_remove]
     slots_available = max_positions - len(future_positions)
 
     print(f"\n{'='*70}")
-    print(f"💵 CASH ACTUEL: {portfolio['cash']:.2f}€")
+    print(f"💵 CASH ACTUEL: {float(portfolio.get('cash') or 0.0):.2f}€")
     print(f"🔮 CASH PROJETÉ (après SELLS): {projected_cash:.2f}€")
     print(f"📦 SLOTS DISPO: {slots_available}")
     print(f"{'='*70}")
 
-    # --- Valeur future estimée (pour cible de trim & allocation) ---
     future_total_value = projected_cash + sum(
-        usd_to_eur(float(current_prices[t]), eur_rate) * portfolio["positions"][t]["shares"]
+        usd_to_eur(float(current_prices[t]), eur_rate) * float(positions_dict[t].get("shares") or 0.0)
         for t in future_positions if t in current_prices
     )
 
-    # --- TRIM: uniquement sur le rang #1 du Top max_positions ---
+    # --- TRIM: uniquement sur le rang #1 ---
     if REBALANCE_TRIM and len(valid_scores) > 0 and len(future_positions) > 0:
         target_universe = list(valid_scores.head(max_positions).index)
-
-        # Cherche le ticker #1 (rang 1)
         rank1_ticker = target_universe[0] if len(target_universe) > 0 else None
 
         if rank1_ticker and (rank1_ticker in future_positions) and (rank1_ticker in current_prices):
-            rank = 1
-            w = get_target_weight(rank, max_positions)
+            w = get_target_weight(1, max_positions)
             target_value = w * future_total_value
 
             price_eur = usd_to_eur(float(current_prices[rank1_ticker]), eur_rate)
-            pos = portfolio["positions"][rank1_ticker]
-            current_value = float(pos["shares"]) * price_eur
+            pos = positions_dict[rank1_ticker]
+            current_value = float(pos.get("shares") or 0.0) * price_eur
 
-            # déclenche trim si surpondéré au-delà de la tolérance
             if current_value > target_value * (1 + TARGET_TOLERANCE):
                 excess = current_value - target_value
                 if excess >= MIN_TRADE_EUR:
                     shares_to_sell = excess / price_eur
-                    shares_to_sell = min(shares_to_sell, float(pos["shares"]))
+                    shares_to_sell = min(shares_to_sell, float(pos.get("shares") or 0.0))
 
                     value_eur = shares_to_sell * price_eur
                     proceeds = value_eur - usd_to_eur(COST_PER_TRADE, eur_rate)
@@ -498,13 +505,12 @@ def main():
                     print(f"   Excès: {excess:.2f}€ | Vente: {value_eur:.2f}€ (min {MIN_TRADE_EUR}€)")
                     print(f"   Cash projeté (après TRIM): {projected_cash:.2f}€")
 
-    # Recalcule total_pf_value pour achats (après trims planifiés)
+    # total_pf_value après trims planifiés
     total_pf_value = projected_cash + sum(
-        usd_to_eur(float(current_prices[t]), eur_rate) * portfolio["positions"][t]["shares"]
+        usd_to_eur(float(current_prices[t]), eur_rate) * float(positions_dict[t].get("shares") or 0.0)
         for t in future_positions if t in current_prices
     )
 
-    # Refresh slots (pas impacté par trim), mais on garde la même logique
     slots_available = max_positions - len(future_positions)
 
     print(f"\n{'='*70}")
@@ -512,36 +518,30 @@ def main():
     print(f"📦 SLOTS DISPO: {slots_available}")
     print(f"{'='*70}")
 
-    # --- ACHATS / RENFORCEMENTS avec projected_cash ---
+    # --- ACHATS / RENFORCEMENTS ---
     if projected_cash > 50 and len(valid_scores) > 0:
         for ticker in valid_scores.index:
             if projected_cash < (50 + CASH_BUFFER_EUR):
                 break
 
-            # Renforcement si déjà dans futur_positions
             is_reinforce = (ticker in future_positions)
 
-            # Si nouvel achat, besoin d'un slot
             if not is_reinforce and slots_available <= 0:
                 continue
 
             rank = list(valid_scores.index).index(ticker) + 1
             if rank > max_positions:
-                continue  # Focus Top
+                continue
 
-            # Allocation Cible
             target_alloc = get_weighted_allocation(rank, max_positions, total_pf_value)
 
-            # Investi actuel
             current_invested = 0.0
             if is_reinforce and ticker in current_prices:
                 current_price_eur = usd_to_eur(float(current_prices[ticker]), eur_rate)
-                current_invested = float(portfolio["positions"][ticker]["shares"]) * current_price_eur
+                current_invested = float(positions_dict[ticker].get("shares") or 0.0) * current_price_eur
 
-            # Besoin
             amount_needed = target_alloc - current_invested
 
-            # Investir seulement si besoin significatif (>50€)
             if amount_needed > 50:
                 amount_to_invest = min(amount_needed, projected_cash - CASH_BUFFER_EUR)
 
@@ -575,22 +575,22 @@ def main():
 
     # SELLS complets
     for s in signals["sell"]:
-        proceeds = s["value_eur"] - usd_to_eur(COST_PER_TRADE, eur_rate)
-        portfolio["cash"] += proceeds
-        if s["ticker"] in portfolio["positions"]:
-            del portfolio["positions"][s["ticker"]]
+        proceeds = float(s["value_eur"]) - usd_to_eur(COST_PER_TRADE, eur_rate)
+        portfolio["cash"] = float(portfolio.get("cash") or 0.0) + proceeds
+        if s["ticker"] in positions_dict:
+            del positions_dict[s["ticker"]]
         log_trade(
             history, "SELL", s["ticker"], s["price_usd"], s["price_eur"],
             s["shares"], s["value_eur"], eur_rate, s["reason"], s["pnl_eur"], s["pnl_pct"]
         )
         print(f"✅ VENDU {s['ticker']} (+{proceeds:.2f}€)")
 
-    # TRIMS partiels (uniquement #1 si déclenché)
+    # TRIMS partiels
     for s in signals.get("trim", []):
         ticker = s["ticker"]
-        if ticker not in portfolio["positions"]:
+        if ticker not in positions_dict:
             continue
-        pos = portfolio["positions"][ticker]
+        pos = positions_dict[ticker]
 
         shares_to_sell = float(s["shares"])
         if shares_to_sell <= 0:
@@ -601,23 +601,19 @@ def main():
         value_eur = float(s["value_eur"])
 
         proceeds = value_eur - usd_to_eur(COST_PER_TRADE, eur_rate)
-        portfolio["cash"] += proceeds
+        portfolio["cash"] = float(portfolio.get("cash") or 0.0) + proceeds
 
-        # PnL sur la portion vendue (basé sur PRU)
-        entry = float(pos["entry_price_eur"])
+        entry = float(pos.get("entry_price_eur") or price_eur)
         pnl_eur = (price_eur - entry) * shares_to_sell
-        pnl_pct = (price_eur / entry - 1) * 100
+        pnl_pct = (price_eur / entry - 1) * 100 if entry > 0 else 0.0
 
-        # Mise à jour position
-        pos["shares"] = float(pos["shares"]) - shares_to_sell
+        pos["shares"] = float(pos.get("shares") or 0.0) - shares_to_sell
 
-        # Optionnel: réduire la "valeur investie" comptable (cost basis ~ PRU)
-        if "amount_invested_eur" in pos:
+        if "amount_invested_eur" in pos and pos.get("amount_invested_eur") is not None:
             pos["amount_invested_eur"] = max(0.0, float(pos["amount_invested_eur"]) - entry * shares_to_sell)
 
-        # Si la position devient quasi nulle
-        if pos["shares"] <= 1e-8:
-            del portfolio["positions"][ticker]
+        if float(pos.get("shares") or 0.0) <= 1e-8:
+            del positions_dict[ticker]
 
         log_trade(
             history, "SELL", ticker, price_usd, price_eur, shares_to_sell, value_eur,
@@ -628,26 +624,24 @@ def main():
 
     # BUYS / RENFORCE
     for b in signals["buy"]:
-        cost = b["amount_eur"] + usd_to_eur(COST_PER_TRADE, eur_rate)
+        cost = float(b["amount_eur"]) + usd_to_eur(COST_PER_TRADE, eur_rate)
 
-        # Vérif ultime cash
-        if portfolio["cash"] >= cost:
-            portfolio["cash"] -= cost
+        if float(portfolio.get("cash") or 0.0) >= cost:
+            portfolio["cash"] = float(portfolio.get("cash") or 0.0) - cost
 
-            if b["ticker"] in portfolio["positions"]:
-                # PRU (prix moyen pondéré) sur renforcement
-                old_pos = portfolio["positions"][b["ticker"]]
-                old_shares = float(old_pos["shares"])
+            if b["ticker"] in positions_dict:
+                old_pos = positions_dict[b["ticker"]]
+                old_shares = float(old_pos.get("shares") or 0.0)
                 new_shares = float(b["shares"])
                 total_shares = old_shares + new_shares
 
-                total_cost_eur = (float(old_pos["entry_price_eur"]) * old_shares) + float(b["amount_eur"])
-                avg_price_eur = total_cost_eur / total_shares
+                total_cost_eur = (float(old_pos.get("entry_price_eur") or 0.0) * old_shares) + float(b["amount_eur"])
+                avg_price_eur = total_cost_eur / total_shares if total_shares > 0 else float(b["price_eur"])
 
                 old_pos["entry_price_eur"] = avg_price_eur
                 old_pos["shares"] = total_shares
-                old_pos["amount_invested_eur"] = float(old_pos.get("amount_invested_eur", 0.0)) + float(b["amount_eur"])
-                old_pos["peak_price_eur"] = max(float(old_pos.get("peak_price_eur", 0.0)), float(b["price_eur"]))
+                old_pos["amount_invested_eur"] = float(old_pos.get("amount_invested_eur") or 0.0) + float(b["amount_eur"])
+                old_pos["peak_price_eur"] = max(float(old_pos.get("peak_price_eur") or 0.0), float(b["price_eur"]))
 
                 log_trade(
                     history, "REINFORCE", b["ticker"], b["price_usd"], b["price_eur"],
@@ -655,7 +649,7 @@ def main():
                 )
                 print(f"✅ RENFORCÉ {b['ticker']} (Nouveau PRU: {avg_price_eur:.2f}€)")
             else:
-                portfolio["positions"][b["ticker"]] = {
+                positions_dict[b["ticker"]] = {
                     "entry_price_eur": float(b["price_eur"]),
                     "entry_price_usd": float(b["price_usd"]),
                     "entry_date": today,
@@ -674,33 +668,31 @@ def main():
                 )
                 print(f"✅ ACHETÉ {b['ticker']}")
         else:
-            print(f"⚠️ FONDS INSUFFISANTS POUR {b['ticker']} (Manque {cost - portfolio['cash']:.2f}€)")
+            print(f"⚠️ FONDS INSUFFISANTS POUR {b['ticker']} (Manque {cost - float(portfolio.get('cash') or 0.0):.2f}€)")
 
     # ============================================================
     # 4) RÉSUMÉ & TELEGRAM
     # ============================================================
     print(f"\n{'='*70}\n📊 RÉSUMÉ FINAL\n{'='*70}")
 
-    total_val = float(portfolio["cash"]) + sum(
-        usd_to_eur(float(current_prices[t]), eur_rate) * float(p["shares"])
-        for t, p in portfolio["positions"].items()
+    portfolio["positions"] = positions_dict  # ensure saved
+    total_val = float(portfolio.get("cash") or 0.0) + sum(
+        usd_to_eur(float(current_prices[t]), eur_rate) * float(p.get("shares") or 0.0)
+        for t, p in positions_dict.items()
         if t in current_prices
     )
 
-    # Save
     save_portfolio(portfolio)
     save_trades_history(history)
     print(f"💾 Sauvegardé. Valeur Totale: {total_val:.2f}€")
 
-    # Top 5 Momentum
     print(f"\n🏆 TOP 5 MOMENTUM")
     for i, ticker in enumerate(valid_scores.head(5).index, 1):
         price = usd_to_eur(float(current_prices[ticker]), eur_rate)
-        in_pf = "📂" if ticker in portfolio["positions"] else "👀"
+        in_pf = "📂" if ticker in positions_dict else "👀"
         print(f"{i}. {ticker} ({valid_scores[ticker]:.3f}) {in_pf} | {price:.2f}€")
 
-    # Telegram Msg
-    msg = f"📊 <b>APEX v31.4 HYBRID</b>\nVal: {total_val:.0f}€ | Cash: {float(portfolio['cash']):.0f}€\n\n"
+    msg = f"📊 <b>APEX v31.4 HYBRID</b>\nVal: {total_val:.0f}€ | Cash: {float(portfolio.get('cash') or 0.0):.0f}€\n\n"
     if signals['sell']:
         msg += "🔴 <b>VENTES:</b>\n" + "\n".join([f"- {s['ticker']} ({s['reason']})" for s in signals['sell']]) + "\n\n"
     if signals.get('trim'):
