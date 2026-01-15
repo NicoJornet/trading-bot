@@ -49,5 +49,50 @@
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-13 08:37"
+    "last_updated": "2026-01-13 08:37",
+    "trades": [
+        {
+            "id": 1,
+            "date": "2026-01-15",
+            "time": "09:20",
+            "action": "SELL",
+            "ticker": "LRCX",
+            "shares": 2.1,
+            "price_usd": 208.79,
+            "price_eur": 179.43,
+            "amount_eur": 376.81,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 1.1636,
+            "reason": "MFE_TRAILING",
+            "pnl_eur": 59.14,
+            "pnl_pct": 18.62
+        },
+        {
+            "id": 2,
+            "date": "2026-01-15",
+            "time": "09:20",
+            "action": "BUY",
+            "ticker": "COST",
+            "shares": 0.0612,
+            "price_usd": 950.98,
+            "price_eur": 817.27,
+            "amount_eur": 50.0,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 1.1636,
+            "reason": "signal_rank1"
+        }
+    ],
+    "summary": {
+        "total_trades": 2,
+        "buys": 1,
+        "sells": 1,
+        "pyramids": 0,
+        "winning_trades": 1,
+        "losing_trades": 0,
+        "total_pnl_eur": 59.14462443335803,
+        "total_fees_eur": 2.0,
+        "best_trade_eur": 59.14462443335803,
+        "worst_trade_eur": 0.0,
+        "win_rate": 100.0
+    }
 }
