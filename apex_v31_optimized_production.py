@@ -83,7 +83,7 @@ def get_category(ticker):
     return "other"
 
 # ============================================================
-# STOP LOSS UNIFORME -18%
+# STOP LOSS UNIFORME -15%
 # ============================================================
 def get_stop_loss_pct(ticker, defensive=False):
     base_stop = HARD_STOP_PCT
