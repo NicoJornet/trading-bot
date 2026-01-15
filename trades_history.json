@@ -49,5 +49,19 @@
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-13 08:37"
+    "last_updated": "2026-01-13 08:37",
+    "trades": [],
+    "summary": {
+        "total_trades": 0,
+        "buys": 0,
+        "sells": 0,
+        "pyramids": 0,
+        "winning_trades": 0,
+        "losing_trades": 0,
+        "total_pnl_eur": 0.0,
+        "total_fees_eur": 0.0,
+        "best_trade_eur": 0.0,
+        "worst_trade_eur": 0.0,
+        "win_rate": 0.0
+    }
 }
