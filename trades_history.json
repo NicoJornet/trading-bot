@@ -1,47 +1,47 @@
 {
-  "trades": [
-    {
-      "id": 1,
-      "date": "2026-01-15",
-      "time": "09:00",
-      "action": "SELL",
-      "ticker": "LRCX",
-      "shares": 2.1,
-      "price_usd": 0.0,
-      "price_eur": 190.26,
-      "amount_eur": 382.26,
-      "fee_eur": 1.0,
-      "eur_usd_rate": 0.0,
-      "reason": "MANUAL_SELL",
-      "pnl_eur": 64.63,
-      "pnl_pct": 20.35
-    },
-    {
-      "id": 2,
-      "date": "2026-01-15",
-      "time": "21:27",
-      "action": "BUY",
-      "ticker": "SLV",
-      "shares": 3.360454,
-      "price_usd": 83.32,
-      "price_eur": 71.7552,
-      "amount_eur": 241.13,
-      "fee_eur": 1.0,
-      "eur_usd_rate": 1.16117,
-      "reason": "signal_rank1"
+    "trades": [
+        {
+            "id": 1,
+            "date": "2026-01-15",
+            "time": "09:00",
+            "action": "SELL",
+            "ticker": "LRCX",
+            "shares": 2.1,
+            "price_usd": 0.0,
+            "price_eur": 190.26,
+            "amount_eur": 382.26,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 0.0,
+            "reason": "MANUAL_SELL",
+            "pnl_eur": 64.63,
+            "pnl_pct": 20.35
+        },
+        {
+            "id": 2,
+            "date": "2026-01-15",
+            "time": "21:27",
+            "action": "BUY",
+            "ticker": "SLV",
+            "shares": 3.360454,
+            "price_usd": 83.32,
+            "price_eur": 71.7552,
+            "amount_eur": 241.13,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 1.16117,
+            "reason": "signal_rank1"
+        }
+    ],
+    "summary": {
+        "total_trades": 2,
+        "buys": 1,
+        "sells": 1,
+        "pyramids": 0,
+        "winning_trades": 1,
+        "losing_trades": 0,
+        "total_pnl_eur": 64.63,
+        "total_fees_eur": 2.0,
+        "best_trade_eur": 64.63,
+        "worst_trade_eur": 64.63,
+        "win_rate": 100.0
     }
-  ],
-  "summary": {
-    "total_trades": 2,
-    "buys": 1,
-    "sells": 1,
-    "pyramids": 0,
-    "winning_trades": 1,
-    "losing_trades": 0,
-    "total_pnl_eur": 64.63,
-    "total_fees_eur": 2.0,
-    "best_trade_eur": 64.63,
-    "worst_trade_eur": 64.63,
-    "win_rate": 100.0
-  }
 }
