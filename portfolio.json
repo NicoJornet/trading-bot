@@ -13,10 +13,10 @@
             "shares": 2.944984,
             "initial_amount_eur": 739.0,
             "amount_invested_eur": 739.0,
-            "score": 4.151109194158184,
+            "score": 5.738710235836752,
             "peak_price_eur": 296.54895202751317,
             "stop_loss_eur": 205.7708,
-            "rank": 7,
+            "rank": 15,
             "pyramided": false,
             "days_zero_score": 0
         },
@@ -27,10 +27,10 @@
             "shares": 0.509533,
             "initial_amount_eur": 465.0,
             "amount_invested_eur": 465.0,
-            "score": 0.3740472717278135,
+            "score": 0.9412778795636588,
             "peak_price_eur": 948.3034028579376,
             "stop_loss_eur": 748.3320000000001,
-            "rank": 30,
+            "rank": 27,
             "pyramided": false,
             "days_zero_score": 0
         },
@@ -41,13 +41,13 @@
             "shares": 2.014416,
             "initial_amount_eur": 304.72,
             "amount_invested_eur": 304.72,
-            "score": 5.098442271204243,
+            "score": 6.834966647590738,
             "peak_price_eur": 188.97096637344245,
             "stop_loss_eur": 124.04140000000002,
-            "rank": 3,
+            "rank": 7,
             "pyramided": false,
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-15 12:51"
+    "last_updated": "2026-01-15 13:02"
 }
