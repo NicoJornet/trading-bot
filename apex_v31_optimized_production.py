@@ -4,7 +4,7 @@ APEX v31 OPTIMISÉ - PRODUCTION
 Paramètres validés sur backtest 2015-2026 (10 ans):
 - MFE Threshold: 15% (activer trailing dès +15%)
 - Trailing: 5% (vendre si chute de 5% depuis le plus haut)
-- Hard Stop: 18% UNIFORME (plus de stops par catégorie!)
+- Hard Stop: 15% UNIFORME (plus de stops par catégorie!)
 - Pas de blacklist
 
 Capital: 1,500€ initial + 100€/mois DCA
@@ -44,7 +44,7 @@ ATR_PERIOD = 14
 SMA_PERIOD = 20
 HIGH_LOOKBACK = 60
 
-HARD_STOP_PCT = 0.18
+HARD_STOP_PCT = 0.15
 MFE_THRESHOLD_PCT = 0.15
 TRAILING_PCT = 0.05
 
