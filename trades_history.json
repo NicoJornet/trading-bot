@@ -11,8 +11,8 @@
             "entry_price_usd": 294.35,
             "entry_date": "2025-12-29",
             "shares": 2.944984,
-            "initial_amount_eur": 739.00,
-            "amount_invested_eur": 739.00,
+            "initial_amount_eur": 739.0,
+            "amount_invested_eur": 739.0,
             "score": 0.718,
             "peak_price_eur": 294.0447378814799,
             "stop_loss_eur": 205.77,
@@ -25,8 +25,8 @@
             "entry_price_usd": 1070.36,
             "entry_date": "2026-01-03",
             "shares": 0.509533,
-            "initial_amount_eur": 465.00,
-            "amount_invested_eur": 465.00,
+            "initial_amount_eur": 465.0,
+            "amount_invested_eur": 465.0,
             "score": 0.32,
             "peak_price_eur": 948.3034028579376,
             "stop_loss_eur": 748.33,
@@ -49,5 +49,55 @@
             "days_zero_score": 0
         }
     },
-    "last_updated": "2026-01-12 05:56"
+    "last_updated": "2026-01-12 05:56",
+    "trades": [
+        {
+            "id": 1,
+            "date": "2026-01-15",
+            "time": "09:12",
+            "action": "BUY",
+            "ticker": "COST",
+            "shares": 0.979094,
+            "price_usd": 950.98,
+            "price_eur": 817.08,
+            "amount_eur": 800.0,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 1.1639,
+            "reason": "Rank #1"
+        },
+        {
+            "id": 2,
+            "date": "2026-01-15",
+            "time": "09:12",
+            "action": "BUY",
+            "ticker": "JNJ",
+            "shares": 2.556208,
+            "price_usd": 218.55,
+            "price_eur": 187.78,
+            "amount_eur": 480.0,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 1.1639,
+            "reason": "Rank #2"
+        },
+        {
+            "id": 3,
+            "date": "2026-01-15",
+            "time": "09:12",
+            "action": "BUY",
+            "ticker": "XOM",
+            "shares": 2.771127,
+            "price_usd": 130.2,
+            "price_eur": 111.87,
+            "amount_eur": 310.0,
+            "fee_eur": 1.0,
+            "eur_usd_rate": 1.1639,
+            "reason": "Rank #3"
+        }
+    ],
+    "summary": {
+        "total_trades": 3,
+        "buys": 3,
+        "sells": 0,
+        "total_pnl_eur": 0.0
+    }
 }
