@@ -403,7 +403,7 @@ def main():
     print("🚀 APEX v31 OPTIMISÉ - PRODUCTION")
     print("=" * 70)
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print("⚙️ Paramètres: Hard Stop -18%, MFE Trailing +15%/-5%")
+    print("⚙️ Paramètres: Hard Stop -15%, MFE Trailing +15%/-5%")
 
     portfolio = load_portfolio()
     history = load_trades_history()
