@@ -776,7 +776,7 @@ def main():
     msg = f"📊 <b>APEX v31 OPTIMISÉ</b> - {today}\n"
     msg += f"{regime} | VIX: {current_vix:.1f}\n"
     msg += f"💱 EUR/USD: {eur_rate:.4f}\n"
-    msg += "⚙️ Stop: -18% | Trail: +15%/-5%\n\n"
+    msg += "⚙️ Stop: -15% | Trail: +15%/-5%\n\n"
 
     if signals["sell"] or signals["buy"] or signals["force_rotation"]:
         msg += "🚨 <b>ACTIONS À FAIRE</b>\n\n"
