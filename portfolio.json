@@ -18,8 +18,7 @@
       "stop_loss_eur": 205.7708,
       "rank": 5,
       "pyramided": false,
-      "days_zero_score": 0,
-      "bad_rank_days": 0
+      "days_zero_score": 0
     },
     "LLY": {
       "entry_price_eur": 912.6,
@@ -31,10 +30,10 @@
       "score": 0.7582869753697059,
       "peak_price_eur": 948.3034028579376,
       "stop_loss_eur": 748.3320000000001,
-      "rank": 29,
+      "rank": 27,
       "pyramided": false,
-      "days_zero_score": 0,
-      "bad_rank_days": 0
+      "days_zero_score": 0
     }
-  }
+  },
+  "last_updated": "2026-01-15 13:02"
 }
