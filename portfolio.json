@@ -30,15 +30,15 @@
             "shares": 0.5138,
             "initial_amount_eur": 468.88,
             "amount_invested_eur": 468.88,
-            "score": 0.6362018961155684,
+            "score": 0.6755461571121657,
             "peak_price_eur": 948.3034028579376,
             "stop_loss_eur": 748.3320000000001,
-            "rank": 30,
+            "rank": 29,
             "pyramided": false,
             "days_zero_score": 0,
             "bad_rank_days": 2,
             "days_bad_rotation": 1,
-            "rotation_days": 1
+            "rotation_days": 2
         },
         "SLV": {
             "entry_price_eur": 71.75518232750248,
@@ -47,7 +47,7 @@
             "shares": 3.360454146704595,
             "initial_amount_eur": 241.13,
             "amount_invested_eur": 241.13,
-            "score": 8.444595285819863,
+            "score": 8.451013399054334,
             "peak_price_eur": 71.76351492529422,
             "stop_loss_eur": 58.83924950855204,
             "rank": 1,
@@ -58,5 +58,5 @@
             "rotation_days": 0
         }
     },
-    "last_updated": "2026-01-15 21:54"
+    "last_updated": "2026-01-16 06:59"
 }
