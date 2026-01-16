@@ -30,7 +30,7 @@
             "ticker": "LRCX",
             "shares": 2.354048,
             "price_eur": 191.16,
-            "amount_eur": 451.00,
+            "amount_eur": 451.0,
             "reason": "REENTRY_STRATEGIC"
         },
         {
