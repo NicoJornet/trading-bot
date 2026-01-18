@@ -1,57 +1,57 @@
 {
-    "trades": [
-        {
-            "id": 1,
-            "date": "2026-01-16",
-            "action": "SELL",
-            "ticker": "LRCX",
-            "shares": 2.1,
-            "price_eur": 190.26,
-            "amount_eur": 383.26,
-            "pnl_eur": 79.28,
-            "pnl_pct": 26.08,
-            "reason": "ACCIDENTAL_SELL_PROFIT"
-        },
-        {
-            "id": 2,
-            "date": "2026-01-16",
-            "action": "SELL",
-            "ticker": "LLY",
-            "shares": 0.509533,
-            "amount_eur": 449.27,
-            "pnl_eur": -15.73,
-            "pnl_pct": -3.38,
-            "reason": "STOP_LOSS_MANUAL"
-        },
-        {
-            "id": 3,
-            "date": "2026-01-16",
-            "action": "BUY",
-            "ticker": "LRCX",
-            "shares": 2.354048,
-            "price_eur": 191.16,
-            "amount_eur": 451.0,
-            "reason": "REENTRY_STRATEGIC"
-        },
-        {
-            "id": 4,
-            "date": "2026-01-16",
-            "action": "BUY",
-            "ticker": "SLV",
-            "shares": 6.437911,
-            "price_eur": 74.87,
-            "amount_eur": 482.99,
-            "reason": "MOMENTUM_SIGNAL"
-        }
-    ],
-    "summary": {
-        "total_trades": 4,
-        "buys": 2,
-        "sells": 2,
-        "winning_trades": 1,
-        "losing_trades": 1,
-        "net_pnl_eur": 63.55,
-        "total_fees_estimated": 4.0,
-        "win_rate": 50.0
+  "trades": [
+    {
+      "id": 1,
+      "date": "2026-01-16",
+      "action": "SELL",
+      "ticker": "LRCX",
+      "shares": 2.1,
+      "price_eur": 190.26,
+      "amount_eur": 383.26,
+      "pnl_eur": 79.28,
+      "pnl_pct": 26.08,
+      "reason": "ACCIDENTAL_SELL_PROFIT"
+    },
+    {
+      "id": 2,
+      "date": "2026-01-16",
+      "action": "SELL",
+      "ticker": "LLY",
+      "shares": 0.509533,
+      "amount_eur": 449.27,
+      "pnl_eur": -15.73,
+      "pnl_pct": -3.38,
+      "reason": "STOP_LOSS_MANUAL"
+    },
+    {
+      "id": 3,
+      "date": "2026-01-16",
+      "action": "BUY",
+      "ticker": "LRCX",
+      "shares": 2.354048,
+      "price_eur": 191.16,
+      "amount_eur": 451.0,
+      "reason": "REENTRY_STRATEGIC"
+    },
+    {
+      "id": 4,
+      "date": "2026-01-16",
+      "action": "BUY",
+      "ticker": "SLV",
+      "shares": 6.437911,
+      "price_eur": 74.87,
+      "amount_eur": 482.99,
+      "reason": "MOMENTUM_SIGNAL"
     }
+  ],
+  "summary": {
+    "total_trades": 4,
+    "buys": 2,
+    "sells": 2,
+    "winning_trades": 1,
+    "losing_trades": 1,
+    "net_pnl_eur": 63.55,
+    "total_fees_estimated": 4.0,
+    "win_rate": 50.0
+  }
 }
