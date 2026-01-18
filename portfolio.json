@@ -2,7 +2,7 @@
   "currency": "EUR",
   "initial_capital": 1500.0,
   "monthly_dca": 100.0,
-  "cash": 289.28,
+  "cash": 10.00,
   "start_date": "2025-12-29",
   "last_dca_date": "2026-01-02",
   "positions": {
