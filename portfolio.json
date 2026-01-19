@@ -39,9 +39,9 @@
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": false,
-      "trough_price_eur": 188.73420536005145,
+      "trough_price_eur": 188.23048900733946,
       "mfe_pct": 1.7470441660357716,
-      "mae_pct": -1.2689865243505682,
+      "mae_pct": -1.5324916262086985,
       "days_score_le0": 0,
       "bars_held": 1
     },
@@ -58,13 +58,13 @@
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": false,
-      "trough_price_eur": 67.86675192741576,
+      "trough_price_eur": 67.68562104715974,
       "mfe_pct": 0.0,
-      "mae_pct": -9.35387748441865,
+      "mae_pct": -9.595804665206709,
       "days_score_le0": 0,
       "bars_held": 1
     }
   },
-  "last_updated": "2026-01-18 15:44",
+  "last_updated": "2026-01-19 07:06",
   "last_dca_month": "2026-01"
 }
