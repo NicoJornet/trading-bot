@@ -14,14 +14,14 @@
       "initial_amount_eur": 797.65,
       "amount_invested_eur": 797.65,
       "score": 3.712736291904558,
-      "peak_price_eur": 325.50881231647156,
+      "peak_price_eur": 326.11934942505076,
       "stop_loss_eur": 205.7708,
       "rank": 7,
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": true,
       "trough_price_eur": 250.94,
-      "mfe_pct": 29.71579354286744,
+      "mfe_pct": 29.959093578166396,
       "mae_pct": 0.0,
       "days_score_le0": 0,
       "bars_held": 15
@@ -65,6 +65,6 @@
       "bars_held": 2
     }
   },
-  "last_updated": "2026-01-21 07:04",
+  "last_updated": "2026-01-21 19:05",
   "last_dca_month": "2026-01"
 }
