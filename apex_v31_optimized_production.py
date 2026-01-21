@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-APEX v31/v33 — PROD (GitHub) — FIX NameError LOOKBACK_CAL_DAYS
-==============================================================
+APEX v31/v33 — PROD (GitHub) — FIX + TOP 5 MOMENTUM DISPLAY
+===========================================================
 
-✅ Fix de l’erreur GitHub:
-NameError: name 'LOOKBACK_CAL_DAYS' is not defined
-
-→ Ajout d’un paramètre LOOKBACK_CAL_DAYS (par défaut 420 jours calendaires)
-  + override possible via env: APEX_LOOKBACK_CAL_DAYS
-  + utilisé uniquement quand le parquet local n’est pas dispo (fallback yfinance)
-
-Ce script garde la plomberie "prod" :
-- portfolio.json
-- trades_history.json
-- Telegram (optionnel via TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID)
+- Fix NameError LOOKBACK_CAL_DAYS
+- Ajout affichage TOP 5 Momentum (console + Telegram)
 """
 
 from __future__ import annotations
@@ -85,8 +76,10 @@ RANK_GATE = 15
 VOL_RELAX_ATR_PCT = 2.5
 SLOW_ASSETS_MULT = 2
 
+# Display
+TOP_MOMENTUM_N = 5  # ✅ Affichage Top N
+
 # ✅ FIX: Download window for indicators when parquet missing
-# Default 420 calendar days (~252 sessions). Override with env APEX_LOOKBACK_CAL_DAYS
 def _get_int_env(name: str, default: int) -> int:
     try:
         v = int(str(os.environ.get(name, "")).strip())
@@ -132,7 +125,6 @@ def load_portfolio() -> dict:
     if os.path.exists(PORTFOLIO_FILE):
         with open(PORTFOLIO_FILE, "r") as f:
             p = json.load(f)
-        # Backward compatible defaults
         p.setdefault("currency", "EUR")
         p.setdefault("cash", INITIAL_CAPITAL_EUR)
         p.setdefault("initial_capital", INITIAL_CAPITAL_EUR)
@@ -208,12 +200,6 @@ def _standardize_ohlcv_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_ohlcv_parquet(path: str, tickers: List[str]) -> pd.DataFrame:
-    """
-    Returns DataFrame indexed by date, columns MultiIndex (ticker, field) where field in open/high/low/close/volume.
-    Supports:
-      - long: date,ticker,open,high,low,close,volume
-      - multiindex: (ticker, field) or (field, ticker)
-    """
     df = pd.read_parquet(path)
 
     if {"date", "ticker"}.issubset(df.columns):
@@ -234,9 +220,7 @@ def load_ohlcv_parquet(path: str, tickers: List[str]) -> pd.DataFrame:
         fields = {"open", "high", "low", "close", "volume"}
         lev0 = set(map(lambda x: str(x).lower(), df.columns.get_level_values(0)))
         if fields.issubset(lev0):
-            # (field, ticker)
             df = df.swaplevel(0, 1, axis=1).sort_index(axis=1)
-        # now assume (ticker, field)
         df.columns = pd.MultiIndex.from_tuples(
             [(t, str(f).lower()) for (t, f) in df.columns],
             names=["ticker", "field"]
@@ -263,7 +247,6 @@ def load_ohlcv_yfinance(tickers: List[str], start: datetime, end: datetime) -> p
     )
     if not isinstance(data.columns, pd.MultiIndex):
         raise ValueError("yfinance n'a pas renvoyé un MultiIndex attendu.")
-    # normalize to (ticker, field)
     lev0 = set(map(lambda x: str(x).lower(), data.columns.get_level_values(0)))
     if {"open", "high", "low", "close", "volume"}.issubset(lev0):
         data = data.swaplevel(0, 1, axis=1).sort_index(axis=1)
@@ -276,12 +259,10 @@ def load_ohlcv_yfinance(tickers: List[str], start: datetime, end: datetime) -> p
 
 
 def load_data() -> pd.DataFrame:
-    # Prefer parquet cache
     if os.path.exists(PARQUET_PATH):
         ohlcv = load_ohlcv_parquet(PARQUET_PATH, UNIVERSE)
         return ohlcv.sort_index()
 
-    # Fallback: yfinance (last LOOKBACK_CAL_DAYS calendar days)
     end = datetime.now()
     start = end - timedelta(days=LOOKBACK_CAL_DAYS)
     return load_ohlcv_yfinance(UNIVERSE, start=start, end=end)
@@ -382,9 +363,6 @@ def entry_red_flags(close: pd.Series, high: pd.Series, low: pd.Series) -> Tuple[
 # =============================================================================
 
 def get_eur_usd_rate() -> float:
-    """
-    Returns EURUSD (USD per 1 EUR). If unavailable, returns 1.0.
-    """
     if yf is None:
         return 1.0
     try:
@@ -427,7 +405,7 @@ def bars_held(index: pd.Index, entry_date_str: str, current_date: pd.Timestamp) 
 
 def main() -> None:
     print("=" * 90)
-    print("🚀 APEX — PROD (fixed LOOKBACK_CAL_DAYS)")
+    print("🚀 APEX — PROD (fixed LOOKBACK_CAL_DAYS + TOP Momentum)")
     print("=" * 90)
     print(f"🕒 {_now_str()}")
     print(f"🔎 LOOKBACK_CAL_DAYS={LOOKBACK_CAL_DAYS} (fallback yfinance)")
@@ -450,7 +428,8 @@ def main() -> None:
 
     # Use latest available date as "signal day"
     d = ohlcv.index.max()
-    print(f"📅 Dernière date OHLCV: {pd.to_datetime(d).strftime('%Y-%m-%d')}")
+    d_str = pd.to_datetime(d).strftime("%Y-%m-%d")
+    print(f"📅 Dernière date OHLCV: {d_str}")
 
     eurusd = get_eur_usd_rate()
     print(f"💱 EURUSD=X: {eurusd:.4f} (prixUSD -> prixEUR = USD / eurusd)")
@@ -460,9 +439,13 @@ def main() -> None:
     ind_map: Dict[str, dict] = {}
 
     for t in UNIVERSE:
-        c = ohlcv.get((t, "close"), pd.Series(dtype=float)).loc[:d] if (t, "close") in ohlcv.columns else pd.Series(dtype=float)
-        h = ohlcv.get((t, "high"), pd.Series(dtype=float)).loc[:d] if (t, "high") in ohlcv.columns else pd.Series(dtype=float)
-        l = ohlcv.get((t, "low"), pd.Series(dtype=float)).loc[:d] if (t, "low") in ohlcv.columns else pd.Series(dtype=float)
+        if (t, "close") not in ohlcv.columns or (t, "high") not in ohlcv.columns or (t, "low") not in ohlcv.columns:
+            continue
+
+        c = ohlcv[(t, "close")].loc[:d]
+        h = ohlcv[(t, "high")].loc[:d]
+        l = ohlcv[(t, "low")].loc[:d]
+
         if c.dropna().shape[0] < 60:
             continue
 
@@ -482,12 +465,35 @@ def main() -> None:
     last_high_usd = {}
     last_low_usd = {}
     for t in UNIVERSE:
-        c = ohlcv.get((t, "close"), pd.Series(dtype=float)).loc[d] if (t, "close") in ohlcv.columns else np.nan
-        hi = ohlcv.get((t, "high"), pd.Series(dtype=float)).loc[d] if (t, "high") in ohlcv.columns else np.nan
-        lo = ohlcv.get((t, "low"), pd.Series(dtype=float)).loc[d] if (t, "low") in ohlcv.columns else np.nan
+        if (t, "close") not in ohlcv.columns:
+            last_close_usd[t] = np.nan
+            last_high_usd[t] = np.nan
+            last_low_usd[t] = np.nan
+            continue
+        c = ohlcv[(t, "close")].loc[d]
+        hi = ohlcv[(t, "high")].loc[d] if (t, "high") in ohlcv.columns else np.nan
+        lo = ohlcv[(t, "low")].loc[d] if (t, "low") in ohlcv.columns else np.nan
         last_close_usd[t] = float(c) if pd.notna(c) else np.nan
         last_high_usd[t] = float(hi) if pd.notna(hi) else np.nan
         last_low_usd[t] = float(lo) if pd.notna(lo) else np.nan
+
+    # ✅ TOP MOMENTUM (display only)
+    topN = ranked[:TOP_MOMENTUM_N]
+    top_lines_console = []
+    for i, (t, sc) in enumerate(topN, 1):
+        rf = ind_map.get(t, {})
+        flags = ",".join(rf.get("rf_flags", [])) if rf.get("rf_flags") else "-"
+        top_lines_console.append(
+            f"{i:>2}. {t:<5} | score {sc:>7.3f} | RSI {rf.get('rsi14', np.nan):>5.1f} | "
+            f"ATR% {rf.get('atr_pct', np.nan):>4.1f} | RF {rf.get('rf_n', 0)} [{flags}]"
+        )
+
+    print("\n📈 TOP MOMENTUM:")
+    if top_lines_console:
+        for line in top_lines_console:
+            print("   " + line)
+    else:
+        print("   (aucun score valide)")
 
     # =====================================================================
     # 1) Evaluate positions -> SELL signals
@@ -511,7 +517,6 @@ def main() -> None:
         if shares <= 0:
             continue
 
-        # Update peak/trough (for mfe/mae)
         peak = float(pos.get("peak_price_eur", entry_price))
         trough = float(pos.get("trough_price_eur", entry_price))
         peak = max(peak, hi_eur)
@@ -532,14 +537,12 @@ def main() -> None:
         pos["score"] = cur_score
         pos["rank"] = cur_rank
 
-        # score<=0 counter
         if cur_score <= 0:
             pos["days_score_le0"] = int(pos.get("days_score_le0", 0)) + 1
         else:
             pos["days_score_le0"] = 0
 
-        # bars held
-        entry_date = pos.get("entry_date", pos.get("date", pd.to_datetime(d).strftime("%Y-%m-%d")))
+        entry_date = pos.get("entry_date", pos.get("date", d_str))
         bh = bars_held(ohlcv.index, entry_date, pd.to_datetime(d))
         pos["bars_held"] = int(bh)
 
@@ -548,26 +551,21 @@ def main() -> None:
 
         reason = None
 
-        # Hard stop
         stop_price = entry_price * (1.0 - HARD_STOP_PCT)
         if px_eur <= stop_price:
             reason = "HARD_STOP"
 
-        # Trailing (if active)
         if reason is None and trailing_active:
             dd_from_peak = (px_eur / peak - 1.0)
             if dd_from_peak <= -TRAIL_FROM_PEAK_PCT:
                 reason = "MFE_TRAILING"
 
-        # Safe rotation: if trailing active -> block quality + forced rotation
         if reason is None and trailing_active:
             pass
         else:
-            # Forced rotation
             if reason is None and int(pos.get("days_score_le0", 0)) >= FORCE_ROTATION_DAYS:
                 reason = f"FORCE_ROTATION_{FORCE_ROTATION_DAYS}d"
 
-            # Quality exits (only if rank > RANK_GATE)
             if reason is None and cur_rank > RANK_GATE:
                 atrp = ind_map.get(t, {}).get("atr_pct", np.nan)
                 mult = 1
@@ -605,7 +603,6 @@ def main() -> None:
 
         positions[t] = pos
 
-    # Execute sells (paper)
     for s in sells:
         t = s["ticker"]
         proceeds = float(s["value_eur"]) - FEE_EUR
@@ -614,7 +611,7 @@ def main() -> None:
         append_trade(trades, {
             "action": "SELL",
             "ticker": t,
-            "date": pd.to_datetime(d).strftime("%Y-%m-%d"),
+            "date": d_str,
             "price_eur": float(s["price_eur"]),
             "shares": float(s["shares"]),
             "amount_eur": float(s["value_eur"]),
@@ -683,7 +680,7 @@ def main() -> None:
             cash -= cost
             portfolio["cash"] = cash
             portfolio["positions"][t] = {
-                "entry_date": pd.to_datetime(d).strftime("%Y-%m-%d"),
+                "entry_date": d_str,
                 "entry_price_eur": float(px_eur),
                 "shares": float(shares),
                 "initial_amount_eur": float(alloc),
@@ -701,7 +698,7 @@ def main() -> None:
             append_trade(trades, {
                 "action": "BUY",
                 "ticker": t,
-                "date": pd.to_datetime(d).strftime("%Y-%m-%d"),
+                "date": d_str,
                 "price_eur": float(px_eur),
                 "shares": float(shares),
                 "amount_eur": float(alloc),
@@ -737,17 +734,29 @@ def main() -> None:
     cash = float(portfolio.get("cash", 0.0))
     total = cash + pos_value
 
-    start_date = pd.to_datetime(portfolio.get("start_date", pd.to_datetime(d).strftime("%Y-%m-%d")))
+    start_date = pd.to_datetime(portfolio.get("start_date", d_str))
     months = (today.year - start_date.year) * 12 + (today.month - start_date.month)
     invested = float(portfolio.get("initial_capital", INITIAL_CAPITAL_EUR)) + max(0, months) * float(portfolio.get("monthly_dca", MONTHLY_DCA_EUR))
     pnl_total = total - invested
     pnl_total_pct = (total / invested - 1.0) * 100.0 if invested > 0 else 0.0
 
+    # ✅ Add Top Momentum to message
+    top_lines_msg = []
+    for i, (t, sc) in enumerate(topN, 1):
+        rf = ind_map.get(t, {})
+        flags = ",".join(rf.get("rf_flags", [])) if rf.get("rf_flags") else "-"
+        top_lines_msg.append(
+            f"{i}. {t} score {sc:.3f} | RSI {rf.get('rsi14', np.nan):.0f} | ATR% {rf.get('atr_pct', np.nan):.1f} | RF {rf.get('rf_n', 0)} [{flags}]"
+        )
+
     msg = []
-    msg.append(f"APEX PROD — {pd.to_datetime(d).strftime('%Y-%m-%d')}")
+    msg.append(f"APEX PROD — {d_str}")
     msg.append(f"EURUSD=X {eurusd:.4f}")
     msg.append(f"Cash {cash:.2f}€ | Pos {pos_value:.2f}€ | Total {total:.2f}€")
     msg.append(f"Invested~ {invested:.2f}€ | PnL {pnl_total:+.2f}€ ({pnl_total_pct:+.1f}%)")
+    msg.append("")
+    msg.append(f"TOP {TOP_MOMENTUM_N} MOMENTUM:")
+    msg.extend(top_lines_msg if top_lines_msg else ["(aucun score valide)"])
     msg.append("")
     msg.append("ACTIONS:")
     if sells:
@@ -767,7 +776,10 @@ def main() -> None:
     save_portfolio(portfolio)
     save_trades(trades)
 
+    print("\n" + "=" * 90)
     print(message)
+    print("=" * 90)
+
     send_telegram(message)
 
     print("=" * 90)
