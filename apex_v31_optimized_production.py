@@ -58,7 +58,7 @@ TRADES_FILE    = "trades_history.json"
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-INITIAL_CAPITAL_EUR = 2000.0
+INITIAL_CAPITAL_EUR = 1500.0
 MONTHLY_DCA_EUR     = 100.0
 
 # =============================================================================
