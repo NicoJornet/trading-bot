@@ -13,18 +13,18 @@
       "shares": 2.944984,
       "initial_amount_eur": 797.65,
       "amount_invested_eur": 797.65,
-      "score": 4.5958787579730265,
-      "peak_price_eur": 337.15927174885184,
+      "score": 4.634264502518848,
+      "peak_price_eur": 338.51075925985543,
       "stop_loss_eur": 205.7708,
-      "rank": 4,
+      "rank": 3,
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": true,
       "trough_price_eur": 250.94,
-      "mfe_pct": 34.35852066185217,
+      "mfe_pct": 34.89709064312403,
       "mae_pct": 0.0,
       "days_score_le0": 0,
-      "bars_held": 16
+      "bars_held": 17
     },
     "LRCX": {
       "entry_price_eur": 191.16,
@@ -32,18 +32,18 @@
       "shares": 2.354048,
       "initial_amount_eur": 451.0,
       "amount_invested_eur": 451.0,
-      "score": 3.5580607285951618,
-      "peak_price_eur": 199.19936555255663,
+      "score": 2.1379584505848586,
+      "peak_price_eur": 200.92109350048415,
       "stop_loss_eur": 156.7512,
-      "rank": 9,
+      "rank": 15,
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": false,
       "trough_price_eur": 185.64307920141619,
-      "mfe_pct": 4.205568922659886,
+      "mfe_pct": 5.1062426765453806,
       "mae_pct": -2.886022598129212,
       "days_score_le0": 0,
-      "bars_held": 3
+      "bars_held": 4
     },
     "SLV": {
       "entry_price_eur": 74.87,
@@ -51,10 +51,10 @@
       "shares": 6.437911,
       "initial_amount_eur": 482.99,
       "amount_invested_eur": 482.99,
-      "score": 3.3592702819578486,
+      "score": 3.9150069505144933,
       "peak_price_eur": 74.87,
       "stop_loss_eur": 61.39340000000001,
-      "rank": 11,
+      "rank": 7,
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": false,
@@ -62,9 +62,9 @@
       "mfe_pct": 0.0,
       "mae_pct": -10.363632865070759,
       "days_score_le0": 0,
-      "bars_held": 3
+      "bars_held": 4
     }
   },
-  "last_updated": "2026-01-22 07:03",
+  "last_updated": "2026-01-23 06:17",
   "last_dca_month": "2026-01"
 }
