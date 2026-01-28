@@ -12,10 +12,10 @@
       "shares": 2.354048,
       "initial_amount_eur": 451.0,
       "amount_invested_eur": 451.0,
-      "score": 2.2437484784934902,
+      "score": 4.015793835551961,
       "peak_price_eur": 200.92109350048415,
       "stop_loss_eur": 156.7512,
-      "rank": 16,
+      "rank": 8,
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": false,
@@ -23,9 +23,9 @@
       "mfe_pct": 5.1062426765453806,
       "mae_pct": -5.662705100916387,
       "days_score_le0": 0,
-      "bars_held": 6
+      "bars_held": 7
     }
   },
-  "last_updated": "2026-01-27 06:17",
+  "last_updated": "2026-01-28 06:18",
   "last_dca_month": "2026-01"
 }
