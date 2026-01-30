@@ -279,10 +279,27 @@ def load_data(tickers: List[str]) -> pd.DataFrame:
 
 
 def get_eurusd(df: pd.DataFrame) -> float:
-    if ("EURUSD=X", "close") in df.columns:
-        ser = df[("EURUSD=X", "close")].dropna()
-        if not ser.empty:
-            return float(ser.iloc[-1])
+    """Extract EURUSD rate from dataframe, handling MultiIndex properly."""
+    try:
+        # Try to access the column
+        if ("EURUSD=X", "close") in df.columns:
+            ser = df[("EURUSD=X", "close")]
+            
+            # If it's a DataFrame (shouldn't be, but handle it), get the first column
+            if isinstance(ser, pd.DataFrame):
+                ser = ser.iloc[:, 0]
+            
+            # Drop NaN and get last value
+            ser = ser.dropna()
+            if not ser.empty:
+                val = ser.iloc[-1]
+                # Handle case where val might still be a Series
+                if isinstance(val, pd.Series):
+                    val = val.iloc[0]
+                return float(val)
+    except (KeyError, IndexError, TypeError, ValueError):
+        pass
+    
     return 1.0
 
 
