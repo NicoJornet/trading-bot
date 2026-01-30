@@ -398,19 +398,47 @@ def compute_breadth(df: pd.DataFrame, tickers: List[str]) -> Tuple[float, int, i
 
 
 def corr_matrix(df: pd.DataFrame, tickers: List[str], window: int) -> pd.DataFrame:
+    """Calculate correlation matrix, ensuring proper alignment of returns."""
     rets = {}
+    common_index = None
+    
     for t in tickers:
         if (t, "close") not in df.columns:
             continue
         c = df[(t, "close")].dropna()
         if len(c) < window + 1:
             continue
-        r = c.pct_change().iloc[-window:]
-        if len(r) >= window // 2:
-            rets[t] = r
+        
+        # Get returns for the last 'window' periods
+        r = c.pct_change()
+        if len(r) < window:
+            continue
+            
+        # Take last window values
+        r_windowed = r.iloc[-window:].copy()
+        
+        # Ensure we have enough valid data
+        if r_windowed.notna().sum() < window // 2:
+            continue
+        
+        # Set common index on first valid ticker
+        if common_index is None:
+            common_index = r_windowed.index
+        
+        # Only keep tickers with matching index
+        if len(r_windowed.index) == len(common_index) and (r_windowed.index == common_index).all():
+            rets[t] = r_windowed.values  # Use values to avoid index issues
+    
     if len(rets) < 2:
         return pd.DataFrame()
-    return pd.DataFrame(rets).corr()
+    
+    # Create DataFrame with common index
+    try:
+        ret_df = pd.DataFrame(rets, index=common_index)
+        return ret_df.corr()
+    except Exception:
+        # Fallback: if alignment fails, return empty
+        return pd.DataFrame()
 
 
 def corr_gate_ok(held: List[str], cand: str, cm: pd.DataFrame, thr: float) -> bool:
