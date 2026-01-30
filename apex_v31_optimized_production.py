@@ -726,8 +726,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
-path = pathlib.Path("/mnt/data/apex_v33_prod_champion_yfinance_min.py")
-path.write_text(code, encoding="utf-8")
-str(path)
-
