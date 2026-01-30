@@ -1,11 +1,11 @@
 """
-APEX CHAMPION - PROD (YFINANCE ONLY) - INDENTATION-PROOF (NO 'if' before open)
-=============================================================================
+APEX CHAMPION - PROD (YFINANCE ONLY) - GITHUB SAFE
+=================================================
 
-Corrige definitivement ton erreur actuelle :
-   IndentationError: expected an indented block after 'if' statement ...
-La cause : un `if ...:` mal indente avant `with open(...)`.
-Le fix : on SUPPRIME le `if` et on lit le portfolio via try/except (comme V33-style robuste).
+Fixes inclus:
+1) yfinance "database is locked" -> download SEQUENTIEL (no threads)
+2) corr_matrix TypeError Series -> get_series() force Series
+3) swap SELL trade: price_eur corrected (was px_usd)
 
 Persistance:
 - portfolio.json
@@ -47,39 +47,31 @@ TRADES_FILE = "trades_history.json"
 INITIAL_CAPITAL_EUR = 2000.0
 MONTHLY_DCA_EUR = 100.0
 
-# Costs (bps)
 FEE_BPS = 20.0
 SLIPPAGE_BPS = 5.0
 
-# Portfolio
 MAX_POSITIONS = 3
 
-# Rotation (SwapEdge)
 EDGE_MULT = 1.00
 CONFIRM_DAYS = 3
 COOLDOWN_DAYS = 1
 
-# Stops
 HARD_STOP_PCT = 0.18
 MFE_TRIGGER_PCT = 0.15
 TRAIL_FROM_PEAK_PCT = 0.05
 
-# Momentum score windows
 R63_WINDOW = 63
 R126_WINDOW = 126
 R252_WINDOW = 252
 SCORE_WEIGHTS = {R126_WINDOW: 0.5, R252_WINDOW: 0.3, R63_WINDOW: 0.2}
 
-# Entry filters
 SMA200_WINDOW = 200
 HIGH60_WINDOW = 60
 
-# Gates
 BREADTH_THRESHOLD = 0.55
 CORR_WINDOW = 63
 CORR_THRESHOLD = 0.65
 
-# yfinance history (calendar days)
 LOOKBACK_CAL_DAYS = 420
 
 UNIVERSE_U54 = [
@@ -115,15 +107,39 @@ def usd_to_eur(usd: float, eurusd: float) -> float:
     return float(usd) / float(eurusd) if eurusd and eurusd > 0 else float(usd)
 
 
+def to_scalar(val):
+    if isinstance(val, pd.Series):
+        return val.iloc[0] if len(val) > 0 else np.nan
+    return val
+
+
+def get_series(df: pd.DataFrame, ticker: str, field: str) -> pd.Series:
+    """
+    Returns a clean pd.Series for (ticker, field).
+    Handles cases where df[(t,field)] returns a DataFrame (duplicate columns).
+    """
+    if (ticker, field) not in df.columns:
+        return pd.Series(dtype=float)
+
+    x = df[(ticker, field)]
+    if isinstance(x, pd.DataFrame):
+        # take first column if duplicates
+        x = x.iloc[:, 0]
+    # ensure Series
+    x = x.squeeze()
+    if not isinstance(x, pd.Series):
+        try:
+            x = pd.Series(x)
+        except Exception:
+            return pd.Series(dtype=float)
+    return x
+
+
 # =============================================================================
-# IO (portfolio / trades) - INDENTATION-PROOF: no "if ...: with open"
+# IO (portfolio / trades) - no if/try indentation issues
 # =============================================================================
 
 def load_portfolio() -> dict:
-    """
-    Read portfolio.json safely.
-    IMPORTANT: No 'if os.path.exists' -> avoids your IndentationError source.
-    """
     try:
         with open(PORTFOLIO_FILE, "r") as f:
             p = json.load(f)
@@ -143,11 +159,8 @@ def load_portfolio() -> dict:
     p.setdefault("positions", {})
     p.setdefault("start_date", datetime.now().strftime("%Y-%m-%d"))
     p.setdefault("last_dca_month", None)
-
-    # SwapEdge trackers
     p.setdefault("swap_confirm_tracker", {})
     p.setdefault("last_swap_date", {})
-
     return p
 
 
@@ -203,102 +216,89 @@ def send_telegram(message: str) -> None:
 
 
 # =============================================================================
-# Data (yfinance only) - MultiIndex safe
+# Data (yfinance only) - SEQUENTIAL SAFE
 # =============================================================================
 
-def _standardize_yf_columns(df: pd.DataFrame) -> pd.DataFrame:
+def _standardize_single_ticker_df(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Output MultiIndex columns: (ticker, field) with field lowercase:
-    open/high/low/close/volume
-    Handles yfinance (field,ticker) or (ticker,field).
+    For a single ticker download, yfinance returns columns:
+    Open High Low Close Adj Close Volume (case varies).
+    We normalize to lowercase: open/high/low/close/volume.
     """
     out = df.copy()
-
-    if isinstance(out.columns, pd.MultiIndex):
-        lvl0 = [str(x).lower() for x in out.columns.get_level_values(0)]
-        fields = {"open", "high", "low", "close", "volume", "adj close"}
-
-        # If (field, ticker) => swap to (ticker, field)
-        if {"open", "high", "low", "close", "volume"}.issubset(set(lvl0)) or fields.issubset(set(lvl0)):
-            out = out.swaplevel(0, 1, axis=1)
-
-        out.columns = pd.MultiIndex.from_tuples(
-            [(str(t), str(f).lower()) for (t, f) in out.columns],
-            names=["ticker", "field"]
-        )
-
-        out = out.rename(columns={"adj close": "close"}, level="field")
-        
-        # Sort columns to avoid PerformanceWarning
-        out = out.sort_index(axis=1)
-        return out
-
-    # Single-level columns (single ticker case)
     cols = {str(c).lower(): c for c in out.columns}
     ren = {}
-    for target in ["open", "high", "low", "close", "volume"]:
-        if target in cols:
-            ren[cols[target]] = target
-        elif target == "close" and "adj close" in cols:
-            ren[cols["adj close"]] = "close"
-    return out.rename(columns=ren)
+    if "open" in cols: ren[cols["open"]] = "open"
+    if "high" in cols: ren[cols["high"]] = "high"
+    if "low" in cols: ren[cols["low"]] = "low"
+    if "close" in cols: ren[cols["close"]] = "close"
+    elif "adj close" in cols: ren[cols["adj close"]] = "close"
+    if "volume" in cols: ren[cols["volume"]] = "volume"
+    out = out.rename(columns=ren)
+    needed = ["open", "high", "low", "close", "volume"]
+    return out[[c for c in needed if c in out.columns]]
 
 
-def download_yfinance(tickers: List[str], start_date: str, end_date: str) -> pd.DataFrame:
+def download_yfinance_sequential(tickers: List[str], start_date: str, end_date: str) -> pd.DataFrame:
+    """
+    Robust on GitHub Actions:
+    - no threads
+    - per ticker download
+    - skip failures
+    Output MultiIndex columns: (ticker, field)
+    """
     if yf is None:
         raise ImportError("yfinance non disponible (ajoute yfinance dans requirements.txt)")
 
-    df = yf.download(
-        tickers=tickers,
-        start=start_date,
-        end=end_date,
-        auto_adjust=False,
-        progress=False,
-        group_by="column",
-        threads=True,
-    )
+    frames = []
+    failed = []
 
-    if df is None or df.empty:
-        raise ValueError("yfinance: aucune donnee")
+    for t in tickers:
+        try:
+            d = yf.download(
+                tickers=t,
+                start=start_date,
+                end=end_date,
+                auto_adjust=False,
+                progress=False,
+                threads=False,   # IMPORTANT: avoids sqlite/cache lock issues
+            )
+            if d is None or d.empty:
+                failed.append(t)
+                continue
+            d = _standardize_single_ticker_df(d)
+            if d.empty:
+                failed.append(t)
+                continue
 
-    df = _standardize_yf_columns(df)
+            d.columns = pd.MultiIndex.from_product([[t], list(d.columns)], names=["ticker", "field"])
+            frames.append(d)
 
-    if not isinstance(df.columns, pd.MultiIndex):
-        needed = ["open", "high", "low", "close", "volume"]
-        missing = [c for c in needed if c not in df.columns]
-        if missing:
-            raise ValueError(f"Colonnes manquantes: {missing} (got {list(df.columns)})")
-        t = tickers[0]
-        df = df[needed].copy()
-        df.columns = pd.MultiIndex.from_product([[t], needed], names=["ticker", "field"])
+        except Exception:
+            failed.append(t)
+            continue
 
-    return df.sort_index()
+    if failed:
+        print(f"\n1 Failed download:\n{failed}")
+
+    if not frames:
+        raise ValueError("yfinance: aucune donnée récupérée")
+
+    out = pd.concat(frames, axis=1).sort_index()
+    out = out.sort_index(axis=1)
+    return out
 
 
 def load_data(tickers: List[str]) -> pd.DataFrame:
     end = datetime.now()
     start = end - timedelta(days=LOOKBACK_CAL_DAYS)
-    return download_yfinance(tickers, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+    return download_yfinance_sequential(tickers, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
 
 
 def get_eurusd(df: pd.DataFrame) -> float:
-    """Extract EURUSD rate from dataframe, handling MultiIndex properly."""
-    try:
-        if ("EURUSD=X", "close") in df.columns:
-            ser = df[("EURUSD=X", "close")]
-            
-            if isinstance(ser, pd.DataFrame):
-                ser = ser.iloc[:, 0]
-            
-            ser = ser.dropna()
-            if not ser.empty:
-                val = ser.iloc[-1]
-                if isinstance(val, pd.Series):
-                    val = val.iloc[0]
-                return float(val)
-    except (KeyError, IndexError, TypeError, ValueError):
-        pass
-    
+    ser = get_series(df, "EURUSD=X", "close").dropna()
+    if not ser.empty:
+        return float(to_scalar(ser.iloc[-1]))
     return 1.0
 
 
@@ -315,18 +315,9 @@ def rolling_high_prev(high: pd.Series, window: int) -> pd.Series:
 
 
 def momentum_score(close: pd.Series) -> float:
-    """Calculate momentum score, ensuring we get scalar values."""
-    r63 = close.pct_change(R63_WINDOW).iloc[-1]
-    r126 = close.pct_change(R126_WINDOW).iloc[-1]
-    r252 = close.pct_change(R252_WINDOW).iloc[-1]
-    
-    # Convert to scalar if needed
-    if isinstance(r63, pd.Series):
-        r63 = r63.iloc[0] if len(r63) > 0 else np.nan
-    if isinstance(r126, pd.Series):
-        r126 = r126.iloc[0] if len(r126) > 0 else np.nan
-    if isinstance(r252, pd.Series):
-        r252 = r252.iloc[0] if len(r252) > 0 else np.nan
+    r63 = to_scalar(close.pct_change(R63_WINDOW).iloc[-1])
+    r126 = to_scalar(close.pct_change(R126_WINDOW).iloc[-1])
+    r252 = to_scalar(close.pct_change(R252_WINDOW).iloc[-1])
 
     score = 0.0
     if not pd.isna(r126):
@@ -342,17 +333,9 @@ def entry_ok(close: pd.Series, high: pd.Series) -> Tuple[bool, str]:
     if len(close) < max(SMA200_WINDOW, HIGH60_WINDOW):
         return False, "insufficient_data"
 
-    s200 = sma(close, SMA200_WINDOW).iloc[-1]
-    h60 = rolling_high_prev(high, HIGH60_WINDOW).iloc[-1]
-    c = close.iloc[-1]
-    
-    # Convert to scalar if needed
-    if isinstance(s200, pd.Series):
-        s200 = s200.iloc[0] if len(s200) > 0 else np.nan
-    if isinstance(h60, pd.Series):
-        h60 = h60.iloc[0] if len(h60) > 0 else np.nan
-    if isinstance(c, pd.Series):
-        c = c.iloc[0] if len(c) > 0 else np.nan
+    s200 = to_scalar(sma(close, SMA200_WINDOW).iloc[-1])
+    h60 = to_scalar(rolling_high_prev(high, HIGH60_WINDOW).iloc[-1])
+    c = to_scalar(close.iloc[-1])
 
     if pd.isna(s200) or pd.isna(h60) or pd.isna(c):
         return False, "nan_data"
@@ -371,21 +354,11 @@ def compute_breadth(df: pd.DataFrame, tickers: List[str]) -> Tuple[float, int, i
     above = 0
     total = 0
     for t in tickers:
-        if (t, "close") not in df.columns:
+        close = get_series(df, t, "close").dropna()
+        if close.empty or len(close) < SMA200_WINDOW:
             continue
-        close = df[(t, "close")].dropna()
-        if len(close) < SMA200_WINDOW:
-            continue
-        
-        last_close = close.iloc[-1]
-        last_sma = sma(close, SMA200_WINDOW).iloc[-1]
-        
-        # Convert to scalar if needed
-        if isinstance(last_close, pd.Series):
-            last_close = last_close.iloc[0] if len(last_close) > 0 else np.nan
-        if isinstance(last_sma, pd.Series):
-            last_sma = last_sma.iloc[0] if len(last_sma) > 0 else np.nan
-        
+        last_close = to_scalar(close.iloc[-1])
+        last_sma = to_scalar(sma(close, SMA200_WINDOW).iloc[-1])
         if not pd.isna(last_close) and not pd.isna(last_sma) and last_close > last_sma:
             above += 1
         total += 1
@@ -394,35 +367,25 @@ def compute_breadth(df: pd.DataFrame, tickers: List[str]) -> Tuple[float, int, i
 
 
 def corr_matrix(df: pd.DataFrame, tickers: List[str], window: int) -> pd.DataFrame:
-    """Calculate correlation matrix with proper scalar handling."""
+    """
+    FIX: ensure c and r are Series (not DataFrame) so sum() is scalar.
+    """
     rets_dict = {}
-    
     for t in tickers:
-        if (t, "close") not in df.columns:
+        c = get_series(df, t, "close").dropna()
+        if c.empty or len(c) < window + 1:
             continue
-        c = df[(t, "close")].dropna()
-        if len(c) < window + 1:
-            continue
-        
-        # Calculate returns
-        r = c.pct_change().iloc[-window:]
-        
-        # Count valid (non-NaN) values - ensure scalar comparison
-        valid_count = int(r.notna().sum())
+        r = c.pct_change().tail(window)
+        valid_count = int(r.notna().sum())  # scalar now
         if valid_count < window // 2:
             continue
-        
         rets_dict[t] = r
-    
+
     if len(rets_dict) < 2:
         return pd.DataFrame()
-    
-    # Create DataFrame and calculate correlation
-    try:
-        ret_df = pd.DataFrame(rets_dict)
-        return ret_df.corr()
-    except Exception:
-        return pd.DataFrame()
+
+    ret_df = pd.DataFrame(rets_dict)
+    return ret_df.corr()
 
 
 def corr_gate_ok(held: List[str], cand: str, cm: pd.DataFrame, thr: float) -> bool:
@@ -506,25 +469,12 @@ def check_swap_edge(
 
 
 # =============================================================================
-# Helper to extract scalar from Series
-# =============================================================================
-
-def to_scalar(val):
-    """Convert a value to scalar, handling Series."""
-    if isinstance(val, pd.Series):
-        if len(val) > 0:
-            return val.iloc[0]
-        return np.nan
-    return val
-
-
-# =============================================================================
 # MAIN
 # =============================================================================
 
 def main() -> None:
     print("=" * 90)
-    print("APEX CHAMPION - PROD (YFINANCE ONLY) - INDENTATION-PROOF")
+    print("APEX CHAMPION - PROD (YFINANCE ONLY) - GITHUB SAFE")
     print("=" * 90)
 
     tickers = UNIVERSE_U54 + ["EURUSD=X"]
@@ -551,10 +501,10 @@ def main() -> None:
     entry_map: Dict[str, Tuple[bool, str]] = {}
 
     for t in UNIVERSE_U54:
-        if (t, "close") not in df.columns or (t, "high") not in df.columns:
+        close = get_series(df, t, "close").dropna()
+        high = get_series(df, t, "high").dropna()
+        if close.empty or high.empty:
             continue
-        close = df[(t, "close")].dropna()
-        high = df[(t, "high")].dropna()
         if len(close) < max(R252_WINDOW, SMA200_WINDOW, HIGH60_WINDOW):
             continue
         sc = momentum_score(close)
@@ -565,7 +515,6 @@ def main() -> None:
     ranked = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
     rank_map = {t: i + 1 for i, (t, _) in enumerate(ranked)}
 
-    # Gates
     breadth, above, total = compute_breadth(df, UNIVERSE_U54)
     breadth_ok = breadth >= BREADTH_THRESHOLD
     print(f"BREADTH: {breadth:.2%} ({above}/{total}) | Gate: {'PASS' if breadth_ok else 'FAIL'}")
@@ -575,12 +524,11 @@ def main() -> None:
     # Latest USD close
     last_close_usd: Dict[str, float] = {}
     for t in UNIVERSE_U54:
-        if (t, "close") in df.columns:
-            s = df[(t, "close")].dropna()
-            if not s.empty:
-                val = to_scalar(s.iloc[-1])
-                if not pd.isna(val):
-                    last_close_usd[t] = float(val)
+        s = get_series(df, t, "close").dropna()
+        if not s.empty:
+            val = to_scalar(s.iloc[-1])
+            if not pd.isna(val):
+                last_close_usd[t] = float(val)
 
     # -------------------------------------------------------------------------
     # 1) Exits
@@ -634,7 +582,7 @@ def main() -> None:
                 reason = "TRAILING"
 
         if reason is None:
-            close_series = df[(t, "close")].dropna()
+            close_series = get_series(df, t, "close").dropna()
             if len(close_series) >= SMA200_WINDOW:
                 last_close = to_scalar(close_series.iloc[-1])
                 last_sma = to_scalar(sma(close_series, SMA200_WINDOW).iloc[-1])
@@ -718,7 +666,7 @@ def main() -> None:
             "action": "SELL",
             "ticker": sell_t,
             "date": today_str,
-            "price_eur": float(px_usd),
+            "price_eur": float(px_eur),  # FIX: was px_usd
             "shares": float(shares),
             "amount_eur": float(value_eur),
             "fee_bps": FEE_BPS,
@@ -851,8 +799,8 @@ def main() -> None:
     msg: List[str] = []
     msg.append(f"APEX CHAMPION - {today_str}")
     msg.append(f"EURUSD {eurusd:.4f}")
-    msg.append(f"Cash {cash_now:.2f}E | Pos {pos_value:.2f}E | Total {total_val:.2f}E")
-    msg.append(f"Invested~ {invested:.2f}E | PnL {pnl_total:+.2f}E ({pnl_total_pct:+.1f}%)")
+    msg.append(f"Cash {cash_now:.2f}€ | Pos {pos_value:.2f}€ | Total {total_val:.2f}€")
+    msg.append(f"Invested~ {invested:.2f}€ | PnL {pnl_total:+.2f}€ ({pnl_total_pct:+.1f}%)")
     msg.append("")
     msg.append("GATES STATUS:")
     msg.append(f"- Breadth: {breadth:.1%} (>={BREADTH_THRESHOLD:.0%}) {'PASS' if breadth_ok else 'FAIL'}")
@@ -868,7 +816,7 @@ def main() -> None:
             msg.append(f"SWAP {sell_t} -> {buy_t} ({r})")
     if buys:
         for b in buys:
-            msg.append(f"BUY  {b['ticker']} (#{b['rank']}) amt {b['amount']:.0f}E | score {b['score']:.3f}")
+            msg.append(f"BUY  {b['ticker']} (#{b['rank']}) amt {b['amount']:.0f}€ | score {b['score']:.3f}")
     if not sells and not swaps and not buys:
         msg.append("HOLD - no action")
 
