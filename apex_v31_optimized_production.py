@@ -1,5 +1,3 @@
-import textwrap, pathlib, json, os, re, datetime
-code = r'''# File: apex_v33_prod_champion_yfinance_min.py
 from __future__ import annotations
 
 """
