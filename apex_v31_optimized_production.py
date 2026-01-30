@@ -1,16 +1,19 @@
 """
-APEX CHAMPION — PROD (YFINANCE ONLY) — STABLE / INDENT-SAFE
-===========================================================
+APEX CHAMPION — PROD (YFINANCE ONLY) — INDENTATION-PROOF (NO 'if' before open)
+=============================================================================
 
- Script unique à mettre tel quel dans GitHub (remplace 100% le fichier).
- Données: yfinance uniquement (pas de parquet)
- Colonnes yfinance MultiIndex: gérées (field/ticker ou ticker/field)
- Persistance:
- - portfolio.json
- - trades_history.json
- Telegram (optionnel):
- - TELEGRAM_BOT_TOKEN
- - TELEGRAM_CHAT_ID
+ Corrige définitivement ton erreur actuelle :
+ IndentationError: expected an indented block after 'if' statement ...
+ La cause : un `if ...:` mal indenté avant `with open(...)`.
+ Le fix : on SUPPRIME le `if` et on lit le portfolio via try/except (comme V33-style robuste).
+
+Persistance:
+- portfolio.json
+- trades_history.json
+
+Telegram (optionnel):
+- TELEGRAM_BOT_TOKEN
+- TELEGRAM_CHAT_ID
 """
 
 from __future__ import annotations
@@ -50,7 +53,6 @@ SLIPPAGE_BPS = 5.0
 
 # Portfolio
 MAX_POSITIONS = 3
-FULLY_INVESTED = True # equal slots
 
 # Rotation (SwapEdge)
 EDGE_MULT = 1.00
@@ -58,11 +60,11 @@ CONFIRM_DAYS = 3
 COOLDOWN_DAYS = 1
 
 # Stops
-HARD_STOP_PCT = 0.18 # -18%
-MFE_TRIGGER_PCT = 0.15 # activate trailing after +15%
-TRAIL_FROM_PEAK_PCT = 0.05 # -5% from peak once trailing active
+HARD_STOP_PCT = 0.18
+MFE_TRIGGER_PCT = 0.15
+TRAIL_FROM_PEAK_PCT = 0.05
 
-# Momentum
+# Momentum score windows
 R63_WINDOW = 63
 R126_WINDOW = 126
 R252_WINDOW = 252
@@ -114,13 +116,25 @@ def usd_to_eur(usd: float, eurusd: float) -> float:
 
 
 # =============================================================================
-# IO (portfolio / trades) — NO INDENT TRAPS
+# IO (portfolio / trades) — INDENTATION-PROOF: no "if ...: with open"
 # =============================================================================
 
 def load_portfolio() -> dict:
- if os.path.exists(PORTFOLIO_FILE):
+ """
+ Read portfolio.json safely.
+ IMPORTANT: No 'if os.path.exists' -> avoids your IndentationError source.
+ """
+ try:
  with open(PORTFOLIO_FILE, "r") as f:
  p = json.load(f)
+ if not isinstance(p, dict):
+ p = {}
+ except FileNotFoundError:
+ p = {}
+ except json.JSONDecodeError:
+ p = {}
+ except Exception:
+ p = {}
 
  p.setdefault("currency", "EUR")
  p.setdefault("cash", float(INITIAL_CAPITAL_EUR))
@@ -130,37 +144,36 @@ def load_portfolio() -> dict:
  p.setdefault("start_date", datetime.now().strftime("%Y-%m-%d"))
  p.setdefault("last_dca_month", None)
 
- # Rotation tracking
- p.setdefault("swap_confirm_tracker", {}) # key "worst->best" -> count
- p.setdefault("last_swap_date", {}) # worst ticker -> date str
+ # SwapEdge trackers
+ p.setdefault("swap_confirm_tracker", {}) # "worst->best" -> confirm_count
+ p.setdefault("last_swap_date", {}) # worst_ticker -> last swap date
 
  return p
 
- return {
- "currency": "EUR",
- "cash": float(INITIAL_CAPITAL_EUR),
- "initial_capital": float(INITIAL_CAPITAL_EUR),
- "monthly_dca": float(MONTHLY_DCA_EUR),
- "positions": {},
- "start_date": datetime.now().strftime("%Y-%m-%d"),
- "last_dca_month": None,
- "swap_confirm_tracker": {},
- "last_swap_date": {},
- "created_at": _now_str(),
- }
-
 
 def save_portfolio(p: dict) -> None:
+ p = dict(p)
  p["last_updated"] = _now_str()
  with open(PORTFOLIO_FILE, "w") as f:
  json.dump(p, f, indent=2)
 
 
 def load_trades() -> dict:
- if os.path.exists(TRADES_FILE):
+ try:
  with open(TRADES_FILE, "r") as f:
- return json.load(f)
- return {"trades": [], "summary": {}}
+ t = json.load(f)
+ if not isinstance(t, dict):
+ t = {}
+ except FileNotFoundError:
+ t = {}
+ except json.JSONDecodeError:
+ t = {}
+ except Exception:
+ t = {}
+
+ t.setdefault("trades", [])
+ t.setdefault("summary", {})
+ return t
 
 
 def save_trades(t: dict) -> None:
@@ -195,11 +208,9 @@ def send_telegram(message: str) -> None:
 
 def _standardize_yf_columns(df: pd.DataFrame) -> pd.DataFrame:
  """
- Returns MultiIndex columns: (ticker, field) with field in lowercase:
+ Output MultiIndex columns: (ticker, field) with field lowercase:
  open/high/low/close/volume
- Handles yfinance outputs:
- - (field, ticker) OR (ticker, field)
- - sometimes single-ticker output (non MultiIndex)
+ Handles yfinance (field,ticker) or (ticker,field).
  """
  out = df.copy()
 
@@ -207,7 +218,7 @@ def _standardize_yf_columns(df: pd.DataFrame) -> pd.DataFrame:
  lvl0 = [str(x).lower() for x in out.columns.get_level_values(0)]
  fields = {"open", "high", "low", "close", "volume", "adj close"}
 
- # If (field, ticker), swap
+ # If (field, ticker) => swap to (ticker, field)
  if {"open", "high", "low", "close", "volume"}.issubset(set(lvl0)) or fields.issubset(set(lvl0)):
  out = out.swaplevel(0, 1, axis=1)
 
@@ -216,11 +227,10 @@ def _standardize_yf_columns(df: pd.DataFrame) -> pd.DataFrame:
  names=["ticker", "field"]
  )
 
- # Use close instead of adj close
  out = out.rename(columns={"adj close": "close"}, level="field")
  return out
 
- # Single-index columns (rare)
+ # Single-level columns (single ticker case)
  cols = {str(c).lower(): c for c in out.columns}
  ren = {}
  for target in ["open", "high", "low", "close", "volume"]:
@@ -250,18 +260,16 @@ def download_yfinance(tickers: List[str], start_date: str, end_date: str) -> pd.
 
  df = _standardize_yf_columns(df)
 
- # Force MultiIndex if still not MultiIndex (single ticker case)
  if not isinstance(df.columns, pd.MultiIndex):
  needed = ["open", "high", "low", "close", "volume"]
- for c in needed:
- if c not in df.columns:
- raise ValueError(f"Colonnes manquantes: {c} (got {list(df.columns)})")
+ missing = [c for c in needed if c not in df.columns]
+ if missing:
+ raise ValueError(f"Colonnes manquantes: {missing} (got {list(df.columns)})")
  t = tickers[0]
  df = df[needed].copy()
  df.columns = pd.MultiIndex.from_product([[t], needed], names=["ticker", "field"])
 
- df = df.sort_index()
- return df
+ return df.sort_index()
 
 
 def load_data(tickers: List[str]) -> pd.DataFrame:
@@ -315,12 +323,10 @@ def entry_ok(close: pd.Series, high: pd.Series) -> Tuple[bool, str]:
 
  if pd.isna(s200) or pd.isna(h60) or pd.isna(c):
  return False, "nan_data"
-
  if not (c > s200):
  return False, "trend_below_sma200"
  if not (c > h60):
  return False, "no_breakout_high60"
-
  return True, "ok"
 
 
@@ -390,7 +396,12 @@ def apply_monthly_dca(portfolio: dict, today: pd.Timestamp) -> None:
 # SwapEdge
 # =============================================================================
 
-def check_swap_edge(portfolio: dict, ranked: List[Tuple[str, float]], score_map: Dict[str, float], today_str: str) -> List[Tuple[str, str, str]]:
+def check_swap_edge(
+ portfolio: dict,
+ ranked: List[Tuple[str, float]],
+ score_map: Dict[str, float],
+ today_str: str
+) -> List[Tuple[str, str, str]]:
  pos = portfolio.get("positions", {})
  if len(pos) < MAX_POSITIONS:
  return []
@@ -409,9 +420,7 @@ def check_swap_edge(portfolio: dict, ranked: List[Tuple[str, float]], score_map:
  if best_t is None:
  return []
 
- # Edge check
  if best_s >= worst_s * EDGE_MULT:
- # cooldown check
  last_swap = portfolio.get("last_swap_date", {}).get(worst_t)
  if last_swap:
  days_since = (pd.to_datetime(today_str) - pd.to_datetime(last_swap)).days
@@ -443,11 +452,12 @@ def check_swap_edge(portfolio: dict, ranked: List[Tuple[str, float]], score_map:
 
 def main() -> None:
  print("=" * 90)
- print("APEX CHAMPION — PROD (YFINANCE ONLY) — STABLE")
+ print("APEX CHAMPION — PROD (YFINANCE ONLY) — INDENTATION-PROOF")
  print("=" * 90)
 
  tickers = UNIVERSE_U54 + ["EURUSD=X"]
  df = load_data(tickers)
+
  if df is None or df.empty:
  print("Aucune donnée")
  return
@@ -464,7 +474,7 @@ def main() -> None:
 
  apply_monthly_dca(portfolio, today)
 
- # Compute scores + entry
+ # Scores + entry
  score_map: Dict[str, float] = {}
  entry_map: Dict[str, Tuple[bool, str]] = {}
 
@@ -483,15 +493,14 @@ def main() -> None:
  ranked = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
  rank_map = {t: i + 1 for i, (t, _) in enumerate(ranked)}
 
- # Breadth
+ # Gates
  breadth, above, total = compute_breadth(df, UNIVERSE_U54)
  breadth_ok = breadth >= BREADTH_THRESHOLD
  print(f"BREADTH: {breadth:.2%} ({above}/{total}) | Gate: {'PASS' if breadth_ok else 'FAIL'}")
 
- # Correlation matrix
  cm = corr_matrix(df, UNIVERSE_U54, CORR_WINDOW)
 
- # Last closes USD
+ # Latest USD close
  last_close_usd: Dict[str, float] = {}
  for t in UNIVERSE_U54:
  if (t, "close") in df.columns:
@@ -500,7 +509,7 @@ def main() -> None:
  last_close_usd[t] = float(s.iloc[-1])
 
  # -------------------------------------------------------------------------
- # 1) Manage exits (hard stop / trailing / trend break)
+ # 1) Exits
  # -------------------------------------------------------------------------
  sells: List[dict] = []
  positions = portfolio.get("positions", {})
@@ -534,28 +543,23 @@ def main() -> None:
  pos["mae_pct"] = float((trough / entry_price - 1.0) * 100.0)
 
  hold_days = (today - pd.to_datetime(entry_date)).days
-
  reason = None
 
- # hard stop
  if pnl_pct <= -HARD_STOP_PCT * 100.0:
  reason = "HARD_STOP"
 
- # trailing activation
  trailing_active = bool(pos.get("trailing_active", False))
  if reason is None and mfe_pct >= MFE_TRIGGER_PCT * 100.0:
  if not trailing_active:
  pos["trailing_active"] = True
  trailing_active = True
 
- # trailing exit
  if reason is None and trailing_active:
  dd_from_peak = (px_eur / peak - 1.0)
  if dd_from_peak <= -TRAIL_FROM_PEAK_PCT:
  reason = "TRAILING"
 
- # trend break SMA200
- if reason is None and (t, "close") in df.columns:
+ if reason is None:
  close_series = df[(t, "close")].dropna()
  if len(close_series) >= SMA200_WINDOW:
  if close_series.iloc[-1] < sma(close_series, SMA200_WINDOW).iloc[-1]:
@@ -584,7 +588,6 @@ def main() -> None:
 
  positions[t] = pos
 
- # Execute sells
  for s in sells:
  portfolio["cash"] = float(portfolio.get("cash", 0.0)) + float(s["proceeds"])
 
@@ -609,7 +612,7 @@ def main() -> None:
  portfolio["positions"].pop(s["ticker"], None)
 
  # -------------------------------------------------------------------------
- # 2) SwapEdge (sell worst if confirmed)
+ # 2) SwapEdge
  # -------------------------------------------------------------------------
  swaps = check_swap_edge(portfolio, ranked, score_map, today_str)
  for sell_t, buy_t, swap_reason in swaps:
@@ -656,7 +659,7 @@ def main() -> None:
  portfolio["positions"].pop(sell_t, None)
 
  # -------------------------------------------------------------------------
- # 3) Buys (top ranks, entry + breadth + corr)
+ # 3) Buys (top MAX_POSITIONS ranks only)
  # -------------------------------------------------------------------------
  buys: List[dict] = []
  held = set(portfolio.get("positions", {}).keys())
@@ -668,7 +671,6 @@ def main() -> None:
  if slots <= 0:
  break
 
- # Buy only top MAX_POSITIONS ranks
  if int(rank_map.get(t, 999)) > int(MAX_POSITIONS):
  continue
  if t in held:
@@ -729,7 +731,14 @@ def main() -> None:
  "score": float(sc),
  })
 
- buys.append({"ticker": t, "rank": int(rank_map.get(t, 999)), "score": float(sc), "amount": float(alloc), "entry": reason})
+ buys.append({
+ "ticker": t,
+ "rank": int(rank_map.get(t, 999)),
+ "score": float(sc),
+ "amount": float(alloc),
+ "entry": reason,
+ })
+
  held.add(t)
  slots -= 1
 
@@ -754,8 +763,8 @@ def main() -> None:
  rk = int(pos.get("rank", 999))
  pos_lines.append(f"- {t} (#{rk}) PnL {pnl_pct:+.1f}% | MFE {mfe:+.1f}% | Trail {trail}")
 
- cash = float(portfolio.get("cash", 0.0))
- total_val = cash + pos_value
+ cash_now = float(portfolio.get("cash", 0.0))
+ total_val = cash_now + pos_value
 
  start_date = pd.to_datetime(portfolio.get("start_date", today_str))
  months = (today.year - start_date.year) * 12 + (today.month - start_date.month)
@@ -766,7 +775,7 @@ def main() -> None:
  msg: List[str] = []
  msg.append(f"APEX CHAMPION — {today_str}")
  msg.append(f"EURUSD {eurusd:.4f}")
- msg.append(f"Cash {cash:.2f}€ | Pos {pos_value:.2f}€ | Total {total_val:.2f}€")
+ msg.append(f"Cash {cash_now:.2f}€ | Pos {pos_value:.2f}€ | Total {total_val:.2f}€")
  msg.append(f"Invested~ {invested:.2f}€ | PnL {pnl_total:+.2f}€ ({pnl_total_pct:+.1f}%)")
  msg.append("")
  msg.append("GATES STATUS:")
