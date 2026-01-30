@@ -228,6 +228,9 @@ def _standardize_yf_columns(df: pd.DataFrame) -> pd.DataFrame:
         )
 
         out = out.rename(columns={"adj close": "close"}, level="field")
+        
+        # Sort columns to avoid PerformanceWarning
+        out = out.sort_index(axis=1)
         return out
 
     # Single-level columns (single ticker case)
@@ -316,9 +319,18 @@ def rolling_high_prev(high: pd.Series, window: int) -> pd.Series:
 
 
 def momentum_score(close: pd.Series) -> float:
+    """Calculate momentum score, ensuring we get scalar values."""
     r63 = close.pct_change(R63_WINDOW).iloc[-1]
     r126 = close.pct_change(R126_WINDOW).iloc[-1]
     r252 = close.pct_change(R252_WINDOW).iloc[-1]
+    
+    # Convert to scalar if needed
+    if isinstance(r63, pd.Series):
+        r63 = r63.iloc[0] if len(r63) > 0 else np.nan
+    if isinstance(r126, pd.Series):
+        r126 = r126.iloc[0] if len(r126) > 0 else np.nan
+    if isinstance(r252, pd.Series):
+        r252 = r252.iloc[0] if len(r252) > 0 else np.nan
 
     score = 0.0
     if not pd.isna(r126):
@@ -337,6 +349,14 @@ def entry_ok(close: pd.Series, high: pd.Series) -> Tuple[bool, str]:
     s200 = sma(close, SMA200_WINDOW).iloc[-1]
     h60 = rolling_high_prev(high, HIGH60_WINDOW).iloc[-1]
     c = close.iloc[-1]
+    
+    # Convert to scalar if needed
+    if isinstance(s200, pd.Series):
+        s200 = s200.iloc[0] if len(s200) > 0 else np.nan
+    if isinstance(h60, pd.Series):
+        h60 = h60.iloc[0] if len(h60) > 0 else np.nan
+    if isinstance(c, pd.Series):
+        c = c.iloc[0] if len(c) > 0 else np.nan
 
     if pd.isna(s200) or pd.isna(h60) or pd.isna(c):
         return False, "nan_data"
@@ -360,7 +380,17 @@ def compute_breadth(df: pd.DataFrame, tickers: List[str]) -> Tuple[float, int, i
         close = df[(t, "close")].dropna()
         if len(close) < SMA200_WINDOW:
             continue
-        if close.iloc[-1] > sma(close, SMA200_WINDOW).iloc[-1]:
+        
+        last_close = close.iloc[-1]
+        last_sma = sma(close, SMA200_WINDOW).iloc[-1]
+        
+        # Convert to scalar if needed
+        if isinstance(last_close, pd.Series):
+            last_close = last_close.iloc[0] if len(last_close) > 0 else np.nan
+        if isinstance(last_sma, pd.Series):
+            last_sma = last_sma.iloc[0] if len(last_sma) > 0 else np.nan
+        
+        if not pd.isna(last_close) and not pd.isna(last_sma) and last_close > last_sma:
             above += 1
         total += 1
     pct = above / total if total > 0 else 0.0
@@ -464,6 +494,19 @@ def check_swap_edge(
 
 
 # =============================================================================
+# Helper to extract scalar from Series
+# =============================================================================
+
+def to_scalar(val):
+    """Convert a value to scalar, handling Series."""
+    if isinstance(val, pd.Series):
+        if len(val) > 0:
+            return val.iloc[0]
+        return np.nan
+    return val
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -523,7 +566,9 @@ def main() -> None:
         if (t, "close") in df.columns:
             s = df[(t, "close")].dropna()
             if not s.empty:
-                last_close_usd[t] = float(s.iloc[-1])
+                val = to_scalar(s.iloc[-1])
+                if not pd.isna(val):
+                    last_close_usd[t] = float(val)
 
     # -------------------------------------------------------------------------
     # 1) Exits
@@ -579,7 +624,9 @@ def main() -> None:
         if reason is None:
             close_series = df[(t, "close")].dropna()
             if len(close_series) >= SMA200_WINDOW:
-                if close_series.iloc[-1] < sma(close_series, SMA200_WINDOW).iloc[-1]:
+                last_close = to_scalar(close_series.iloc[-1])
+                last_sma = to_scalar(sma(close_series, SMA200_WINDOW).iloc[-1])
+                if not pd.isna(last_close) and not pd.isna(last_sma) and last_close < last_sma:
                     reason = "TREND_BREAK_SMA200"
 
         if reason is not None:
