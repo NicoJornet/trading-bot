@@ -2,7 +2,7 @@
   "currency": "EUR",
   "initial_capital": 1500.0,
   "monthly_dca": 100.0,
-  "cash": 1505.5351322588199,
+  "cash": 1052.874592581174,
   "start_date": "2025-12-29",
   "last_dca_date": "2026-01-02",
   "positions": {
@@ -12,20 +12,35 @@
       "shares": 2.354048,
       "initial_amount_eur": 451.0,
       "amount_invested_eur": 451.0,
-      "score": 3.555832641780965,
-      "peak_price_eur": 203.5364789792962,
+      "score": 3.7877329808053894,
+      "peak_price_eur": 210.80727737334078,
       "stop_loss_eur": 156.7512,
-      "rank": 8,
+      "rank": 10,
       "pyramided": false,
       "days_zero_score": 0,
       "trailing_active": false,
       "trough_price_eur": 180.33517292908823,
-      "mfe_pct": 6.474408338196369,
+      "mfe_pct": 10.277922877872347,
       "mae_pct": -5.662705100916387,
       "days_score_le0": 0,
-      "bars_held": 8
+      "bars_held": 9
+    },
+    "META": {
+      "entry_date": "2026-01-29",
+      "entry_price_eur": 619.1467794560721,
+      "shares": 0.7294886360782418,
+      "initial_amount_eur": 451.66053967764594,
+      "amount_invested_eur": 451.66053967764594,
+      "peak_price_eur": 619.1467794560721,
+      "trough_price_eur": 619.1467794560721,
+      "mfe_pct": 0.0,
+      "mae_pct": 0.0,
+      "trailing_active": false,
+      "days_score_le0": 0,
+      "rank": 2,
+      "score": 5.62726541890723
     }
   },
-  "last_updated": "2026-01-29 06:31",
+  "last_updated": "2026-01-30 06:32",
   "last_dca_month": "2026-01"
 }
