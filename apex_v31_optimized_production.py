@@ -1,20 +1,32 @@
 """
-APEX CHAMPION - PROD (YFINANCE ONLY) - GITHUB HARDENED
-=====================================================
+APEX CHAMPION — PROD (YFINANCE ONLY) — GITHUB SAFE
+==================================================
 
-Fixes:
-- Ne plante plus si Yahoo est indisponible (pas de raise -> exit propre)
-- Retries + backoff sur download
-- Fallback: yf.Ticker(t).history() si yf.download() renvoie vide
-- Corr_matrix robuste (Series garantie)
-- Indentation-proof (aucun if avant open)
+Objectif:
+- Tourner 1x/jour sur GitHub Actions
+- Mettre à jour portfolio.json + trades_history.json
+- Envoyer un message Telegram (optionnel)
 
-IMPORTANT (requirements.txt recommandé):
-  yfinance>=0.2.33
-  curl_cffi>=0.7.0
-  pandas
-  numpy
-  requests
+Robustesse:
+- Fix "database is locked" (yfinance cache sqlite) -> threads=False + retry/backoff + batch download
+- Fix "TypeError int() ... Series" dans corr_matrix -> standardisation + dé-dup MultiIndex + get_series()
+
+Stratégie "Champion" (référence):
+- Universe U54 strict
+- Fully invested (equal slots)
+- Momentum: 0.5*R126 + 0.3*R252 + 0.2*R63
+- Entry: close > SMA200 AND close > High60(prev)
+- Gates: Breadth >= 55%, Corr gate (63j, thr 0.65)
+- Rotation: SwapEdge (EDGE_MULT=1.00, CONFIRM=3, COOLDOWN=1)
+- Stops: Hard stop -18%, Trailing armé si MFE>=+15% puis -5% depuis peak, Trend break SMA200
+- Execution "paper" au dernier close (pour maintenir portfolio), mais message = action à faire au prochain open
+
+Fichiers:
+- portfolio.json
+- trades_history.json
+
+Telegram (optionnel):
+- TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
 """
 
 from __future__ import annotations
@@ -22,8 +34,9 @@ from __future__ import annotations
 import os
 import json
 import time
+import random
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -38,6 +51,11 @@ try:
 except Exception:
     requests = None
 
+try:
+    import sqlite3
+except Exception:
+    sqlite3 = None
+
 
 # =============================================================================
 # CONFIG
@@ -49,35 +67,45 @@ TRADES_FILE = "trades_history.json"
 INITIAL_CAPITAL_EUR = 2000.0
 MONTHLY_DCA_EUR = 100.0
 
+# Costs (bps) — modèle simple (fee+slip)
 FEE_BPS = 20.0
 SLIPPAGE_BPS = 5.0
 
+# Portfolio
 MAX_POSITIONS = 3
+FULLY_INVESTED = True  # equal slots
 
+# Rotation (SwapEdge)
 EDGE_MULT = 1.00
 CONFIRM_DAYS = 3
 COOLDOWN_DAYS = 1
 
+# Stops
 HARD_STOP_PCT = 0.18
 MFE_TRIGGER_PCT = 0.15
 TRAIL_FROM_PEAK_PCT = 0.05
 
+# Momentum score windows
 R63_WINDOW = 63
 R126_WINDOW = 126
 R252_WINDOW = 252
 SCORE_WEIGHTS = {R126_WINDOW: 0.5, R252_WINDOW: 0.3, R63_WINDOW: 0.2}
 
+# Entry filters
 SMA200_WINDOW = 200
 HIGH60_WINDOW = 60
 
+# Gates
 BREADTH_THRESHOLD = 0.55
 CORR_WINDOW = 63
 CORR_THRESHOLD = 0.65
 
+# yfinance history (calendar days)
 LOOKBACK_CAL_DAYS = 420
 
-DOWNLOAD_RETRIES = 3
-RETRY_SLEEP_SEC = 2.0
+# Download batching (évite gros call unique)
+BATCH_SIZE = 10
+MAX_RETRIES = 5
 
 UNIVERSE_U54 = [
     "NVDA", "MSFT", "GOOGL", "AMZN", "AAPL", "META", "TSLA",
@@ -92,6 +120,8 @@ UNIVERSE_U54 = [
     "QQQ", "SPY", "GLD", "SLV",
 ]
 
+FX_TICKER = "EURUSD=X"
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
@@ -105,6 +135,7 @@ def _now_str() -> str:
 
 
 def trade_cost(amount_eur: float) -> float:
+    """Cost = (fee+slippage) bps * amount."""
     return (FEE_BPS + SLIPPAGE_BPS) * float(amount_eur) / 10000.0
 
 
@@ -112,29 +143,17 @@ def usd_to_eur(usd: float, eurusd: float) -> float:
     return float(usd) / float(eurusd) if eurusd and eurusd > 0 else float(usd)
 
 
-def to_scalar(val):
-    if isinstance(val, pd.Series):
-        return val.iloc[0] if len(val) > 0 else np.nan
-    return val
-
-
-def get_series(df: pd.DataFrame, ticker: str, field: str) -> pd.Series:
-    if (ticker, field) not in df.columns:
-        return pd.Series(dtype=float)
-    x = df[(ticker, field)]
-    if isinstance(x, pd.DataFrame):
-        x = x.iloc[:, 0]
-    x = x.squeeze()
-    if not isinstance(x, pd.Series):
-        try:
-            x = pd.Series(x)
-        except Exception:
-            return pd.Series(dtype=float)
+def to_scalar(x):
+    """Force scalar float/np.nan from possible Series/array-like."""
+    if isinstance(x, pd.Series):
+        return x.iloc[-1] if len(x) else np.nan
+    if isinstance(x, (list, tuple, np.ndarray)):
+        return x[-1] if len(x) else np.nan
     return x
 
 
 # =============================================================================
-# IO (portfolio / trades)
+# IO (portfolio / trades) — robust, no indentation traps
 # =============================================================================
 
 def load_portfolio() -> dict:
@@ -143,10 +162,6 @@ def load_portfolio() -> dict:
             p = json.load(f)
             if not isinstance(p, dict):
                 p = {}
-    except FileNotFoundError:
-        p = {}
-    except json.JSONDecodeError:
-        p = {}
     except Exception:
         p = {}
 
@@ -157,8 +172,11 @@ def load_portfolio() -> dict:
     p.setdefault("positions", {})
     p.setdefault("start_date", datetime.now().strftime("%Y-%m-%d"))
     p.setdefault("last_dca_month", None)
+
+    # SwapEdge trackers
     p.setdefault("swap_confirm_tracker", {})
     p.setdefault("last_swap_date", {})
+
     return p
 
 
@@ -175,10 +193,6 @@ def load_trades() -> dict:
             t = json.load(f)
             if not isinstance(t, dict):
                 t = {}
-    except FileNotFoundError:
-        t = {}
-    except json.JSONDecodeError:
-        t = {}
     except Exception:
         t = {}
     t.setdefault("trades", [])
@@ -213,113 +227,199 @@ def send_telegram(message: str) -> None:
 
 
 # =============================================================================
-# Data (yfinance only) - robust download
+# Data (yfinance only) — robust download + standardize + dedup
 # =============================================================================
 
-def _standardize_single_ticker_df(df: pd.DataFrame) -> pd.DataFrame:
+FIELDS = {"open", "high", "low", "close", "volume", "adj close"}
+
+def _standardize_yf(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return columns as MultiIndex (ticker, field) with field in {open,high,low,close,volume}.
+    Also de-duplicates columns safely.
+    """
     out = df.copy()
-    cols = {str(c).lower(): c for c in out.columns}
-    ren = {}
-    if "open" in cols: ren[cols["open"]] = "open"
-    if "high" in cols: ren[cols["high"]] = "high"
-    if "low" in cols: ren[cols["low"]] = "low"
-    if "close" in cols: ren[cols["close"]] = "close"
-    elif "adj close" in cols: ren[cols["adj close"]] = "close"
-    if "volume" in cols: ren[cols["volume"]] = "volume"
-    out = out.rename(columns=ren)
-    needed = ["open", "high", "low", "close", "volume"]
-    keep = [c for c in needed if c in out.columns]
-    return out[keep]
-
-
-def _download_one_ticker(ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
-    """
-    Try download via yf.download, if empty fallback to yf.Ticker().history.
-    """
-    if yf is None:
-        raise ImportError("yfinance non disponible")
-
-    # 1) yf.download
-    d = yf.download(
-        tickers=ticker,
-        start=start_date,
-        end=end_date,
-        auto_adjust=False,
-        progress=False,
-        threads=False,
-    )
-    if d is not None and not d.empty:
-        d = _standardize_single_ticker_df(d)
-        return d
-
-    # 2) fallback history
-    try:
-        hist = yf.Ticker(ticker).history(start=start_date, end=end_date, auto_adjust=False)
-        if hist is not None and not hist.empty:
-            hist = _standardize_single_ticker_df(hist)
-            return hist
-    except Exception:
-        pass
-
-    return pd.DataFrame()
-
-
-def download_yfinance_sequential(tickers: List[str], start_date: str, end_date: str) -> pd.DataFrame:
-    if yf is None:
-        raise ImportError("yfinance non disponible (requirements)")
-
-    frames = []
-    failed = []
-
-    for t in tickers:
-        ok = False
-        last_err = None
-
-        for attempt in range(1, DOWNLOAD_RETRIES + 1):
-            try:
-                d = _download_one_ticker(t, start_date, end_date)
-                if d is not None and not d.empty:
-                    d.columns = pd.MultiIndex.from_product([[t], list(d.columns)], names=["ticker", "field"])
-                    frames.append(d)
-                    ok = True
-                    break
-            except Exception as e:
-                last_err = e
-
-            time.sleep(RETRY_SLEEP_SEC * attempt)
-
-        if not ok:
-            failed.append(t)
-            if last_err is not None:
-                print(f"[FAIL] {t}: {type(last_err).__name__} -> {last_err}")
-
-    if failed:
-        print(f"\nFailed download ({len(failed)}):\n{failed}")
-
-    if not frames:
-        # IMPORTANT: no raise => job stays green
+    if out is None or out.empty:
         return pd.DataFrame()
 
-    out = pd.concat(frames, axis=1).sort_index()
-    out = out.sort_index(axis=1)
+    # If MultiIndex: decide orientation
+    if isinstance(out.columns, pd.MultiIndex):
+        lvl0 = [str(x).lower() for x in out.columns.get_level_values(0)]
+        lvl1 = [str(x).lower() for x in out.columns.get_level_values(1)]
+
+        # If level0 looks like fields -> swap
+        if {"open", "high", "low", "close", "volume"}.issubset(set(lvl0)) or FIELDS.issubset(set(lvl0)):
+            out = out.swaplevel(0, 1, axis=1)
+
+        # Now enforce (ticker, field)
+        out.columns = pd.MultiIndex.from_tuples(
+            [(str(t), str(f).lower()) for (t, f) in out.columns],
+            names=["ticker", "field"]
+        )
+        # Rename adj close -> close
+        out = out.rename(columns={"adj close": "close"}, level="field")
+
+        # Keep only canonical fields
+        keep = [c for c in out.columns if c[1] in {"open", "high", "low", "close", "volume"}]
+        out = out[keep]
+
+        # Dedup: groupby (ticker,field) and keep last non-na
+        out = out.groupby(level=[0, 1], axis=1).last()
+
+        out.index = pd.to_datetime(out.index)
+        out = out.sort_index().sort_index(axis=1)
+        return out
+
+    # Single ticker case
+    cols = {str(c).lower(): c for c in out.columns}
+    ren = {}
+    for target in ["open", "high", "low", "close", "volume"]:
+        if target in cols:
+            ren[cols[target]] = target
+        elif target == "close" and "adj close" in cols:
+            ren[cols["adj close"]] = "close"
+    out = out.rename(columns=ren)
+    out.index = pd.to_datetime(out.index)
+    out = out.sort_index()
+    # wrap into MultiIndex
+    t = "SINGLE"
+    needed = ["open", "high", "low", "close", "volume"]
+    miss = [c for c in needed if c not in out.columns]
+    if miss:
+        return pd.DataFrame()
+    out = out[needed].copy()
+    out.columns = pd.MultiIndex.from_product([[t], needed], names=["ticker", "field"])
     return out
 
 
-def load_data(tickers: List[str]) -> pd.DataFrame:
-    end = datetime.now()
-    start = end - timedelta(days=LOOKBACK_CAL_DAYS)
-    return download_yfinance_sequential(tickers, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+def _is_db_locked_exc(e: Exception) -> bool:
+    msg = str(e).lower()
+    if "database is locked" in msg:
+        return True
+    # sqlite3.OperationalError check if available
+    if sqlite3 is not None and isinstance(e, sqlite3.OperationalError) and "locked" in msg:
+        return True
+    return False
+
+
+def _safe_download_batch(tickers: List[str], start: str, end: str) -> pd.DataFrame:
+    """
+    yfinance download with retry/backoff.
+    Important: threads=False to avoid sqlite cache lock issues.
+    """
+    if yf is None:
+        raise RuntimeError("yfinance non disponible. Ajoute yfinance dans requirements.txt")
+
+    last_err: Optional[Exception] = None
+    for k in range(1, MAX_RETRIES + 1):
+        try:
+            df = yf.download(
+                tickers=tickers,
+                start=start,
+                end=end,
+                auto_adjust=False,
+                progress=False,
+                group_by="column",
+                threads=False,  # CRITICAL
+            )
+            sdf = _standardize_yf(df)
+            if sdf is not None and not sdf.empty:
+                return sdf
+            last_err = ValueError("yfinance: empty batch")
+        except Exception as e:
+            last_err = e
+            # backoff (jitter)
+            sleep_s = min(8.0, 0.6 * (2 ** (k - 1))) + random.random() * 0.2
+            if _is_db_locked_exc(e):
+                time.sleep(sleep_s)
+                continue
+            # other transient errors also retry a bit
+            time.sleep(sleep_s)
+
+    if last_err:
+        raise last_err
+    raise ValueError("yfinance: batch failed")
+
+
+def download_universe(tickers: List[str], start: str, end: str) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Download in batches; if batch partially missing, fallback per-ticker.
+    Returns (df, failures).
+    """
+    all_df = []
+    failures: List[str] = []
+
+    # batch download
+    for i in range(0, len(tickers), BATCH_SIZE):
+        batch = tickers[i:i + BATCH_SIZE]
+        try:
+            bdf = _safe_download_batch(batch, start, end)
+            all_df.append(bdf)
+        except Exception:
+            # fallback per ticker
+            for t in batch:
+                try:
+                    tdf = _safe_download_batch([t], start, end)
+                    # rename SINGLE if needed
+                    if ("SINGLE", "close") in tdf.columns:
+                        tdf.columns = pd.MultiIndex.from_tuples(
+                            [(t, f) for (_, f) in tdf.columns],
+                            names=["ticker", "field"]
+                        )
+                    all_df.append(tdf)
+                except Exception:
+                    failures.append(t)
+
+    if not all_df:
+        raise ValueError("yfinance: aucune donnée récupérée (tous les batchs ont échoué)")
+
+    df = pd.concat(all_df, axis=1)
+    df = df.groupby(level=[0, 1], axis=1).last()
+    df = df.sort_index().sort_index(axis=1)
+
+    return df, failures
+
+
+def load_data() -> Tuple[pd.DataFrame, List[str]]:
+    end_dt = datetime.now()
+    start_dt = end_dt - timedelta(days=LOOKBACK_CAL_DAYS)
+    tickers = list(UNIVERSE_U54) + [FX_TICKER]
+    df, failures = download_universe(
+        tickers=tickers,
+        start=start_dt.strftime("%Y-%m-%d"),
+        end=end_dt.strftime("%Y-%m-%d"),
+    )
+    return df, failures
+
+
+def get_series(df: pd.DataFrame, ticker: str, field: str) -> pd.Series:
+    """
+    Always return a Series for (ticker,field), even if df slice is DataFrame (dup columns, etc).
+    """
+    col = (ticker, field)
+    if col not in df.columns:
+        return pd.Series(dtype=float)
+    x = df[col]
+    if isinstance(x, pd.DataFrame):
+        # take last column (after groupby it should not happen, but safe)
+        x = x.iloc[:, -1]
+    return pd.Series(x).astype(float)
 
 
 def get_eurusd(df: pd.DataFrame) -> float:
-    ser = get_series(df, "EURUSD=X", "close").dropna()
-    if not ser.empty:
-        return float(to_scalar(ser.iloc[-1]))
+    s = get_series(df, FX_TICKER, "close").dropna()
+    if not s.empty:
+        v = to_scalar(s.iloc[-1])
+        try:
+            v = float(v)
+            if v > 0:
+                return v
+        except Exception:
+            pass
     return 1.0
 
 
 # =============================================================================
-# Indicators / Gates
+# Indicators
 # =============================================================================
 
 def sma(series: pd.Series, window: int) -> pd.Series:
@@ -331,39 +431,60 @@ def rolling_high_prev(high: pd.Series, window: int) -> pd.Series:
 
 
 def momentum_score(close: pd.Series) -> float:
-    r63 = to_scalar(close.pct_change(R63_WINDOW).iloc[-1])
-    r126 = to_scalar(close.pct_change(R126_WINDOW).iloc[-1])
-    r252 = to_scalar(close.pct_change(R252_WINDOW).iloc[-1])
+    """
+    Champion momentum score: 0.5*R126 + 0.3*R252 + 0.2*R63
+    """
+    c = close.dropna()
+    if len(c) < (R252_WINDOW + 5):
+        return float("nan")
+
+    r63 = to_scalar(c.pct_change(R63_WINDOW).iloc[-1])
+    r126 = to_scalar(c.pct_change(R126_WINDOW).iloc[-1])
+    r252 = to_scalar(c.pct_change(R252_WINDOW).iloc[-1])
 
     score = 0.0
-    if not pd.isna(r126): score += SCORE_WEIGHTS[R126_WINDOW] * float(r126)
-    if not pd.isna(r252): score += SCORE_WEIGHTS[R252_WINDOW] * float(r252)
-    if not pd.isna(r63):  score += SCORE_WEIGHTS[R63_WINDOW]  * float(r63)
+    if not pd.isna(r126):
+        score += SCORE_WEIGHTS[R126_WINDOW] * float(r126)
+    if not pd.isna(r252):
+        score += SCORE_WEIGHTS[R252_WINDOW] * float(r252)
+    if not pd.isna(r63):
+        score += SCORE_WEIGHTS[R63_WINDOW] * float(r63)
     return float(score)
 
 
 def entry_ok(close: pd.Series, high: pd.Series) -> Tuple[bool, str]:
-    if len(close) < max(SMA200_WINDOW, HIGH60_WINDOW):
+    c = close.dropna()
+    h = high.dropna()
+    if len(c) < max(SMA200_WINDOW, HIGH60_WINDOW) or len(h) < max(SMA200_WINDOW, HIGH60_WINDOW):
         return False, "insufficient_data"
-    s200 = to_scalar(sma(close, SMA200_WINDOW).iloc[-1])
-    h60 = to_scalar(rolling_high_prev(high, HIGH60_WINDOW).iloc[-1])
-    c = to_scalar(close.iloc[-1])
-    if pd.isna(s200) or pd.isna(h60) or pd.isna(c):
+
+    s200 = to_scalar(sma(c, SMA200_WINDOW).iloc[-1])
+    h60 = to_scalar(rolling_high_prev(h, HIGH60_WINDOW).iloc[-1])
+    last = to_scalar(c.iloc[-1])
+
+    if pd.isna(s200) or pd.isna(h60) or pd.isna(last):
         return False, "nan_data"
-    if not (c > s200): return False, "trend_below_sma200"
-    if not (c > h60):  return False, "no_breakout_high60"
+    if not (last > float(s200)):
+        return False, "trend_below_sma200"
+    if not (last > float(h60)):
+        return False, "no_breakout_high60"
     return True, "ok"
 
 
+# =============================================================================
+# Gates
+# =============================================================================
+
 def compute_breadth(df: pd.DataFrame, tickers: List[str]) -> Tuple[float, int, int]:
-    above, total = 0, 0
+    above = 0
+    total = 0
     for t in tickers:
-        close = get_series(df, t, "close").dropna()
-        if close.empty or len(close) < SMA200_WINDOW:
+        c = get_series(df, t, "close").dropna()
+        if len(c) < SMA200_WINDOW:
             continue
-        last_close = to_scalar(close.iloc[-1])
-        last_sma = to_scalar(sma(close, SMA200_WINDOW).iloc[-1])
-        if not pd.isna(last_close) and not pd.isna(last_sma) and last_close > last_sma:
+        last_close = to_scalar(c.iloc[-1])
+        last_sma = to_scalar(sma(c, SMA200_WINDOW).iloc[-1])
+        if not pd.isna(last_close) and not pd.isna(last_sma) and float(last_close) > float(last_sma):
             above += 1
         total += 1
     pct = above / total if total > 0 else 0.0
@@ -371,19 +492,28 @@ def compute_breadth(df: pd.DataFrame, tickers: List[str]) -> Tuple[float, int, i
 
 
 def corr_matrix(df: pd.DataFrame, tickers: List[str], window: int) -> pd.DataFrame:
-    rets_dict = {}
+    """
+    Corr matrix on daily returns (last 'window' bars).
+    Guaranteed scalar handling via get_series().
+    """
+    rets: Dict[str, pd.Series] = {}
     for t in tickers:
         c = get_series(df, t, "close").dropna()
-        if c.empty or len(c) < window + 1:
+        if len(c) < window + 2:
             continue
-        r = c.pct_change().tail(window)
-        valid_count = int(r.notna().sum())  # scalar guaranteed
-        if valid_count < window // 2:
+        r = c.pct_change().dropna()
+        if len(r) < max(10, window // 2):
             continue
-        rets_dict[t] = r
-    if len(rets_dict) < 2:
+        r = r.iloc[-window:]
+        rets[t] = r
+
+    if len(rets) < 2:
         return pd.DataFrame()
-    return pd.DataFrame(rets_dict).corr()
+
+    ret_df = pd.DataFrame(rets).dropna(how="all")
+    if ret_df.shape[1] < 2:
+        return pd.DataFrame()
+    return ret_df.corr()
 
 
 def corr_gate_ok(held: List[str], cand: str, cm: pd.DataFrame, thr: float) -> bool:
@@ -399,7 +529,7 @@ def corr_gate_ok(held: List[str], cand: str, cm: pd.DataFrame, thr: float) -> bo
 
 
 # =============================================================================
-# DCA / SwapEdge
+# DCA
 # =============================================================================
 
 def apply_monthly_dca(portfolio: dict, today: pd.Timestamp) -> None:
@@ -411,6 +541,10 @@ def apply_monthly_dca(portfolio: dict, today: pd.Timestamp) -> None:
             portfolio["cash"] = float(portfolio.get("cash", 0.0)) + dca
         portfolio["last_dca_month"] = cur
 
+
+# =============================================================================
+# SwapEdge
+# =============================================================================
 
 def check_swap_edge(
     portfolio: dict,
@@ -442,16 +576,34 @@ def check_swap_edge(
             days_since = (pd.to_datetime(today_str) - pd.to_datetime(last_swap)).days
             if days_since < COOLDOWN_DAYS:
                 return []
+
         tracker = portfolio.get("swap_confirm_tracker", {})
         key = f"{worst_t}->{best_t}"
         tracker[key] = int(tracker.get(key, 0)) + 1
         portfolio["swap_confirm_tracker"] = tracker
+
         if tracker[key] >= CONFIRM_DAYS:
             tracker.pop(key, None)
             portfolio.setdefault("last_swap_date", {})
             portfolio["last_swap_date"][worst_t] = today_str
             return [(worst_t, best_t, f"SWAP_EDGE_{CONFIRM_DAYS}d_confirmed")]
+    else:
+        tracker = portfolio.get("swap_confirm_tracker", {})
+        for k in list(tracker.keys()):
+            if k.startswith(f"{worst_t}->"):
+                tracker.pop(k, None)
+
     return []
+
+
+# =============================================================================
+# Allocation
+# =============================================================================
+
+def allocate_equal_slots(cash: float, slots: int) -> float:
+    if slots <= 0:
+        return 0.0
+    return float(cash) / float(slots)
 
 
 # =============================================================================
@@ -460,89 +612,379 @@ def check_swap_edge(
 
 def main() -> None:
     print("=" * 90)
-    print("APEX CHAMPION - PROD (YFINANCE ONLY) - GITHUB HARDENED")
+    print("APEX CHAMPION — PROD (YFINANCE ONLY) — GITHUB SAFE")
     print("=" * 90)
 
-    if yf is None:
-        print("ERREUR: yfinance non disponible. Ajoute yfinance dans requirements.txt")
-        return
-
-    tickers = UNIVERSE_U54 + ["EURUSD=X"]
-    df = load_data(tickers)
-
-    # IMPORTANT: plus de raise ici -> job ne crash pas
+    df, failures = load_data()
     if df is None or df.empty:
-        msg = (
-            "APEX CHAMPION - DATA ERROR\n"
-            "Impossible de recuperer Yahoo Finance (0 donnees sur tous les tickers).\n"
-            "Action: verifier requirements.txt (yfinance>=0.2.33 + curl_cffi) "
-            "ou limitation reseau/rate-limit Yahoo.\n"
-        )
-        print(msg)
-        send_telegram(msg)
-        return
+        raise ValueError("OHLCV vide (yfinance n'a rien renvoyé)")
 
     df = df.sort_index()
     today = pd.to_datetime(df.index[-1])
     today_str = today.strftime("%Y-%m-%d")
+
     eurusd = get_eurusd(df)
 
     print(f"Date: {today_str} | EURUSD {eurusd:.4f} | Universe {len(UNIVERSE_U54)}")
+    if failures:
+        print(f"[WARN] Failed tickers ({len(failures)}): {failures[:10]}{'...' if len(failures)>10 else ''}")
 
     portfolio = load_portfolio()
     trades = load_trades()
+
     apply_monthly_dca(portfolio, today)
 
-    # Scores + entry
+    # Scores + entry eligibility
     score_map: Dict[str, float] = {}
     entry_map: Dict[str, Tuple[bool, str]] = {}
 
     for t in UNIVERSE_U54:
         close = get_series(df, t, "close").dropna()
         high = get_series(df, t, "high").dropna()
-        if close.empty or high.empty:
-            continue
         if len(close) < max(R252_WINDOW, SMA200_WINDOW, HIGH60_WINDOW):
             continue
-        score_map[t] = float(momentum_score(close))
-        entry_map[t] = entry_ok(close, high)
+        sc = momentum_score(close)
+        if pd.isna(sc):
+            continue
+        score_map[t] = float(sc)
+        ok, reason = entry_ok(close, high)
+        entry_map[t] = (ok, reason)
 
     ranked = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
     rank_map = {t: i + 1 for i, (t, _) in enumerate(ranked)}
 
+    # Gates
     breadth, above, total = compute_breadth(df, UNIVERSE_U54)
     breadth_ok = breadth >= BREADTH_THRESHOLD
     print(f"BREADTH: {breadth:.2%} ({above}/{total}) | Gate: {'PASS' if breadth_ok else 'FAIL'}")
 
     cm = corr_matrix(df, UNIVERSE_U54, CORR_WINDOW)
 
-    # Latest USD close
+    # Latest close USD
     last_close_usd: Dict[str, float] = {}
     for t in UNIVERSE_U54:
         s = get_series(df, t, "close").dropna()
         if not s.empty:
-            v = to_scalar(s.iloc[-1])
-            if not pd.isna(v):
-                last_close_usd[t] = float(v)
+            last_close_usd[t] = float(to_scalar(s.iloc[-1]))
 
-    # (Ici tu gardes le reste de ta logique de sells/swaps/buys identique)
-    # Pour rester court, je ne réécris pas tout le moteur ici : le point bloquant était DATA.
+    # -------------------------------------------------------------------------
+    # 1) Exits
+    # -------------------------------------------------------------------------
+    sells: List[dict] = []
+    positions = portfolio.get("positions", {})
 
-    # Message minimal "OK data"
-    message = (
-        f"APEX CHAMPION - {today_str}\n"
-        f"EURUSD {eurusd:.4f}\n"
-        f"DATA OK: {len(df.index)} bars, cols={len(df.columns)}\n"
-        f"BREADTH {breadth:.1%} ({above}/{total}) {'PASS' if breadth_ok else 'FAIL'}\n"
-    )
-    print(message)
-    send_telegram(message)
+    for t in list(positions.keys()):
+        pos = positions[t]
+        entry_price = float(pos.get("entry_price_eur", 0.0))
+        shares = float(pos.get("shares", 0.0))
+        entry_date = str(pos.get("entry_date", today_str))
+
+        px_usd = last_close_usd.get(t, np.nan)
+        if pd.isna(px_usd) or px_usd <= 0:
+            continue
+        px_eur = usd_to_eur(px_usd, eurusd)
+
+        if entry_price <= 0 or shares <= 0:
+            continue
+
+        peak = float(pos.get("peak_price_eur", entry_price))
+        trough = float(pos.get("trough_price_eur", entry_price))
+        peak = max(peak, px_eur)
+        trough = min(trough, px_eur)
+
+        mfe_pct = (peak / entry_price - 1.0) * 100.0
+        pnl_pct = (px_eur / entry_price - 1.0) * 100.0
+        pnl_eur = (px_eur - entry_price) * shares
+
+        pos["peak_price_eur"] = float(peak)
+        pos["trough_price_eur"] = float(trough)
+        pos["mfe_pct"] = float(mfe_pct)
+        pos["mae_pct"] = float((trough / entry_price - 1.0) * 100.0)
+
+        hold_days = (today - pd.to_datetime(entry_date)).days
+
+        reason = None
+
+        # Hard stop
+        if pnl_pct <= -HARD_STOP_PCT * 100.0:
+            reason = "HARD_STOP"
+
+        # Trailing
+        trailing_active = bool(pos.get("trailing_active", False))
+        if reason is None and mfe_pct >= MFE_TRIGGER_PCT * 100.0:
+            if not trailing_active:
+                pos["trailing_active"] = True
+                trailing_active = True
+
+        if reason is None and trailing_active:
+            dd_from_peak = (px_eur / peak - 1.0)
+            if dd_from_peak <= -TRAIL_FROM_PEAK_PCT:
+                reason = "TRAILING"
+
+        # Trend break
+        if reason is None:
+            close_series = get_series(df, t, "close").dropna()
+            if len(close_series) >= SMA200_WINDOW:
+                last_close = float(to_scalar(close_series.iloc[-1]))
+                last_sma = float(to_scalar(sma(close_series, SMA200_WINDOW).iloc[-1]))
+                if last_close < last_sma:
+                    reason = "TREND_BREAK_SMA200"
+
+        if reason is not None:
+            value_eur = px_eur * shares
+            c = trade_cost(value_eur)
+            proceeds = value_eur - c
+            net_pnl = pnl_eur - c
+
+            sells.append({
+                "ticker": t,
+                "price_eur": float(px_eur),
+                "shares": float(shares),
+                "value_eur": float(value_eur),
+                "proceeds": float(proceeds),
+                "pnl_eur": float(net_pnl),
+                "pnl_pct": float(pnl_pct),
+                "mfe_pct": float(mfe_pct),
+                "hold_days": int(hold_days),
+                "reason": reason,
+                "rank": int(rank_map.get(t, 999)),
+                "score": float(score_map.get(t, 0.0)),
+            })
+
+        positions[t] = pos
+
+    for s in sells:
+        portfolio["cash"] = float(portfolio.get("cash", 0.0)) + float(s["proceeds"])
+
+        append_trade(trades, {
+            "action": "SELL",
+            "ticker": s["ticker"],
+            "date": today_str,
+            "price_eur": s["price_eur"],
+            "shares": s["shares"],
+            "amount_eur": s["value_eur"],
+            "fee_bps": FEE_BPS,
+            "slippage_bps": SLIPPAGE_BPS,
+            "reason": s["reason"],
+            "pnl_eur": s["pnl_eur"],
+            "pnl_pct": s["pnl_pct"],
+            "mfe_pct": s["mfe_pct"],
+            "bars_held": s["hold_days"],
+            "rank": s["rank"],
+            "score": s["score"],
+        })
+
+        portfolio["positions"].pop(s["ticker"], None)
+
+    # -------------------------------------------------------------------------
+    # 2) SwapEdge
+    # -------------------------------------------------------------------------
+    swaps = check_swap_edge(portfolio, ranked, score_map, today_str)
+    for sell_t, buy_t, swap_reason in swaps:
+        if sell_t not in portfolio.get("positions", {}):
+            continue
+
+        pos = portfolio["positions"][sell_t]
+        entry_price = float(pos.get("entry_price_eur", 0.0))
+        shares = float(pos.get("shares", 0.0))
+        entry_date = str(pos.get("entry_date", today_str))
+
+        px_usd = last_close_usd.get(sell_t, np.nan)
+        if pd.isna(px_usd) or px_usd <= 0:
+            continue
+        px_eur = usd_to_eur(px_usd, eurusd)
+
+        value_eur = px_eur * shares
+        c = trade_cost(value_eur)
+        proceeds = value_eur - c
+        pnl_eur = (px_eur - entry_price) * shares - c
+        pnl_pct = (px_eur / entry_price - 1.0) * 100.0
+        hold_days = (today - pd.to_datetime(entry_date)).days
+
+        portfolio["cash"] = float(portfolio.get("cash", 0.0)) + float(proceeds)
+
+        append_trade(trades, {
+            "action": "SELL",
+            "ticker": sell_t,
+            "date": today_str,
+            "price_eur": float(px_eur),
+            "shares": float(shares),
+            "amount_eur": float(value_eur),
+            "fee_bps": FEE_BPS,
+            "slippage_bps": SLIPPAGE_BPS,
+            "reason": swap_reason,
+            "pnl_eur": float(pnl_eur),
+            "pnl_pct": float(pnl_pct),
+            "mfe_pct": float(pos.get("mfe_pct", 0.0)),
+            "bars_held": int(hold_days),
+            "rank": int(rank_map.get(sell_t, 999)),
+            "score": float(score_map.get(sell_t, 0.0)),
+        })
+
+        portfolio["positions"].pop(sell_t, None)
+
+    # -------------------------------------------------------------------------
+    # 3) Buys (top MAX_POSITIONS ranks only) + entry + breadth + corr gate
+    # -------------------------------------------------------------------------
+    buys: List[dict] = []
+    held = set(portfolio.get("positions", {}).keys())
+    slots = int(MAX_POSITIONS - len(held))
+    cash = float(portfolio.get("cash", 0.0))
+
+    if slots > 0 and cash > 50.0 and breadth_ok:
+        for t, sc in ranked:
+            if slots <= 0:
+                break
+
+            if int(rank_map.get(t, 999)) > int(MAX_POSITIONS):
+                continue
+            if t in held:
+                continue
+
+            ok, reason = entry_map.get(t, (False, "no_entry_info"))
+            if not ok:
+                continue
+
+            if not corr_gate_ok(list(held), t, cm, CORR_THRESHOLD):
+                continue
+
+            px_usd = last_close_usd.get(t, np.nan)
+            if pd.isna(px_usd) or px_usd <= 0:
+                continue
+            px_eur = usd_to_eur(px_usd, eurusd)
+
+            alloc = allocate_equal_slots(cash, slots)
+            alloc = min(alloc, max(0.0, cash - 10.0))
+            if alloc < 50.0:
+                continue
+
+            total_cost = alloc + trade_cost(alloc)
+            if total_cost > cash:
+                continue
+
+            shares = alloc / px_eur
+
+            cash -= total_cost
+            portfolio["cash"] = cash
+
+            portfolio["positions"][t] = {
+                "entry_date": today_str,
+                "entry_price_eur": float(px_eur),
+                "shares": float(shares),
+                "initial_amount_eur": float(alloc),
+                "amount_invested_eur": float(alloc),
+                "peak_price_eur": float(px_eur),
+                "trough_price_eur": float(px_eur),
+                "mfe_pct": 0.0,
+                "mae_pct": 0.0,
+                "trailing_active": False,
+                "rank": int(rank_map.get(t, 999)),
+                "score": float(sc),
+            }
+
+            append_trade(trades, {
+                "action": "BUY",
+                "ticker": t,
+                "date": today_str,
+                "price_eur": float(px_eur),
+                "shares": float(shares),
+                "amount_eur": float(alloc),
+                "fee_bps": FEE_BPS,
+                "slippage_bps": SLIPPAGE_BPS,
+                "reason": f"CHAMPION_RANK{int(rank_map.get(t, 999))}_BREAKOUT+TREND",
+                "rank": int(rank_map.get(t, 999)),
+                "score": float(sc),
+            })
+
+            buys.append({
+                "ticker": t,
+                "rank": int(rank_map.get(t, 999)),
+                "score": float(sc),
+                "amount": float(alloc),
+                "entry": reason,
+            })
+
+            held.add(t)
+            slots -= 1
+
+    # -------------------------------------------------------------------------
+    # 4) Summary + Telegram
+    # -------------------------------------------------------------------------
+    pos_value = 0.0
+    pos_lines: List[str] = []
+
+    for t, pos in portfolio.get("positions", {}).items():
+        px_usd = last_close_usd.get(t, np.nan)
+        if pd.isna(px_usd) or px_usd <= 0:
+            continue
+        px_eur = usd_to_eur(px_usd, eurusd)
+        entry = float(pos.get("entry_price_eur", px_eur))
+        sh = float(pos.get("shares", 0.0))
+        val = px_eur * sh
+        pos_value += val
+        pnl_pct = (px_eur / entry - 1.0) * 100.0 if entry > 0 else 0.0
+        mfe = float(pos.get("mfe_pct", 0.0))
+        trail = "ON" if bool(pos.get("trailing_active", False)) else "OFF"
+        rk = int(pos.get("rank", 999))
+        pos_lines.append(f"- {t} (#{rk}) PnL {pnl_pct:+.1f}% | MFE {mfe:+.1f}% | Trail {trail}")
+
+    cash_now = float(portfolio.get("cash", 0.0))
+    total_val = cash_now + pos_value
+
+    start_date = pd.to_datetime(portfolio.get("start_date", today_str))
+    months = (today.year - start_date.year) * 12 + (today.month - start_date.month)
+    invested = float(portfolio.get("initial_capital", INITIAL_CAPITAL_EUR)) + max(0, months) * float(portfolio.get("monthly_dca", MONTHLY_DCA_EUR))
+    pnl_total = total_val - invested
+    pnl_total_pct = (total_val / invested - 1.0) * 100.0 if invested > 0 else 0.0
+
+    msg: List[str] = []
+    msg.append(f"APEX CHAMPION — {today_str}")
+    msg.append(f"EURUSD {eurusd:.4f}")
+    msg.append(f"Cash {cash_now:.2f}€ | Pos {pos_value:.2f}€ | Total {total_val:.2f}€")
+    msg.append(f"Invested~ {invested:.2f}€ | PnL {pnl_total:+.2f}€ ({pnl_total_pct:+.1f}%)")
+    msg.append("")
+    msg.append("GATES:")
+    msg.append(f"- Breadth: {breadth:.1%} (>= {BREADTH_THRESHOLD:.0%}) {'PASS' if breadth_ok else 'FAIL'}")
+    msg.append(f"- Corr: window={CORR_WINDOW}d, thr={CORR_THRESHOLD}")
+    msg.append("")
+    msg.append("ACTIONS (paper @ close; à exécuter au prochain open):")
+    if sells:
+        for s in sells:
+            msg.append(f"SELL {s['ticker']} — {s['reason']} | PnL {s['pnl_pct']:+.1f}% | MFE {s['mfe_pct']:+.1f}% | Hold {s['hold_days']}d")
+    if swaps:
+        for sell_t, buy_t, r in swaps:
+            msg.append(f"SWAP {sell_t} -> {buy_t} ({r})")
+    if buys:
+        for b in buys:
+            msg.append(f"BUY  {b['ticker']} (#{b['rank']}) amt {b['amount']:.0f}€ | score {b['score']:.3f}")
+    if not sells and not swaps and not buys:
+        msg.append("HOLD — no action")
+
+    msg.append("")
+    msg.append("POSITIONS:")
+    msg.extend(pos_lines if pos_lines else ["- (none)"])
+
+    msg.append("")
+    msg.append("TOP 5 MOMENTUM:")
+    for i, (t, sc) in enumerate(ranked[:5], 1):
+        ok, r = entry_map.get(t, (False, "no_info"))
+        status = "✓" if ok else f"✗({r})"
+        msg.append(f"{i}. {t} score {float(sc):.3f} {status}")
+
+    if failures:
+        msg.append("")
+        msg.append(f"WARN: Failed downloads ({len(failures)}): " + ", ".join(failures[:12]) + ("..." if len(failures) > 12 else ""))
+
+    message = "\n".join(msg)
 
     save_portfolio(portfolio)
     save_trades(trades)
 
+    print(message)
+    send_telegram(message)
+
     print("=" * 90)
-    print("Run termine (data ok)")
+    print("✅ Run terminé | portfolio.json + trades_history.json mis à jour")
     print("=" * 90)
 
 
