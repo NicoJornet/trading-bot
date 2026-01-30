@@ -831,5 +831,3 @@ def main() -> None:
 
 if __name__ == "__main__":
  main()
-
-Palmino NicolasTél. : 06 73 20 76 70
