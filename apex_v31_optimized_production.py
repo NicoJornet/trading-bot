@@ -1,136 +1,163 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+APEX — CHAMPION (PROD) — basé sur la base APEX v33
+===================================================
+
+Objectif: utiliser EXACTEMENT la même plomberie que ton script v33
+(portfolio.json + trades_history.json + Telegram), mais avec la logique
+du Champion validé sur U54 (2015–2025).
+
+⚙️ Logique Champion (résumé)
+- Exécution: T+1 open en backtest, et en PROD on estime au close (car l'open n'est pas connu à 8h)
+- Régime: Breadth >= 0.55 (part des tickers au-dessus SMA200)
+- Entrées: Breakout (Close > High60 précédent) ET Close > SMA200
+- Score: 0.5*R126 + 0.3*R252 + 0.2*R63
+- SwapEdge: swap si best_score >= worst_score * 1.15, confirmé 3 jours, cooldown 2 jours
+- Corr gate: évite d'empiler des actifs très corrélés (corr 63j < 0.60)
+- Sorties: HARD_STOP (-18%), TRAILING après MFE (+18%) avec trail -5%, TREND_BREAK (Close<SMA200)
+- Sizing: Option A “suspect” 40% ; si gap down (open vs close) < -1.5% => 20% (GapGuard)
+  (en PROD, gap connu seulement à l'open → on met une note pour l'appliquer manuellement si besoin)
+
+✅ Outputs
+- Met à jour: portfolio.json / trades_history.json
+- Envoie un message Telegram avec les actions à faire (BUY/SELL) pour le matin.
+
+"""
+
 from __future__ import annotations
-
-"""
-APEX PROD (V33-compatible) — Champion params — YFINANCE ONLY (MIN DIFF)
-======================================================================
-
-But:
-- Repartir de la logique "prod V33" (Telegram morning message, suivi portfolio.json, historique trades).
-- NE PAS lire de parquet/CSV : données uniquement via yfinance.
-- Changer le MINIMUM pour appliquer les paramètres Champion fournis.
-
-Paramètres Champion appliqués
-----------------------------
-Portfolio/Rotation
-- MAX_POSITIONS = 3
-- EDGE_MULT = 1.00 (trace seulement, pas indispensable sans swap edge)
-- CONFIRM_DAYS = 3  # window for confirmation (2-of-3 uses last 3 days)
-- COOLDOWN_DAYS = 1
-- FULLY_INVESTED = True (plus d'allocation 50/30/20)
-
-Signals
-- SMA200_WIN = 200
-- HIGH60_WIN = 60
-USE_HIGH60 = False  # if True, require HIGH60 breakout for entry/confirm
-
-- Momentum score cross-sectional: R63, R126, R252 pondérés
-  WEIGHTS = {r126:0.5, r252:0.3, r63:0.2}
-
-Gates
-- BREADTH_THR = 0.55  (si OFF => aucun BUY)
-- CORR_WIN = 63
-- CORR_THR = 0.65
-
-Exits
-- HARD_STOP = -18% (depuis entry)
-- MFE_TRIGGER = +15% puis trailing -5% depuis peak
-- Trend break: Close < SMA200 => SELL
-- Désactivation explicite des exits V33: dead trade / duration / force rotation
-
-Exécution (prod)
-----------------
-- Les signaux/conditions sont évalués sur le dernier Close disponible de yfinance.
-- Le message Telegram sert à déclencher une action manuelle (ou broker) : ce n'est pas un backtest T+1 open.
-
-Variables d'environnement (optionnel)
--------------------------------------
-- TELEGRAM_BOT_TOKEN
-- TELEGRAM_CHAT_ID
-"""
 
 import os
 import json
+import math
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-import yfinance as yf
+try:
+    import yfinance as yf
+except Exception:
+    yf = None
 
 try:
     import requests
 except Exception:
     requests = None
 
-
 # =============================================================================
-# CONFIG (Champion)
+# CONFIG (compatible v33)
 # =============================================================================
+PARQUET_PATH = os.environ.get("APEX_OHLCV_PARQUET", "ohlcv_54tickers_2015_2025.parquet")
 
 PORTFOLIO_FILE = "portfolio.json"
-TRADES_FILE = "trades_history.json"
-
-INITIAL_CAPITAL_EUR = 2000.0
-MONTHLY_DCA_EUR = 100.0
-FEE_EUR = 1.0
-
-MAX_POSITIONS = 3
-FULLY_INVESTED = True
-EDGE_MULT = 1.00
-CONFIRM_DAYS = 3
-COOLDOWN_DAYS = 1
-
-SMA200_WIN = 200
-HIGH60_WIN = 60
-USE_HIGH60 = False  # if True, require HIGH60 breakout for entry/confirm
-R63 = 63
-R126 = 126
-R252 = 252
-WEIGHTS = {"r126": 0.5, "r252": 0.3, "r63": 0.2}
-
-BREADTH_THR = 0.55
-CORR_WIN = 63
-CORR_THR = 0.65
-
-HARD_STOP_PCT = 0.18
-MFE_TRIGGER_PCT = 0.15
-TRAIL_FROM_PEAK_PCT = 0.05
-
-# Download lookback (calendar days) so we have enough bars for SMA200 + R252
-LOOKBACK_CAL_DAYS = 800
-
-# Universe (U44) — garde le même que ton V33 prod (modifiable si besoin)
-UNIVERSE = [
-    "NVDA", "MSFT", "GOOGL", "AMZN", "AAPL", "META", "TSLA",
-    "AMD", "MU", "ASML", "TSM", "LRCX", "AMAT",
-    "PLTR", "APP", "CRWD", "NET", "DDOG", "ZS",
-    "RKLB", "SHOP", "ABNB", "VRT", "SMCI", "UBER",
-    "MSTR", "MARA", "RIOT",
-    "CEG",
-    "LLY", "NVO", "UNH", "JNJ", "ABBV",
-    "WMT", "COST", "PG", "KO",
-    "XOM", "CVX",
-    "QQQ", "SPY", "GLD", "SLV",
-]
+TRADES_FILE    = "trades_history.json"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 
+INITIAL_CAPITAL_EUR = 2000.0
+MONTHLY_DCA_EUR     = 100.0
 
 # =============================================================================
-# Helpers IO
+# CHAMPION PARAMS (prod defaults)
 # =============================================================================
+MAX_POSITIONS = 3
 
-def _now_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
+FEE_BPS      = 20.0     # 0.20%
+SLIPPAGE_BPS = 5.0      # 0.05%
+
+BREADTH_THR = 0.55
+SMA200_WIN  = 200
+HIGH60_WIN  = 60
+
+# Momentum score windows
+R63  = 63
+R126 = 126
+R252 = 252
+
+# SwapEdge
+EDGE_MULT     = 1.15
+CONFIRM_DAYS  = 3
+COOLDOWN_DAYS = 2
+CORR_WIN      = 63
+CORR_THR      = 0.60   # set None to disable
+
+# Exits
+HARD_STOP_PCT     = 0.18
+MFE_TRIGGER_PCT   = 0.18
+TRAIL_FROM_PEAK_PCT = 0.05
+
+# Suspect sizing (Option A + GapGuard)
+SUSPECT_DIST_SMA200 = 0.70  # +70% above SMA200
+SUSPECT_ATRP14      = 0.05  # ATR%14 > 5%
+SUSPECT_SIZE        = 0.40  # 40% of slot
+GAP_GUARD_THR       = 0.015 # 1.5% gap down
+GAP_GUARD_SIZE      = 0.20  # 20% of slot
+
+# Tickers considered "already EUR" (avoid EURUSD conversion)
+EUR_SUFFIXES = (".PA", ".AS", ".DE", ".MI", ".MC", ".BR", ".SW", ".LS")
+
+# =============================================================================
+# Utilities
+# =============================================================================
+def is_eur_ticker(t: str) -> bool:
+    return any(t.endswith(s) for s in EUR_SUFFIXES)
+
+def px_to_eur(ticker: str, px: float, eurusd: float) -> float:
+    """Best-effort conversion: treat most US tickers as USD, EU tickers as EUR."""
+    if not np.isfinite(px):
+        return float("nan")
+    if is_eur_ticker(ticker):
+        return float(px)
+    if eurusd and eurusd > 0:
+        return float(px) / float(eurusd)
+    return float(px)
+
+def compute_score(close: pd.DataFrame) -> pd.DataFrame:
+    r63  = close.pct_change(R63,  fill_method=None)
+    r126 = close.pct_change(R126, fill_method=None)
+    r252 = close.pct_change(R252, fill_method=None)
+    return 0.5*r126 + 0.3*r252 + 0.2*r63
+
+def compute_atr_pct14(high: pd.DataFrame, low: pd.DataFrame, close: pd.DataFrame) -> pd.DataFrame:
+    prev_close = close.shift(1)
+    tr = pd.concat([(high-low).abs(), (high-prev_close).abs(), (low-prev_close).abs()], axis=0).groupby(level=0).max()
+    atr14 = tr.rolling(14).mean()
+    return atr14 / close
+
+def corr_ok(returns: pd.DataFrame, i: int, candidate: str, held: List[str]) -> bool:
+    if CORR_THR is None or len(held) == 0 or i < CORR_WIN:
+        return True
+    window = returns.iloc[i-CORR_WIN+1:i+1]
+    c = window[candidate]
+    for h in held:
+        corr = c.corr(window[h])
+        if pd.notna(corr) and corr >= CORR_THR:
+            return False
+    return True
+
+def is_suspect(close_row: pd.Series, sma_row: pd.Series, atrp_row: pd.Series, t: str) -> bool:
+    if pd.isna(sma_row[t]) or pd.isna(atrp_row[t]):
+        return False
+    dist = float(close_row[t]/sma_row[t] - 1.0)
+    atrp = float(atrp_row[t])
+    return (dist > SUSPECT_DIST_SMA200) and (atrp > SUSPECT_ATRP14)
+
+def gap_open_next(open_next: float, close_today: float) -> float:
+    if not np.isfinite(open_next) or not np.isfinite(close_today) or close_today == 0:
+        return float("nan")
+    return float(open_next/close_today - 1.0)
+
 
 
 def load_portfolio() -> dict:
     if os.path.exists(PORTFOLIO_FILE):
         with open(PORTFOLIO_FILE, "r") as f:
             p = json.load(f)
-        # defaults / backward compat
+        # Backward compatible defaults
         p.setdefault("currency", "EUR")
         p.setdefault("cash", INITIAL_CAPITAL_EUR)
         p.setdefault("initial_capital", INITIAL_CAPITAL_EUR)
@@ -138,9 +165,6 @@ def load_portfolio() -> dict:
         p.setdefault("positions", {})
         p.setdefault("start_date", datetime.now().strftime("%Y-%m-%d"))
         p.setdefault("last_dca_month", None)
-        # champion state
-        p.setdefault("confirm_state", {})    # ticker -> consecutive confirms
-        p.setdefault("cooldown_until", {})   # ticker -> YYYY-MM-DD
         return p
 
     return {
@@ -151,16 +175,16 @@ def load_portfolio() -> dict:
         "positions": {},
         "start_date": datetime.now().strftime("%Y-%m-%d"),
         "last_dca_month": None,
-        "confirm_state": {},
-        "cooldown_until": {},
         "created_at": _now_str(),
     }
+
 
 
 def save_portfolio(p: dict) -> None:
     p["last_updated"] = _now_str()
     with open(PORTFOLIO_FILE, "w") as f:
         json.dump(p, f, indent=2)
+
 
 
 def load_trades() -> dict:
@@ -170,9 +194,11 @@ def load_trades() -> dict:
     return {"trades": [], "summary": {}}
 
 
+
 def save_trades(t: dict) -> None:
     with open(TRADES_FILE, "w") as f:
         json.dump(t, f, indent=2)
+
 
 
 def append_trade(trades: dict, row: dict) -> None:
@@ -186,6 +212,7 @@ def append_trade(trades: dict, row: dict) -> None:
 # Telegram
 # =============================================================================
 
+
 def send_telegram(message: str) -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID or requests is None:
         return
@@ -197,571 +224,519 @@ def send_telegram(message: str) -> None:
 
 
 # =============================================================================
-# Data (yfinance only)
+# Data loading (parquet > yfinance)
 # =============================================================================
 
-def download_ohlcv(tickers: List[str], lookback_days: int) -> pd.DataFrame:
-    end = datetime.now()
-    start = end - timedelta(days=int(lookback_days))
-    df = yf.download(
-        tickers=tickers,
-        start=start.strftime("%Y-%m-%d"),
-        end=end.strftime("%Y-%m-%d"),
-        auto_adjust=True,
-        group_by="ticker",
-        progress=False,
-        threads=True,
-    )
 
-    if df is None or df.empty:
-        raise RuntimeError("yfinance a renvoyé un DataFrame vide.")
+def _standardize_ohlcv_columns(df: pd.DataFrame) -> pd.DataFrame:
+    cols = {c.lower(): c for c in df.columns}
+    out = df.copy()
+    ren = {}
+    for target in ["open", "high", "low", "close", "volume"]:
+        if target in cols:
+            ren[cols[target]] = target
+    return out.rename(columns=ren)
 
-    if not isinstance(df.columns, pd.MultiIndex):
-        # yfinance pour un seul ticker peut renvoyer colonnes simples
-        # => on normalise en MultiIndex (ticker, field)
-        if len(tickers) == 1:
-            t = tickers[0]
-            df.columns = pd.MultiIndex.from_product([[t], [c.lower() for c in df.columns]])
-        else:
-            raise RuntimeError("Format yfinance inattendu (pas de MultiIndex).")
 
-    # df peut être (field, ticker) ou (ticker, field) selon group_by
-    fields = {"open", "high", "low", "close", "volume"}
-    lev0 = set(str(x).lower() for x in df.columns.get_level_values(0))
-    if fields.issubset(lev0):
-        # (field, ticker) => swap
-        df = df.swaplevel(0, 1, axis=1)
 
-    df.columns = pd.MultiIndex.from_tuples(
-        [(str(t), str(f).lower()) for (t, f) in df.columns],
-        names=["ticker", "field"]
-    )
-    df.index = pd.to_datetime(df.index)
-    df = df.sort_index()
-    # keep only needed fields
-    keep = [c for c in df.columns if c[1] in fields]
-    return df[keep]
+def load_ohlcv_parquet(path: str, tickers: List[str]) -> pd.DataFrame:
+    """
+    Returns DataFrame indexed by date, columns MultiIndex (ticker, field) where field in open/high/low/close/volume.
+    Supports:
+      - long: date,ticker,open,high,low,close,volume
+      - multiindex: (ticker, field) or (field, ticker)
+    """
+    df = pd.read_parquet(path)
+
+    if {"date", "ticker"}.issubset(df.columns):
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"])
+        df = df[df["ticker"].isin(tickers)]
+        df = _standardize_ohlcv_columns(df)
+        needed = ["open", "high", "low", "close", "volume"]
+        missing = [c for c in needed if c not in df.columns]
+        if missing:
+            raise ValueError(f"Parquet long: colonnes manquantes {missing}")
+        pivot = df.pivot_table(index="date", columns="ticker", values=needed)
+        pivot = pivot.swaplevel(0, 1, axis=1).sort_index(axis=1)  # (ticker, field)
+        pivot.index = pd.to_datetime(pivot.index)
+        return pivot.sort_index()
+
+    if isinstance(df.columns, pd.MultiIndex):
+        fields = {"open", "high", "low", "close", "volume"}
+        lev0 = set(map(lambda x: str(x).lower(), df.columns.get_level_values(0)))
+        if fields.issubset(lev0):
+            # (field, ticker)
+            df = df.swaplevel(0, 1, axis=1).sort_index(axis=1)
+        # now assume (ticker, field)
+        df.columns = pd.MultiIndex.from_tuples(
+            [(t, str(f).lower()) for (t, f) in df.columns],
+            names=["ticker", "field"]
+        )
+        keep = [c for c in df.columns if c[0] in tickers and c[1] in fields]
+        out = df[keep].copy()
+        out.index = pd.to_datetime(out.index)
+        return out.sort_index()
+
+    raise ValueError("Format parquet non reconnu.")
+
 
 
 def get_eur_usd_rate() -> float:
-    """EURUSD=X: USD per 1 EUR"""
+    """
+    Returns EURUSD (USD per 1 EUR). If unavailable, returns 1.0.
+    """
+    if yf is None:
+        return 1.0
     try:
         t = yf.Ticker("EURUSD=X")
-        info = t.fast_info if hasattr(t, "fast_info") else {}
-        px = None
-        if info:
-            px = info.get("last_price") or info.get("previous_close")
-        if px is None:
-            px = t.info.get("regularMarketPrice") or t.info.get("previousClose")
-        px = float(px) if px else 1.0
-        return px if px > 0 else 1.0
+        px = t.info.get("regularMarketPrice") or t.info.get("previousClose")
+        if px and float(px) > 0:
+            return float(px)
     except Exception:
-        return 1.0
+        pass
+    return 1.0
 
 
-def usd_to_eur(price_usd: float, eurusd: float) -> float:
-    return float(price_usd) / float(eurusd) if eurusd and eurusd > 0 else float(price_usd)
 
+def load_data() -> pd.DataFrame:
+    # Prefer parquet cache
+    if os.path.exists(PARQUET_PATH):
+        ohlcv = load_ohlcv_parquet(PARQUET_PATH, UNIVERSE)
+        return ohlcv.sort_index()
 
-# =============================================================================
-# Indicators / signals
-# =============================================================================
-
-def safe_last(s: pd.Series) -> float:
-    s = s.dropna()
-    return float(s.iloc[-1]) if len(s) else np.nan
-
-
-def sma_last(close: pd.Series, win: int) -> float:
-    c = close.dropna()
-    if len(c) < win:
-        return np.nan
-    return float(c.rolling(win).mean().iloc[-1])
-
-
-def rolling_high_last(high: pd.Series, win: int) -> float:
-    h = high.dropna()
-    if len(h) < win:
-        return np.nan
-    return float(h.rolling(win).max().iloc[-1])
-
-
-def ret_window(close: pd.Series, win: int) -> float:
-    c = close.dropna()
-    if len(c) < win + 1:
-        return np.nan
-    prev = float(c.iloc[-win-1])
-    last = float(c.iloc[-1])
-    if prev <= 0:
-        return np.nan
-    return last / prev - 1.0
-
-
-def momentum_score(close: pd.Series) -> float:
-    r63 = ret_window(close, R63)
-    r126 = ret_window(close, R126)
-    r252 = ret_window(close, R252)
-    if any(pd.isna(x) for x in [r63, r126, r252]):
-        return np.nan
-    return WEIGHTS["r63"] * r63 + WEIGHTS["r126"] * r126 + WEIGHTS["r252"] * r252
-
-
-def compute_top_set_for_date(ohlcv: pd.DataFrame, d: pd.Timestamp, max_rank: int) -> set[str]:
-    """Return tickers that are in the top `max_rank` momentum ranks on date d and pass entry filters.
-
-    Notes:
-    - Ranking is computed cross-sectionally on date d using available history up to d.
-    - Entry filters are SMA200 (and optionally HIGH60 if USE_HIGH60).
-    """
-    score_map: Dict[str, float] = {}
-    sma200_map: Dict[str, float] = {}
-    high60_map: Dict[str, float] = {}
-    close_map: Dict[str, float] = {}
-
-    for t in UNIVERSE:
-        c = ohlcv.get((t, "close"), pd.Series(dtype=float)).loc[:d]
-        h = ohlcv.get((t, "high"), pd.Series(dtype=float)).loc[:d]
-        if c.dropna().shape[0] < max(SMA200_WIN, R252) + 5:
-            continue
-        last_c = safe_last(c)
-        sm = sma_last(c, SMA200_WIN)
-        sc = momentum_score(c)
-        if pd.isna(last_c) or pd.isna(sm) or pd.isna(sc):
-            continue
-        if USE_HIGH60:
-            hh = rolling_high_last(h, HIGH60_WIN)
-            if pd.isna(hh):
-                continue
-            high60_map[t] = float(hh)
-        close_map[t] = float(last_c)
-        sma200_map[t] = float(sm)
-        score_map[t] = float(sc)
-
-    ranked = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
-    rank_map = {t: i + 1 for i, (t, _) in enumerate(ranked)}
-
-    top_set: set[str] = set()
-    for t, _ in ranked:
-        r = int(rank_map.get(t, 999))
-        if r > max_rank:
-            continue
-        if t not in close_map or t not in sma200_map:
-            continue
-        if close_map[t] <= sma200_map[t]:
-            continue
-        if USE_HIGH60 and close_map[t] < high60_map.get(t, np.nan):
-            continue
-        top_set.add(t)
-    return top_set
-
-
-def compute_confirm_hits_2of3(ohlcv: pd.DataFrame, d: pd.Timestamp, max_rank: int) -> Dict[str, int]:
-    """Stateless confirmation: count hits over the last 3 trading days, eligible if hits >= 2."""
-    idx = ohlcv.index
-    # last 3 dates available up to d
-    dates = list(idx[idx <= d][-3:])
-    hits: Dict[str, int] = {}
-    for dd in dates:
-        top_set = compute_top_set_for_date(ohlcv, dd, max_rank=max_rank)
-        for t in top_set:
-            hits[t] = hits.get(t, 0) + 1
-    return hits
-
-
-def corr_max_with_held(ohlcv: pd.DataFrame, d: pd.Timestamp, candidate: str, held: List[str]) -> float:
-    if not held:
-        return 0.0
-
-    def _rets(ticker: str) -> pd.Series:
-        c = ohlcv.get((ticker, "close"), pd.Series(dtype=float)).loc[:d].dropna()
-        if len(c) < CORR_WIN + 2:
-            return pd.Series(dtype=float)
-        return c.pct_change().dropna().tail(CORR_WIN)
-
-    rc = _rets(candidate)
-    if rc.empty:
-        return 0.0
-
-    vals = []
-    for t in held:
-        rt = _rets(t)
-        if rt.empty:
-            continue
-        joined = pd.concat([rc, rt], axis=1, join="inner").dropna()
-        if joined.shape[0] < 10:
-            continue
-        vals.append(float(joined.corr().iloc[0, 1]))
-    if not vals:
-        return 0.0
-    return float(np.nanmax(np.abs(vals)))
-
-
-def is_cooldown_active(portfolio: dict, ticker: str, today_str: str) -> bool:
-    until = portfolio.get("cooldown_until", {}).get(ticker)
-    if not until:
-        return False
-    try:
-        return pd.to_datetime(today_str) <= pd.to_datetime(until)
-    except Exception:
-        return False
-
-
-def allocate_equal(cash: float, slots_left: int) -> float:
-    return float(cash) / float(max(1, slots_left))
+    # Fallback: yfinance (last 420 calendar days)
+    end = datetime.now()
+    start = end - timedelta(days=LOOKBACK_CAL_DAYS)
+    return load_ohlcv_yfinance(UNIVERSE, start=start, end=end)
 
 
 # =============================================================================
-# Main
+# Indicators
 # =============================================================================
 
-def main():
+
+def _now_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
+
+# =============================================================================
+# MAIN (prod run)
+# =============================================================================
+def main() -> None:
     print("=" * 90)
-    print("🚀 APEX PROD — Champion params — yfinance only")
+    print("🚀 APEX CHAMPION — PROD (base v33)")
     print("=" * 90)
-    print(f"🕒 {_now_str()}")
 
     portfolio = load_portfolio()
     trades = load_trades()
 
-    # DCA monthly (compatible V33)
+    # Monthly DCA (same behavior as v33)
     today = datetime.now()
-    month_key = f"{today.year}-{today.month:02d}"
+    month_key = today.strftime("%Y-%m")
     if portfolio.get("last_dca_month") != month_key:
-        portfolio["cash"] = float(portfolio.get("cash", 0.0)) + MONTHLY_DCA_EUR
+        portfolio["cash"] = float(portfolio.get("cash", INITIAL_CAPITAL_EUR)) + float(portfolio.get("monthly_dca", MONTHLY_DCA_EUR))
         portfolio["last_dca_month"] = month_key
         print(f"💰 DCA: +{MONTHLY_DCA_EUR:.2f}€ (month={month_key})")
 
-    # Load OHLCV via yfinance only
-    ohlcv = download_ohlcv(UNIVERSE, LOOKBACK_CAL_DAYS)
-    d = ohlcv.index.max()
-    d_str = pd.to_datetime(d).strftime("%Y-%m-%d")
-    print(f"📅 Dernière date OHLCV: {d_str}")
+    # Load data (parquet preferred)
+    ohlcv = load_data()
+    if ohlcv.empty:
+        raise RuntimeError("OHLCV vide.")
+
+    # Need at least 2 bars for "T+1" logic (signal day + execution day)
+    if len(ohlcv.index) < 2:
+        raise RuntimeError("OHLCV doit contenir au moins 2 jours.")
+
+    # Use last available date as execution date if available
+    exec_date = ohlcv.index.max()
+    sig_date = ohlcv.index[-2]  # signal at close of previous bar
+    print(f"📅 Signal (close): {pd.to_datetime(sig_date).strftime('%Y-%m-%d')} | Execute: {pd.to_datetime(exec_date).strftime('%Y-%m-%d')} (open est. si dispo)")
 
     eurusd = get_eur_usd_rate()
-    print(f"💱 EURUSD=X {eurusd:.4f}")
+    print(f"💱 EURUSD=X: {eurusd:.4f} (USD -> EUR = USD / eurusd ; EUR tickers non convertis)")
 
-    # Precompute per ticker
-    score_map: Dict[str, float] = {}
-    sma200_map: Dict[str, float] = {}
-    high60_map: Dict[str, float] = {}
-    close_usd: Dict[str, float] = {}
-    high_usd: Dict[str, float] = {}
-    low_usd: Dict[str, float] = {}
-    eligible = []
+    tickers = sorted({t for t, _ in ohlcv.columns})
+    # Build panels
+    def field(f): 
+        x = ohlcv.loc[:, (tickers, f)].copy()
+        x.columns = tickers
+        return x.ffill()
 
-    for t in UNIVERSE:
-        c = ohlcv.get((t, "close"), pd.Series(dtype=float)).loc[:d]
-        h = ohlcv.get((t, "high"), pd.Series(dtype=float)).loc[:d]
-        l = ohlcv.get((t, "low"), pd.Series(dtype=float)).loc[:d]
-        if c.dropna().shape[0] < max(SMA200_WIN, R252) + 5:
-            continue
-        last_c = safe_last(c)
-        last_h = safe_last(h)
-        last_l = safe_last(l)
-        sm = sma_last(c, SMA200_WIN)
-        hh = rolling_high_last(h, HIGH60_WIN)
-        sc = momentum_score(c)
-        need = [last_c, sm, sc] + ([hh] if USE_HIGH60 else [])
-        if any(pd.isna(x) for x in need):
-            continue
+    open_  = field("open")  if (tickers[0], "open")  in ohlcv.columns else field("Open")
+    high_  = field("high")  if (tickers[0], "high")  in ohlcv.columns else field("High")
+    low_   = field("low")   if (tickers[0], "low")   in ohlcv.columns else field("Low")
+    close_ = field("close") if (tickers[0], "close") in ohlcv.columns else field("Close")
 
-        close_usd[t] = float(last_c)
-        high_usd[t] = float(last_h)
-        low_usd[t] = float(last_l)
-        sma200_map[t] = float(sm)
-        high60_map[t] = float(hh)
-        score_map[t] = float(sc)
-        eligible.append(t)
+    # Indicators
+    sma200 = close_.rolling(SMA200_WIN).mean()
+    high60 = close_.rolling(HIGH60_WIN).max()
+    score  = compute_score(close_)
+    atrp14 = compute_atr_pct14(high_, low_, close_)
+    rets   = close_.pct_change(fill_method=None)
 
-    # Breadth gate
-    if eligible:
-        above = sum(1 for t in eligible if close_usd[t] > sma200_map[t])
-        breadth = above / len(eligible)
-    else:
-        breadth = 0.0
-    breadth_ok = breadth >= BREADTH_THR
+    # Breadth gate (exclude market ticker if present)
+    u_b = [t for t in tickers if t != "SPY"]
+    breadth = (close_[u_b] > sma200[u_b]).mean(axis=1) if len(u_b)>0 else pd.Series(index=close_.index, data=np.nan)
 
-    # Rank top
-    ranked = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
-    rank_map = {t: i + 1 for i, (t, _) in enumerate(ranked)}
+    # Index positions
+    i_sig = close_.index.get_loc(sig_date)
+    i_exe = close_.index.get_loc(exec_date)
 
-    # Prices in EUR
-    close_eur = {t: usd_to_eur(px, eurusd) for t, px in close_usd.items()}
-    high_eur = {t: usd_to_eur(px, eurusd) for t, px in high_usd.items()}
-    low_eur = {t: usd_to_eur(px, eurusd) for t, px in low_usd.items()}
-    sma200_eur = {t: usd_to_eur(px, eurusd) for t, px in sma200_map.items()}
-    high60_eur = {t: usd_to_eur(px, eurusd) for t, px in high60_map.items()}
+    close_row = close_.iloc[i_sig]
+    high_row  = high_.iloc[i_sig]
+    low_row   = low_.iloc[i_sig]
+    sma_row   = sma200.iloc[i_sig]
+    score_row = score.iloc[i_sig]
+    atrp_row  = atrp14.iloc[i_sig]
+    breadth_val = float(breadth.iloc[i_sig]) if pd.notna(breadth.iloc[i_sig]) else float("nan")
 
-    # -------------------------
-    # SELL logic
-    # -------------------------
-    sells = []
+    regime_on = (breadth_val >= BREADTH_THR) if np.isfinite(breadth_val) else False
+
+    # Execution prices:
+    # - if we have open for exec_date, use it as "execution price proxy"
+    # - else fallback to close(sig_date)
+    px_exec_open = open_.iloc[i_exe] if i_exe < len(open_) else close_.iloc[i_sig]
+    px_sig_close = close_.iloc[i_sig]
+
+    fee = FEE_BPS/10000.0
+    slip= SLIPPAGE_BPS/10000.0
+
+    # Portfolio state (v33 structure)
+    cash = float(portfolio.get("cash", INITIAL_CAPITAL_EUR))
     positions = portfolio.get("positions", {})
 
+    # Cooldown map stored in portfolio (add if missing)
+    cooldown = portfolio.get("cooldown", {})
+    if not isinstance(cooldown, dict):
+        cooldown = {}
+    # Decrement cooldown
+    new_cooldown = {}
+    for t, v in cooldown.items():
+        try:
+            v = int(v)
+        except Exception:
+            v = 0
+        if v > 1:
+            new_cooldown[t] = v - 1
+
+    # Pending swap stored in portfolio (single pair)
+    pending = portfolio.get("pending_swap", {}) or {}
+    pending_worst = pending.get("worst")
+    pending_best  = pending.get("best")
+    pending_count = int(pending.get("count", 0) or 0)
+
+    sells = []
+    buys  = []
+
+    # =====================================================================
+    # 1) Update position stats + exits (decide on close, execute at exec price proxy)
+    # =====================================================================
     for t, pos in list(positions.items()):
-        px = close_eur.get(t, np.nan)
-        if np.isnan(px):
+        if t not in tickers:
             continue
 
-        entry = float(pos.get("entry_price_eur", pos.get("entry_price", px)))
+        px_close_eur = px_to_eur(t, float(close_row[t]), eurusd)
+        px_exec_eur  = px_to_eur(t, float(px_exec_open[t]), eurusd)
+
+        entry = float(pos.get("entry_price_eur", px_close_eur))
         shares = float(pos.get("shares", 0.0))
-        if entry <= 0 or shares <= 0:
-            continue
 
+        # update peak/trough using signal day range
         peak = float(pos.get("peak_price_eur", entry))
         trough = float(pos.get("trough_price_eur", entry))
-        peak = max(peak, float(high_eur.get(t, px)))
-        trough = min(trough, float(low_eur.get(t, px)))
+        peak = max(peak, px_to_eur(t, float(high_row[t]), eurusd))
+        trough = min(trough, px_to_eur(t, float(low_row[t]), eurusd))
 
-        mfe_pct = (peak / entry - 1.0) * 100.0
-        mae_pct = (trough / entry - 1.0) * 100.0
-        trailing_active = (mfe_pct / 100.0) >= MFE_TRIGGER_PCT
+        pos["peak_price_eur"] = float(peak)
+        pos["trough_price_eur"] = float(trough)
 
-        pos["peak_price_eur"] = peak
-        pos["trough_price_eur"] = trough
-        pos["mfe_pct"] = mfe_pct
-        pos["mae_pct"] = mae_pct
-        pos["trailing_active"] = trailing_active
-        pos["rank"] = int(rank_map.get(t, 999))
-        pos["score"] = float(score_map.get(t, 0.0))
+        # MFE/MAE
+        mfe = (peak/entry - 1.0) if entry>0 else 0.0
+        mae = (trough/entry - 1.0) if entry>0 else 0.0
+        pos["mfe_pct"] = float(max(float(pos.get("mfe_pct", 0.0)), mfe*100.0))
+        pos["mae_pct"] = float(min(float(pos.get("mae_pct", 0.0)), mae*100.0))
 
-        pnl_pct = (px / entry - 1.0) * 100.0
-        pnl_eur = (px - entry) * shares - FEE_EUR
+        # activate trailing if MFE trigger hit
+        trailing_active = bool(pos.get("trailing_active", False))
+        if (not trailing_active) and mfe >= MFE_TRIGGER_PCT:
+            trailing_active = True
+            pos["trailing_active"] = True
 
         reason = None
 
-        # Trend break
-        sm = sma200_eur.get(t, np.nan)
-        if reason is None and not np.isnan(sm) and px < sm:
-            reason = "TREND_BREAK_SMA200"
-
-        # Hard stop
-        if reason is None and px <= entry * (1.0 - HARD_STOP_PCT):
+        # HARD STOP (close-based)
+        if px_close_eur <= entry * (1.0 - HARD_STOP_PCT):
             reason = "HARD_STOP"
 
-        # Trailing
+        # TRAILING
         if reason is None and trailing_active:
-            dd_from_peak = (px / peak - 1.0)
+            dd_from_peak = (px_close_eur / peak - 1.0) if peak>0 else 0.0
             if dd_from_peak <= -TRAIL_FROM_PEAK_PCT:
-                reason = "MFE_TRAILING"
+                reason = "TRAILING"
 
-        if reason:
-            sells.append({
+        # TREND_BREAK
+        if reason is None and pd.notna(sma_row[t]):
+            if float(close_row[t]) < float(sma_row[t]):
+                reason = "TREND_BREAK"
+
+        if reason is not None:
+            # execute sell at proxy open next (net costs)
+            px_out = px_exec_eur * (1.0 - fee - slip)
+            proceeds = px_out * shares
+            cash += proceeds
+
+            pnl_pct = (px_out/entry - 1.0) * 100.0 if entry>0 else 0.0
+
+            sells.append((t, shares, reason, pnl_pct))
+            append_trade(trades, {
+                "side": "SELL",
                 "ticker": t,
-                "price_eur": float(px),
-                "shares": float(shares),
-                "value_eur": float(px * shares),
-                "pnl_eur": float(pnl_eur),
-                "pnl_pct": float(pnl_pct),
-                "mfe_pct": float(mfe_pct),
-                "mae_pct": float(mae_pct),
+                "date": pd.to_datetime(exec_date).strftime("%Y-%m-%d"),
                 "reason": reason,
+                "shares": shares,
+                "price_eur": px_out,
+                "entry_price_eur": entry,
+                "pnl_pct": pnl_pct,
+                "mfe_pct": pos.get("mfe_pct", 0.0),
+                "mae_pct": pos.get("mae_pct", 0.0),
             })
+            # remove position
+            del positions[t]
+            # cooldown
+            new_cooldown[t] = COOLDOWN_DAYS
 
-        positions[t] = pos
+    # =====================================================================
+    # 2) Entries / SwapEdge (only if regime ON)
+    # =====================================================================
+    if regime_on:
+        # Eligible candidates: breakout + above SMA200
+        eligible = (close_row > high60.shift(1).iloc[i_sig]).fillna(False)
+        eligible &= (close_row > sma_row).fillna(False)
 
-    # Execute sells
-    for s in sells:
-        t = s["ticker"]
-        proceeds = float(s["value_eur"]) - FEE_EUR
-        portfolio["cash"] = float(portfolio.get("cash", 0.0)) + proceeds
+        # apply cooldown filter
+        for t in new_cooldown.keys():
+            if t in eligible.index:
+                eligible[t] = False
 
-        append_trade(trades, {
-            "action": "SELL",
-            "ticker": t,
-            "date": d_str,
-            "price_eur": s["price_eur"],
-            "shares": s["shares"],
-            "amount_eur": s["value_eur"],
-            "fee_eur": float(FEE_EUR),
-            "reason": s["reason"],
-            "pnl_eur": s["pnl_eur"],
-            "pnl_pct": s["pnl_pct"],
-            "mfe_pct": s["mfe_pct"],
-            "mae_pct": s["mae_pct"],
-        })
+        candidates = score_row.where(eligible).dropna().sort_values(ascending=False)
 
-        # cooldown
-        cd_until = (pd.to_datetime(d_str) + pd.Timedelta(days=COOLDOWN_DAYS)).strftime("%Y-%m-%d")
-        portfolio.setdefault("cooldown_until", {})[t] = cd_until
-        portfolio.setdefault("confirm_state", {}).pop(t, None)
+        def tier_and_sf(t: str) -> Tuple[str, float, float]:
+            sus = is_suspect(close_row, sma_row, atrp_row, t)
+            # In PROD, open next may not be known; if we have it in parquet, we can compute.
+            gap = gap_open_next(float(px_exec_open[t]), float(px_sig_close[t])) if i_exe != i_sig else float("nan")
+            tier="normal"; sf=1.0
+            if sus:
+                tier="suspect"; sf=SUSPECT_SIZE
+                if np.isfinite(gap) and gap < -GAP_GUARD_THR:
+                    tier="suspect_gap"; sf=GAP_GUARD_SIZE
+            return tier, sf, gap
 
-        # remove pos
-        portfolio.get("positions", {}).pop(t, None)
+        # Fill empty slots first
+        while len(positions) < MAX_POSITIONS and len(candidates) > 0:
+            slots_left = MAX_POSITIONS - len(positions)
+            alloc_cash = cash/slots_left if slots_left>0 else 0.0
 
-    # -------------------------
-    # BUY logic (Champion)
-    # -------------------------
-    buys = []
-    held = set(portfolio.get("positions", {}).keys())
-    slots_left = MAX_POSITIONS - len(held)
-
-    # Stateless confirmation (2 sur 3) : hits sur les 3 derniers jours de bourse
-    # Un "hit" = ticker dans le top MAX_POSITIONS du ranking à la date d et qui passe les filtres d'entrée.
-    top_set_today = compute_top_set_for_date(ohlcv, d, max_rank=MAX_POSITIONS)
-    confirm_state = compute_confirm_hits_2of3(ohlcv, d, max_rank=MAX_POSITIONS)  # ticker -> hits (0..3)
-    portfolio["confirm_state"] = confirm_state
-
-
-    cash = float(portfolio.get("cash", 0.0))
-
-    if slots_left > 0 and cash > 50 and breadth_ok:
-        for t, sc in ranked:
-            if slots_left <= 0:
+            pick=None
+            for t in candidates.index:
+                if t in positions:
+                    continue
+                if corr_ok(rets, i_sig, t, list(positions.keys())):
+                    pick=t; break
+            if pick is None:
                 break
-            r = int(rank_map.get(t, 999))
-            if r > MAX_POSITIONS:
-                continue
-            if t in held:
-                continue
-            if is_cooldown_active(portfolio, t, d_str):
+
+            tier, sf, gap = tier_and_sf(pick)
+            alloc = alloc_cash*sf
+            px_in_eur = px_to_eur(pick, float(px_exec_open[pick]), eurusd) * (1.0 + fee + slip)
+
+            shares = math.floor((alloc/px_in_eur)*1000)/1000
+            if shares <= 0 or shares*px_in_eur > cash + 1e-9:
+                candidates = candidates.drop(index=pick, errors="ignore")
                 continue
 
-            # entry filters
-            if close_eur.get(t, np.nan) <= sma200_eur.get(t, np.nan):
-                continue
-            if USE_HIGH60 and close_eur.get(t, np.nan) < high60_eur.get(t, np.nan):
-                continue
+            note=""
+            if tier == "suspect":
+                note="suspect 40% (apply 20% if open gap < -1.5%)"
+            elif tier == "suspect_gap":
+                note="gap-guard 20%"
 
-            # confirm (2 sur 3 jours)
-            if t not in top_set_today:
-                continue
-            if int(confirm_state.get(t, 0)) < 2:
-                continue
+            cash -= shares*px_in_eur
+            buys.append((pick, shares, "ENTRY", tier, note))
 
-            # corr gate vs held
-            cmax = corr_max_with_held(ohlcv, d, t, list(held))
-            if cmax >= CORR_THR:
-                continue
-
-            px = float(close_eur.get(t, np.nan))
-            if not np.isfinite(px) or px <= 0:
-                continue
-
-            alloc = allocate_equal(cash, slots_left)
-            # keep tiny buffer
-            alloc = min(alloc, max(0.0, cash - 10.0))
-            if alloc < 50:
-                continue
-
-            shares = alloc / px
-            cost = alloc + FEE_EUR
-            if cost > cash:
-                continue
-
-            # execute buy
-            cash -= cost
-            portfolio["cash"] = cash
-            portfolio.setdefault("positions", {})[t] = {
-                "entry_date": d_str,
-                "entry_price_eur": px,
+            positions[pick] = {
+                "entry_date": pd.to_datetime(exec_date).strftime("%Y-%m-%d"),
+                "entry_price_eur": float(px_in_eur),
                 "shares": float(shares),
                 "initial_amount_eur": float(alloc),
                 "amount_invested_eur": float(alloc),
-                "peak_price_eur": px,
-                "trough_price_eur": px,
+                "peak_price_eur": float(px_in_eur),
+                "trough_price_eur": float(px_in_eur),
                 "mfe_pct": 0.0,
                 "mae_pct": 0.0,
                 "trailing_active": False,
-                "rank": r,
-                "score": float(sc),
+                "rank": int(0),
+                "score": float(score_row.get(pick, np.nan)),
             }
 
-            buys.append({
-                "ticker": t,
-                "rank": r,
-                "score": float(sc),
-                "price_eur": px,
-                "amount_eur": float(alloc),
-                "shares": float(shares),
-                "confirm": int(confirm_state.get(t, 0)),
-                "corr_max": float(cmax),
-            })
-
             append_trade(trades, {
-                "action": "BUY",
-                "ticker": t,
-                "date": d_str,
-                "price_eur": px,
-                "shares": float(shares),
-                "amount_eur": float(alloc),
-                "fee_eur": float(FEE_EUR),
-                "reason": f"BUY_RANK{r}_CONF{CONFIRM_DAYS}",
-                "rank": r,
-                "score": float(sc),
-                "confirm": int(confirm_state.get(t, 0)),
-                "corr_max": float(cmax),
+                "side": "BUY",
+                "ticker": pick,
+                "date": pd.to_datetime(exec_date).strftime("%Y-%m-%d"),
+                "reason": "ENTRY",
+                "tier": tier,
+                "note": note,
+                "shares": shares,
+                "price_eur": px_in_eur,
             })
 
-            held.add(t)
-            slots_left -= 1
+            candidates = candidates.drop(index=pick, errors="ignore")
 
-    # -------------------------
-    # Summary / Telegram
-    # -------------------------
+        # SwapEdge only if full
+        if len(positions) == MAX_POSITIONS and len(candidates) > 0:
+            held = list(positions.keys())
+            held_scores = score_row[held].dropna()
+            if not held_scores.empty:
+                worst = held_scores.sort_values().index[0]
+                worst_score = float(held_scores[worst])
+
+                best = None
+                for t in candidates.index:
+                    if t in positions:
+                        continue
+                    if corr_ok(rets, i_sig, t, [x for x in held if x != worst]):
+                        best=t; break
+
+                if best is not None and np.isfinite(worst_score):
+                    best_score = float(score_row[best])
+                    if np.isfinite(best_score) and best_score >= worst_score * EDGE_MULT:
+                        # update pending pair
+                        if pending_worst == worst and pending_best == best:
+                            pending_count += 1
+                        else:
+                            pending_worst, pending_best, pending_count = worst, best, 1
+
+                        if pending_count >= CONFIRM_DAYS:
+                            # SELL worst
+                            shares_out = float(positions[worst]["shares"])
+                            px_out = px_to_eur(worst, float(px_exec_open[worst]), eurusd) * (1.0 - fee - slip)
+                            entry = float(positions[worst].get("entry_price_eur", px_out))
+                            pnl_pct = (px_out/entry - 1.0)*100.0 if entry>0 else 0.0
+
+                            cash += px_out * shares_out
+                            del positions[worst]
+                            new_cooldown[worst] = COOLDOWN_DAYS
+
+                            sells.append((worst, shares_out, "SWAP_OUT", pnl_pct))
+                            append_trade(trades, {
+                                "side": "SELL",
+                                "ticker": worst,
+                                "date": pd.to_datetime(exec_date).strftime("%Y-%m-%d"),
+                                "reason": "SWAP_OUT",
+                                "shares": shares_out,
+                                "price_eur": px_out,
+                                "entry_price_eur": entry,
+                                "pnl_pct": pnl_pct,
+                            })
+
+                            # BUY best
+                            tier, sf, gap = tier_and_sf(best)
+                            alloc = cash * sf
+                            px_in = px_to_eur(best, float(px_exec_open[best]), eurusd) * (1.0 + fee + slip)
+                            shares_in = math.floor((alloc/px_in)*1000)/1000
+                            if shares_in > 0 and shares_in*px_in <= cash + 1e-9:
+                                note=""
+                                if tier == "suspect":
+                                    note="suspect 40% (apply 20% if open gap < -1.5%)"
+                                elif tier == "suspect_gap":
+                                    note="gap-guard 20%"
+
+                                cash -= shares_in*px_in
+                                positions[best] = {
+                                    "entry_date": pd.to_datetime(exec_date).strftime("%Y-%m-%d"),
+                                    "entry_price_eur": float(px_in),
+                                    "shares": float(shares_in),
+                                    "initial_amount_eur": float(alloc),
+                                    "amount_invested_eur": float(alloc),
+                                    "peak_price_eur": float(px_in),
+                                    "trough_price_eur": float(px_in),
+                                    "mfe_pct": 0.0,
+                                    "mae_pct": 0.0,
+                                    "trailing_active": False,
+                                    "rank": int(0),
+                                    "score": float(best_score),
+                                }
+
+                                buys.append((best, shares_in, "SWAP_IN", tier, note))
+                                append_trade(trades, {
+                                    "side": "BUY",
+                                    "ticker": best,
+                                    "date": pd.to_datetime(exec_date).strftime("%Y-%m-%d"),
+                                    "reason": "SWAP_IN",
+                                    "tier": tier,
+                                    "note": note,
+                                    "shares": shares_in,
+                                    "price_eur": px_in,
+                                })
+
+                            pending_worst, pending_best, pending_count = None, None, 0
+                    else:
+                        pending_worst, pending_best, pending_count = None, None, 0
+
+    # =====================================================================
+    # 3) Summary + Telegram (v33 style)
+    # =====================================================================
+    # Mark-to-market using signal close (or execution proxy)
     pos_value = 0.0
     lines_pos = []
-    for t, pos in portfolio.get("positions", {}).items():
-        px = float(close_eur.get(t, np.nan))
-        if not np.isfinite(px):
-            continue
-        entry = float(pos.get("entry_price_eur", px))
-        sh = float(pos.get("shares", 0.0))
-        val = px * sh
-        pos_value += val
-        pnl_pct = (px / entry - 1.0) * 100.0 if entry > 0 else 0.0
-        mfe = float(pos.get("mfe_pct", 0.0))
-        trail = "ON" if bool(pos.get("trailing_active", False)) else "OFF"
-        rk = int(pos.get("rank", 999))
-        lines_pos.append(f"- {t} (#{rk}) PnL {pnl_pct:+.1f}% | MFE {mfe:+.1f}% | Trail {trail}")
+    for t, pos in positions.items():
+        px = px_to_eur(t, float(px_sig_close[t]), eurusd)
+        v = float(pos.get("shares", 0.0)) * px
+        pos_value += v
+        lines_pos.append(f"{t}: {v:.0f}€ ({pos.get('shares',0):.3f} sh)")
 
-    cash = float(portfolio.get("cash", 0.0))
     total = cash + pos_value
-
-    # invested estimate (compatible)
-    start_date = pd.to_datetime(portfolio.get("start_date", d_str))
+    start_date = datetime.strptime(portfolio.get("start_date", today.strftime("%Y-%m-%d")), "%Y-%m-%d")
     months = (today.year - start_date.year) * 12 + (today.month - start_date.month)
     invested = float(portfolio.get("initial_capital", INITIAL_CAPITAL_EUR)) + max(0, months) * float(portfolio.get("monthly_dca", MONTHLY_DCA_EUR))
     pnl_total = total - invested
     pnl_total_pct = (total / invested - 1.0) * 100.0 if invested > 0 else 0.0
 
+    # Build telegram message
     msg = []
-    msg.append(f"APEX PROD — {d_str}")
-    msg.append(f"EURUSD=X {eurusd:.4f}")
+    msg.append(f"APEX CHAMPION — {pd.to_datetime(sig_date).strftime('%Y-%m-%d')} -> {pd.to_datetime(exec_date).strftime('%Y-%m-%d')}")
+    msg.append(f"EURUSD=X {eurusd:.4f} | Breadth {breadth_val:.2f} (gate {BREADTH_THR})")
     msg.append(f"Cash {cash:.2f}€ | Pos {pos_value:.2f}€ | Total {total:.2f}€")
     msg.append(f"Invested~ {invested:.2f}€ | PnL {pnl_total:+.2f}€ ({pnl_total_pct:+.1f}%)")
-    msg.append(f"Breadth {breadth:.1%} (thr {int(BREADTH_THR*100)}%) => {'ON' if breadth_ok else 'OFF'}")
     msg.append("")
-    msg.append("ACTIONS:")
+    msg.append("ACTIONS (execute next open):")
     if sells:
-        for s in sells:
-            msg.append(f"SELL {s['ticker']} — {s['reason']} | PnL {s['pnl_pct']:+.1f}% | MFE {s['mfe_pct']:+.1f}%")
+        for t, sh, reason, pnl in sells:
+            msg.append(f"SELL {t} {sh:.3f} ({reason}) PnL {pnl:+.1f}%")
     if buys:
-        for b in buys:
-            msg.append(f"BUY  {b['ticker']} (#{b['rank']}) amt {b['amount_eur']:.0f}€ | score {b['score']:+.3f} | conf {b['confirm']} | corr {b['corr_max']:.2f}")
+        for t, sh, reason, tier, note in buys:
+            extra = f" [{tier}]" if tier != "normal" else ""
+            nn = f" — {note}" if note else ""
+            msg.append(f"BUY  {t} {sh:.3f} ({reason}){extra}{nn}")
     if not sells and not buys:
-        msg.append("HOLD — no action")
+        msg.append("No orders.")
     msg.append("")
     msg.append("POSITIONS:")
-    msg.extend(lines_pos if lines_pos else ["- (none)"])
-    msg.append("")
-    msg.append("TOP 5 MOMENTUM:")
-    if ranked:
-        for i, (t, sc) in enumerate(ranked[:5], 1):
-            px = close_eur.get(t, np.nan)
-            rk = rank_map.get(t, 999)
-            conf = int(confirm_state.get(t, 0))
-            flt = []
-            if close_eur.get(t, np.nan) > sma200_eur.get(t, np.nan):
-                flt.append("SMA200")
-            if USE_HIGH60 and close_eur.get(t, np.nan) >= high60_eur.get(t, np.nan):
-                flt.append("HIGH60")
-            pxs = f"{float(px):.2f}€" if np.isfinite(px) else "-"
-            msg.append(f"{i}. {t} rank {rk} score {sc:+.3f} px {pxs} conf {conf} [{','.join(flt) if flt else '-'}]")
+    if lines_pos:
+        msg.extend(lines_pos[:20])
+        if len(lines_pos) > 20:
+            msg.append(f"... (+{len(lines_pos)-20} autres)")
     else:
-        msg.append("(ranking indisponible)")
+        msg.append("None")
 
     message = "\n".join(msg)
+
+    # persist
+    portfolio["cash"] = float(cash)
+    portfolio["positions"] = positions
+    portfolio["cooldown"] = new_cooldown
+    portfolio["pending_swap"] = ({"worst": pending_worst, "best": pending_best, "count": pending_count} if pending_worst and pending_best else {})
 
     save_portfolio(portfolio)
     save_trades(trades)
