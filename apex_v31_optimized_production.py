@@ -81,6 +81,9 @@ COOLDOWN_DAYS = 1
 
 SMA200_WIN = 200
 HIGH60_WIN = 60
+
+# Toggle High60 breakout filter (set False to match Telegram PROD messages that only use SMA200)
+USE_HIGH60 = False
 R63 = 63
 R126 = 126
 R252 = 252
@@ -543,7 +546,7 @@ def main():
             continue
         if close_eur[t] <= sma200_eur.get(t, np.nan):
             continue
-        if close_eur[t] < high60_eur.get(t, np.nan):
+        if USE_HIGH60 and HIGH60_WIN > 0 and close_eur[t] < high60_eur.get(t, np.nan):
             continue
         top_set.add(t)
 
@@ -572,7 +575,7 @@ def main():
             # entry filters
             if close_eur.get(t, np.nan) <= sma200_eur.get(t, np.nan):
                 continue
-            if close_eur.get(t, np.nan) < high60_eur.get(t, np.nan):
+            if USE_HIGH60 and HIGH60_WIN > 0 and close_eur.get(t, np.nan) < high60_eur.get(t, np.nan):
                 continue
 
             # confirm days
@@ -704,7 +707,7 @@ def main():
             flt = []
             if close_eur.get(t, np.nan) > sma200_eur.get(t, np.nan):
                 flt.append("SMA200")
-            if close_eur.get(t, np.nan) >= high60_eur.get(t, np.nan):
+            if USE_HIGH60 and HIGH60_WIN > 0 and close_eur.get(t, np.nan) >= high60_eur.get(t, np.nan):
                 flt.append("HIGH60")
             pxs = f"{float(px):.2f}€" if np.isfinite(px) else "-"
             msg.append(f"{i}. {t} rank {rk} score {sc:+.3f} px {pxs} conf {conf} [{','.join(flt) if flt else '-'}]")
