@@ -21,6 +21,8 @@ Portfolio/Rotation
 Signals
 - SMA200_WIN = 200
 - HIGH60_WIN = 60
+USE_HIGH60 = False  # if True, require HIGH60 breakout for entry/confirm
+
 - Momentum score cross-sectional: R63, R126, R252 pondérés
   WEIGHTS = {r126:0.5, r252:0.3, r63:0.2}
 
@@ -119,37 +121,14 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 # Helpers IO
 # =============================================================================
 
-
-def _json_load_first_object(path: str) -> dict:
-    """Load the first JSON object from a file.
-    This is resilient to accidental extra content appended after a valid JSON object
-    (common when a file is manually edited or logs are concatenated).
-    If extra non-whitespace data is found, the file is automatically cleaned.
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        raw = f.read()
-    # Strip UTF-8 BOM if present
-    raw = raw.lstrip("\ufeff")
-    dec = json.JSONDecoder()
-    obj, idx = dec.raw_decode(raw.lstrip())
-    tail = raw.lstrip()[idx:]
-    if tail.strip():
-        # Clean the file by keeping only the first JSON object
-        cleaned = json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
-        try:
-            with open(path, "w", encoding="utf-8") as wf:
-                wf.write(cleaned)
-        except Exception:
-            pass
-    return obj
-
 def _now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def load_portfolio() -> dict:
     if os.path.exists(PORTFOLIO_FILE):
-        p = _json_load_first_object(PORTFOLIO_FILE)
+        with open(PORTFOLIO_FILE, "r") as f:
+            p = json.load(f)
         # defaults / backward compat
         p.setdefault("currency", "EUR")
         p.setdefault("cash", INITIAL_CAPITAL_EUR)
@@ -419,7 +398,8 @@ def main():
         sm = sma_last(c, SMA200_WIN)
         hh = rolling_high_last(h, HIGH60_WIN)
         sc = momentum_score(c)
-        if any(pd.isna(x) for x in [last_c, sm, hh, sc]):
+        need = [last_c, sm, sc] + ([hh] if USE_HIGH60 else [])
+        if any(pd.isna(x) for x in need):
             continue
 
         close_usd[t] = float(last_c)
@@ -566,7 +546,7 @@ def main():
             continue
         if close_eur[t] <= sma200_eur.get(t, np.nan):
             continue
-        if close_eur[t] < high60_eur.get(t, np.nan):
+        if USE_HIGH60 and close_eur[t] < high60_eur.get(t, np.nan):
             continue
         top_set.add(t)
 
@@ -727,7 +707,7 @@ def main():
             flt = []
             if close_eur.get(t, np.nan) > sma200_eur.get(t, np.nan):
                 flt.append("SMA200")
-            if close_eur.get(t, np.nan) >= high60_eur.get(t, np.nan):
+            if USE_HIGH60 and close_eur.get(t, np.nan) >= high60_eur.get(t, np.nan):
                 flt.append("HIGH60")
             pxs = f"{float(px):.2f}€" if np.isfinite(px) else "-"
             msg.append(f"{i}. {t} rank {rk} score {sc:+.3f} px {pxs} conf {conf} [{','.join(flt) if flt else '-'}]")
