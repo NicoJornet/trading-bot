@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-APEX v31/v33 — PROD (GitHub) — FIX + TOP 5 MOMENTUM DISPLAY
-===========================================================
-
+APEX v31/v33 — PROD (GitHub) — 127 TICKERS UNIVERSE
+====================================================
 - Fix NameError LOOKBACK_CAL_DAYS
 - Ajout affichage TOP 5 Momentum (console + Telegram)
+- Univers élargi: 127 tickers (vs 44 original)
+- Slow Assets: 35 tickers (rule-based sur 5 ans)
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ except Exception:
 # CONFIG
 # =============================================================================
 
-PARQUET_PATH = os.environ.get("APEX_OHLCV_PARQUET", "ohlcv_44tickers_2015_2025.parquet")
+PARQUET_PATH = os.environ.get("APEX_OHLCV_PARQUET", "ohlcv_127tickers_2015_2025.parquet")
 
 PORTFOLIO_FILE = "portfolio.json"
 TRADES_FILE = "trades_history.json"
@@ -89,24 +90,247 @@ def _get_int_env(name: str, default: int) -> int:
 
 LOOKBACK_CAL_DAYS = _get_int_env("APEX_LOOKBACK_CAL_DAYS", 420)
 
-# Universe (44 tickers)
+# =============================================================================
+# UNIVERSE (127 tickers) — Élargi pour diversification sectorielle
+# =============================================================================
+
 UNIVERSE = [
-    "NVDA", "MSFT", "GOOGL", "AMZN", "AAPL", "META", "TSLA",
-    "AMD", "MU", "ASML", "TSM", "LRCX", "AMAT",
-    "PLTR", "APP", "CRWD", "NET", "DDOG", "ZS",
-    "RKLB", "SHOP", "ABNB", "VRT", "SMCI", "UBER",
-    "MSTR", "MARA", "RIOT",
+    # --- Magnificent Seven & Big Tech (13) ---
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "NVDA",
+    "TSLA",
+    
+    # --- Semi-conducteurs & IA Hardware (11) ---
+    "AMD",
+    "MU",
+    "ASML",
+    "TSM",
+    "LRCX",
+    "AMAT",
+    "AVGO",
+    "ANET",
+    "SMCI",
+    
+    # --- Cybersécurité & Cloud (5) ---
+    "PLTR",
+    "CRWD",
+    "NET",
+    "DDOG",
+    "ZS",
+    
+    # --- Growth Tech & Disrupteurs (6) ---
+    "SHOP",
+    "UBER",
+    "ABNB",
+    "RKLB",
+    "APP",
+    "VRT",
+    
+    # --- Crypto Exposure (3) ---
+    "MSTR",
+    "MARA",
+    "RIOT",
+    
+    # --- Santé & Biotechnologie (15) ---
+    "LLY",
+    "NVO",
+    "UNH",
+    "JNJ",
+    "ABBV",
+    "VRTX",
+    "ISRG",
+    "TMO",
+    "DHR",
+    "ABT",
+    "AMGN",
+    "BMY",
+    "MRK",
+    "MDT",
+    "GILD",
+    "PFE",
+    
+    # --- Défense & Aérospatiale (11) ---
+    "RTX",
+    "LHX",
+    "GD",
+    "LMT",
+    "NOC",
+    "BA",
+    "AXON",
+    "HEI",
+    "HWM",
+    "HII",
+    "AVAV",
+    "KTOS",
+    "TDG",
+    
+    # --- Énergie (13) ---
+    # E&P
+    "COP",
+    "EOG",
+    "DVN",
+    "OXY",
+    # Intégrés
+    "XOM",
+    "CVX",
+    "SHEL",
+    "TTE",
+    "BP",
+    # Midstream
+    "KMI",
+    "WMB",
+    "LNG",
+    # Services
+    "SLB",
+    "HAL",
+    # Raffinerie
+    "MPC",
+    "VLO",
+    
+    # --- Métaux Précieux & Mines (11) ---
+    # Royalties/Streaming
+    "FNV",
+    # Producteurs Or
+    "NEM",
+    "GOLD",
+    "AEM",
+    "PAAS",
+    # Diversifiés
+    "BHP",
+    "RIO",
+    "VALE",
+    "SCCO",
+    "FCX",
+    "TECK",
+    
+    # --- Uranium & Nucléaire (6) ---
+    "CCJ",
+    "UEC",
+    "DNN",
+    "LEU",
+    "NXE",
     "CEG",
-    "LLY", "NVO", "UNH", "JNJ", "ABBV",
-    "WMT", "COST", "PG", "KO",
-    "XOM", "CVX",
-    "QQQ", "SPY", "GLD", "SLV",
+    "BWXT",
+    
+    # --- Matériaux & Industriels (5) ---
+    "ALB",
+    "SQM",
+    "ETN",
+    
+    # --- Retail & Consommation (4) ---
+    "WMT",
+    "COST",
+    "PG",
+    "KO",
+    
+    # --- Luxe Européen (3) ---
+    "MC.PA",     # LVMH
+    "RMS.PA",    # Hermès
+    "RACE",      # Ferrari
+    
+    # --- Aérospatiale Européen (2) ---
+    "AIR.PA",    # Airbus
+    "SAF.PA",    # Safran
+    
+    # --- Autres Européens (6) ---
+    "HO.PA",     # Thales
+    "SU.PA",     # Schneider Electric
+    "TTE.PA",    # TotalEnergies (duplicate TTE)
+    "EQNR",      # Equinor (Norvège)
+    "ENI.MI",    # ENI (Italie)
+    "BA.L",      # BAE Systems (UK)
+    "SAAB-B.ST", # SAAB (Suède)
+    
+    # --- Allemagne (2) ---
+    "HAG.DE",    # Hensoldt
+    "RHM.DE",    # Rheinmetall
+    
+    # --- Italie (1) ---
+    "LDO.MI",    # Leonardo
+    
+    # --- ETFs Sectoriels (11) ---
+    "ITA",       # Aerospace & Defense
+    "XAR",       # Aerospace & Defense
+    "XLE",       # Energy
+    "XLU",       # Utilities
+    "XLP",       # Consumer Staples
+    "XLV",       # Healthcare
+    "XME",       # Metals & Mining
+    "URA",       # Uranium
+    "REMX",      # Rare Earth
+    "DBC",       # Commodities
+    
+    # --- ETFs Larges (4) ---
+    "SPY",       # S&P 500
+    "QQQ",       # Nasdaq-100
+    "GLD",       # Gold
+    "SLV",       # Silver
 ]
 
+# =============================================================================
+# SLOW_ASSETS (35 tickers) — Bottom quartile slowness over ~5y
+# =============================================================================
+# Définition: Actions avec volatilité et mouvements quotidiens dans le bottom 25%
+# Critères: avg(rank_pct(ann_vol), rank_pct(mean_abs_daily_return), rank_pct(avg_abs_20d_move))
+# Période: 2021-01-04 → 2025-12-30 (environ 5 ans)
+#
+# Ces actifs bénéficient de délais Quality Exit multipliés par SLOW_ASSETS_MULT (x2)
+
 SLOW_ASSETS = {
-    "GLD", "SLV", "SPY", "QQQ",
-    "JNJ", "PG", "KO", "WMT", "COST",
-    "XOM", "CVX", "UNH", "ABBV",
+    # --- Métaux Précieux (1) ---
+    "GLD",
+    
+    # --- ETFs Larges & Défensifs (4) ---
+    "SPY",
+    "QQQ",
+    "XLP",       # Consumer Staples ETF
+    "XLU",       # Utilities ETF
+    "XLV",       # Healthcare ETF
+    
+    # --- Santé Mature (8) ---
+    "JNJ",
+    "ABBV",
+    "ABT",
+    "AMGN",
+    "BMY",
+    "MRK",
+    "MDT",
+    "GILD",
+    
+    # --- Consumer Staples (4) ---
+    "WMT",
+    "COST",
+    "PG",
+    "KO",
+    
+    # --- Défense (7) ---
+    "LMT",
+    "NOC",
+    "RTX",
+    "GD",
+    "LHX",
+    "ITA",       # Aerospace & Defense ETF
+    "XAR",       # Aerospace & Defense ETF
+    
+    # --- Énergie Intégrée (3) ---
+    "SHEL",
+    "TTE.PA",
+    "KMI",       # Midstream
+    "WMB",       # Midstream
+    
+    # --- Luxe Européen (3) ---
+    "MC.PA",     # LVMH
+    "RACE",      # Ferrari
+    "RMS.PA",    # Hermès
+    
+    # --- Autres (3) ---
+    "BA.L",      # BAE Systems
+    "ENI.MI",    # ENI
+    "DBC",       # Commodities ETF
 }
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
