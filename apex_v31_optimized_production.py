@@ -14,7 +14,7 @@ Paramètres Champion appliqués
 Portfolio/Rotation
 - MAX_POSITIONS = 3
 - EDGE_MULT = 1.00 (trace seulement, pas indispensable sans swap edge)
-- CONFIRM_DAYS = 3
+- CONFIRM_DAYS = 3  # window for confirmation (2-of-3 uses last 3 days)
 - COOLDOWN_DAYS = 1
 - FULLY_INVESTED = True (plus d'allocation 50/30/20)
 
@@ -306,6 +306,68 @@ def momentum_score(close: pd.Series) -> float:
     return WEIGHTS["r63"] * r63 + WEIGHTS["r126"] * r126 + WEIGHTS["r252"] * r252
 
 
+def compute_top_set_for_date(ohlcv: pd.DataFrame, d: pd.Timestamp, max_rank: int) -> set[str]:
+    """Return tickers that are in the top `max_rank` momentum ranks on date d and pass entry filters.
+
+    Notes:
+    - Ranking is computed cross-sectionally on date d using available history up to d.
+    - Entry filters are SMA200 (and optionally HIGH60 if USE_HIGH60).
+    """
+    score_map: Dict[str, float] = {}
+    sma200_map: Dict[str, float] = {}
+    high60_map: Dict[str, float] = {}
+    close_map: Dict[str, float] = {}
+
+    for t in UNIVERSE:
+        c = ohlcv.get((t, "close"), pd.Series(dtype=float)).loc[:d]
+        h = ohlcv.get((t, "high"), pd.Series(dtype=float)).loc[:d]
+        if c.dropna().shape[0] < max(SMA200_WIN, R252) + 5:
+            continue
+        last_c = safe_last(c)
+        sm = sma_last(c, SMA200_WIN)
+        sc = momentum_score(c)
+        if pd.isna(last_c) or pd.isna(sm) or pd.isna(sc):
+            continue
+        if USE_HIGH60:
+            hh = rolling_high_last(h, HIGH60_WIN)
+            if pd.isna(hh):
+                continue
+            high60_map[t] = float(hh)
+        close_map[t] = float(last_c)
+        sma200_map[t] = float(sm)
+        score_map[t] = float(sc)
+
+    ranked = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
+    rank_map = {t: i + 1 for i, (t, _) in enumerate(ranked)}
+
+    top_set: set[str] = set()
+    for t, _ in ranked:
+        r = int(rank_map.get(t, 999))
+        if r > max_rank:
+            continue
+        if t not in close_map or t not in sma200_map:
+            continue
+        if close_map[t] <= sma200_map[t]:
+            continue
+        if USE_HIGH60 and close_map[t] < high60_map.get(t, np.nan):
+            continue
+        top_set.add(t)
+    return top_set
+
+
+def compute_confirm_hits_2of3(ohlcv: pd.DataFrame, d: pd.Timestamp, max_rank: int) -> Dict[str, int]:
+    """Stateless confirmation: count hits over the last 3 trading days, eligible if hits >= 2."""
+    idx = ohlcv.index
+    # last 3 dates available up to d
+    dates = list(idx[idx <= d][-3:])
+    hits: Dict[str, int] = {}
+    for dd in dates:
+        top_set = compute_top_set_for_date(ohlcv, dd, max_rank=max_rank)
+        for t in top_set:
+            hits[t] = hits.get(t, 0) + 1
+    return hits
+
+
 def corr_max_with_held(ohlcv: pd.DataFrame, d: pd.Timestamp, candidate: str, held: List[str]) -> float:
     if not held:
         return 0.0
@@ -534,30 +596,12 @@ def main():
     held = set(portfolio.get("positions", {}).keys())
     slots_left = MAX_POSITIONS - len(held)
 
-    # Update confirm state from current eligible top ranks (1..MAX_POSITIONS)
-    confirm_state = portfolio.get("confirm_state", {})
-    top_set = set()
-
-    for t, sc in ranked:
-        r = int(rank_map.get(t, 999))
-        if r > MAX_POSITIONS:
-            continue
-        # entry filters
-        if t not in close_eur:
-            continue
-        if close_eur[t] <= sma200_eur.get(t, np.nan):
-            continue
-        if USE_HIGH60 and close_eur[t] < high60_eur.get(t, np.nan):
-            continue
-        top_set.add(t)
-
-    # reset confirms if not in set
-    for t in list(confirm_state.keys()):
-        if t not in top_set:
-            confirm_state[t] = 0
-    for t in top_set:
-        confirm_state[t] = int(confirm_state.get(t, 0)) + 1
+    # Stateless confirmation (2 sur 3) : hits sur les 3 derniers jours de bourse
+    # Un "hit" = ticker dans le top MAX_POSITIONS du ranking à la date d et qui passe les filtres d'entrée.
+    top_set_today = compute_top_set_for_date(ohlcv, d, max_rank=MAX_POSITIONS)
+    confirm_state = compute_confirm_hits_2of3(ohlcv, d, max_rank=MAX_POSITIONS)  # ticker -> hits (0..3)
     portfolio["confirm_state"] = confirm_state
+
 
     cash = float(portfolio.get("cash", 0.0))
 
@@ -576,11 +620,13 @@ def main():
             # entry filters
             if close_eur.get(t, np.nan) <= sma200_eur.get(t, np.nan):
                 continue
-            if close_eur.get(t, np.nan) < high60_eur.get(t, np.nan):
+            if USE_HIGH60 and close_eur.get(t, np.nan) < high60_eur.get(t, np.nan):
                 continue
 
-            # confirm days
-            if int(confirm_state.get(t, 0)) < CONFIRM_DAYS:
+            # confirm (2 sur 3 jours)
+            if t not in top_set_today:
+                continue
+            if int(confirm_state.get(t, 0)) < 2:
                 continue
 
             # corr gate vs held
