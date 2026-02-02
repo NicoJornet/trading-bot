@@ -1,53 +1,14 @@
 {
   "currency": "EUR",
-  "initial_capital": 1500.0,
-  "monthly_dca": 100.0,
-  "cash": 801.1964290954706,
+  "initial_capital": 1500,
+  "monthly_dca": 100,
+  "cash": 2030,
   "start_date": "2025-12-29",
-  "last_dca_date": "2026-01-02",
-  "positions": {
-    "LRCX": {
-      "entry_price_eur": 191.16,
-      "entry_date": "2026-01-16",
-      "shares": 2.354048,
-      "initial_amount_eur": 451.0,
-      "amount_invested_eur": 451.0,
-      "score": 1.8684573882672835,
-      "peak_price_eur": 212.45235078162722,
-      "stop_loss_eur": 156.7512,
-      "rank": 10,
-      "pyramided": false,
-      "days_zero_score": 0,
-      "trailing_active": false,
-      "trough_price_eur": 180.33517292908823,
-      "mfe_pct": 11.13849695628124,
-      "mae_pct": -5.662705100916387,
-      "days_score_le0": 0,
-      "bars_held": 10
-    },
-    "KO": {
-      "entry_date": "2026-01-30",
-      "entry_price_eur": 63.08727207168602,
-      "shares": 12.715662014739445,
-      "initial_amount_eur": 802.1964290954706,
-      "amount_invested_eur": 802.1964290954706,
-      "peak_price_eur": 63.08727207168602,
-      "trough_price_eur": 63.08727207168602,
-      "mfe_pct": 0.0,
-      "mae_pct": 0.0,
-      "trailing_active": false,
-      "days_score_le0": 0,
-      "rank": 1,
-      "score": 5.656071371545375
-    }
-  },
-  "last_updated": "2026-02-02 12:32",
+  "last_dca_date": "2026-02-02",
+  "positions": {},
+  "last_updated": "2026-02-02 15:00",
   "last_dca_month": "2026-02",
-  "confirm_state": {
-    "LRCX": 3,
-    "MU": 3,
-    "SLV": 3
-  },
+  "confirm_state": {},
   "cooldown_until": {},
-  "last_updated_note": "Removed META (never bought) and restored cash by amount+fee"
+  "last_updated_note": "All positions sold. Cash updated to 1930 EUR + 100 EUR DCA = 2030 EUR. KO removed (never purchased)."
 }
