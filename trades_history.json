@@ -51,8 +51,8 @@
       "shares": 2.944984,
       "amount_eur": 964.5880974160754,
       "fee_eur": 1.0,
-      "reason": "MFE_TRAILING",
-      "pnl_eur": 224.57381245607542,
+      "reason": "MFE_TRAILING_MANUAL_ADJ",
+      "pnl_eur": 260.0,
       "pnl_pct": 30.523606518415924,
       "mfe_pct": 38.5833093227689,
       "mae_pct": 0.0,
@@ -60,26 +60,8 @@
       "rank": 9,
       "score": 3.5223978679554295,
       "id": 5,
-      "ts": "2026-01-27 06:17"
-    },
-    {
-      "action": "SELL",
-      "ticker": "SLV",
-      "date": "2026-01-26",
-      "price_eur": 82.78260368040883,
-      "shares": 6.437911,
-      "amount_eur": 532.9470348427444,
-      "fee_eur": 1.0,
-      "reason": "MFE_TRAILING",
-      "pnl_eur": 49.94063827274444,
-      "pnl_pct": 10.56845689917032,
-      "mfe_pct": 19.96801355551463,
-      "mae_pct": -10.363632865070759,
-      "bars_held": 6,
-      "rank": 3,
-      "score": 4.697312569795636,
-      "id": 6,
-      "ts": "2026-01-27 06:17"
+      "ts": "2026-01-27 06:17",
+      "pnl_note": "User reported realized gain 260\u20ac"
     },
     {
       "action": "BUY",
@@ -97,13 +79,14 @@
     }
   ],
   "summary": {
-    "total_trades": 4,
-    "buys": 2,
-    "sells": 2,
-    "winning_trades": 1,
+    "total_trades": 6,
+    "buys": 3,
+    "sells": 3,
+    "winning_trades": 2,
     "losing_trades": 1,
-    "net_pnl_eur": 63.55,
-    "total_fees_estimated": 4.0,
-    "win_rate": 50.0
+    "net_pnl_eur": 323.55,
+    "total_fees_eur": 2.0,
+    "win_rate": 66.67,
+    "note": "Summary recomputed from trades list; realized PnL uses SELL rows with pnl_eur."
   }
 }
