@@ -2,7 +2,7 @@
   "currency": "EUR",
   "initial_capital": 1500.0,
   "monthly_dca": 100.0,
-  "cash": 1152.874592581174,
+  "cash": 620.9275577384296,
   "start_date": "2025-12-29",
   "last_dca_date": "2026-01-02",
   "positions": {
@@ -39,10 +39,28 @@
       "days_score_le0": 0,
       "rank": 35,
       "score": -0.026576265705174042
+    },
+    "SLV": {
+      "entry_date": "2026-01-16",
+      "entry_price_eur": 74.87,
+      "shares": 6.437911,
+      "initial_amount_eur": 482.99,
+      "amount_invested_eur": 482.99,
+      "peak_price_eur": 89.82005174901381,
+      "trough_price_eur": 67.11074807392153,
+      "mfe_pct": 19.96801355551463,
+      "mae_pct": -10.363632865070759,
+      "trailing_active": true,
+      "days_score_le0": 0,
+      "rank": 3,
+      "score": 4.697312569795636,
+      "bars_held": 6,
+      "note": "Reinstated as open position per user; metrics approximated from last known trade snapshot."
     }
   },
   "last_updated": "2026-02-02 06:47",
   "last_dca_month": "2026-02",
   "confirm_state": {},
   "cooldown_until": {}
+}
 }
