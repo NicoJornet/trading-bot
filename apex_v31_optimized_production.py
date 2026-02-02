@@ -81,9 +81,6 @@ COOLDOWN_DAYS = 1
 
 SMA200_WIN = 200
 HIGH60_WIN = 60
-
-# Toggle High60 breakout filter (set False to match Telegram PROD messages that only use SMA200)
-USE_HIGH60 = False
 R63 = 63
 R126 = 126
 R252 = 252
@@ -122,14 +119,37 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 # Helpers IO
 # =============================================================================
 
+
+def _json_load_first_object(path: str) -> dict:
+    """Load the first JSON object from a file.
+    This is resilient to accidental extra content appended after a valid JSON object
+    (common when a file is manually edited or logs are concatenated).
+    If extra non-whitespace data is found, the file is automatically cleaned.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        raw = f.read()
+    # Strip UTF-8 BOM if present
+    raw = raw.lstrip("\ufeff")
+    dec = json.JSONDecoder()
+    obj, idx = dec.raw_decode(raw.lstrip())
+    tail = raw.lstrip()[idx:]
+    if tail.strip():
+        # Clean the file by keeping only the first JSON object
+        cleaned = json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
+        try:
+            with open(path, "w", encoding="utf-8") as wf:
+                wf.write(cleaned)
+        except Exception:
+            pass
+    return obj
+
 def _now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def load_portfolio() -> dict:
     if os.path.exists(PORTFOLIO_FILE):
-        with open(PORTFOLIO_FILE, "r") as f:
-            p = json.load(f)
+        p = _json_load_first_object(PORTFOLIO_FILE)
         # defaults / backward compat
         p.setdefault("currency", "EUR")
         p.setdefault("cash", INITIAL_CAPITAL_EUR)
@@ -546,7 +566,7 @@ def main():
             continue
         if close_eur[t] <= sma200_eur.get(t, np.nan):
             continue
-        if USE_HIGH60 and HIGH60_WIN > 0 and close_eur[t] < high60_eur.get(t, np.nan):
+        if close_eur[t] < high60_eur.get(t, np.nan):
             continue
         top_set.add(t)
 
@@ -575,7 +595,7 @@ def main():
             # entry filters
             if close_eur.get(t, np.nan) <= sma200_eur.get(t, np.nan):
                 continue
-            if USE_HIGH60 and HIGH60_WIN > 0 and close_eur.get(t, np.nan) < high60_eur.get(t, np.nan):
+            if close_eur.get(t, np.nan) < high60_eur.get(t, np.nan):
                 continue
 
             # confirm days
@@ -707,7 +727,7 @@ def main():
             flt = []
             if close_eur.get(t, np.nan) > sma200_eur.get(t, np.nan):
                 flt.append("SMA200")
-            if USE_HIGH60 and HIGH60_WIN > 0 and close_eur.get(t, np.nan) >= high60_eur.get(t, np.nan):
+            if close_eur.get(t, np.nan) >= high60_eur.get(t, np.nan):
                 flt.append("HIGH60")
             pxs = f"{float(px):.2f}€" if np.isfinite(px) else "-"
             msg.append(f"{i}. {t} rank {rk} score {sc:+.3f} px {pxs} conf {conf} [{','.join(flt) if flt else '-'}]")
