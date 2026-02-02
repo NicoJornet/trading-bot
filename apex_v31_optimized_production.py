@@ -16,7 +16,7 @@ du Champion validé sur U54 (2015–2025).
 - SwapEdge: swap si best_score >= worst_score * 1.15, confirmé 3 jours, cooldown 2 jours
 - Corr gate: évite d'empiler des actifs très corrélés (corr 63j < 0.60)
 - Sorties: HARD_STOP (-18%), TRAILING après MFE (+18%) avec trail -5%, TREND_BREAK (Close<SMA200)
-- Sizing: Option A “suspect” 40% ; si gap down (open vs close) < -1.5% => 20% (GapGuard)
+- Sizing: Option A "suspect" 40% ; si gap down (open vs close) < -1.5% => 20% (GapGuard)
   (en PROD, gap connu seulement à l'open → on met une note pour l'appliquer manuellement si besoin)
 
 ✅ Outputs
@@ -60,6 +60,9 @@ TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 INITIAL_CAPITAL_EUR = 2000.0
 MONTHLY_DCA_EUR     = 100.0
+
+# Lookback period for data loading (in calendar days)
+LOOKBACK_CAL_DAYS = 500  # ~2 years to ensure enough data for 252-day momentum
 
 # =============================================================================
 # CHAMPION PARAMS (prod defaults)
@@ -203,291 +206,323 @@ def save_trades(t: dict) -> None:
 
 def append_trade(trades: dict, row: dict) -> None:
     row = dict(row)
-    row["id"] = len(trades.get("trades", [])) + 1
-    row["ts"] = _now_str()
-    trades.setdefault("trades", []).append(row)
-
-
-# =============================================================================
-# Telegram
-# =============================================================================
-
-
-def send_telegram(message: str) -> None:
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID or requests is None:
-        return
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=10)
-    except Exception:
-        pass
-
-
-# =============================================================================
-# Data loading (parquet > yfinance)
-# =============================================================================
-
-
-def _standardize_ohlcv_columns(df: pd.DataFrame) -> pd.DataFrame:
-    cols = {c.lower(): c for c in df.columns}
-    out = df.copy()
-    ren = {}
-    for target in ["open", "high", "low", "close", "volume"]:
-        if target in cols:
-            ren[cols[target]] = target
-    return out.rename(columns=ren)
-
-
-
-def load_ohlcv_parquet(path: str, tickers: List[str]) -> pd.DataFrame:
-    """
-    Returns DataFrame indexed by date, columns MultiIndex (ticker, field) where field in open/high/low/close/volume.
-    Supports:
-      - long: date,ticker,open,high,low,close,volume
-      - multiindex: (ticker, field) or (field, ticker)
-    """
-    df = pd.read_parquet(path)
-
-    if {"date", "ticker"}.issubset(df.columns):
-        df = df.copy()
-        df["date"] = pd.to_datetime(df["date"])
-        df = df[df["ticker"].isin(tickers)]
-        df = _standardize_ohlcv_columns(df)
-        needed = ["open", "high", "low", "close", "volume"]
-        missing = [c for c in needed if c not in df.columns]
-        if missing:
-            raise ValueError(f"Parquet long: colonnes manquantes {missing}")
-        pivot = df.pivot_table(index="date", columns="ticker", values=needed)
-        pivot = pivot.swaplevel(0, 1, axis=1).sort_index(axis=1)  # (ticker, field)
-        pivot.index = pd.to_datetime(pivot.index)
-        return pivot.sort_index()
-
-    if isinstance(df.columns, pd.MultiIndex):
-        fields = {"open", "high", "low", "close", "volume"}
-        lev0 = set(map(lambda x: str(x).lower(), df.columns.get_level_values(0)))
-        if fields.issubset(lev0):
-            # (field, ticker)
-            df = df.swaplevel(0, 1, axis=1).sort_index(axis=1)
-        # now assume (ticker, field)
-        df.columns = pd.MultiIndex.from_tuples(
-            [(t, str(f).lower()) for (t, f) in df.columns],
-            names=["ticker", "field"]
-        )
-        keep = [c for c in df.columns if c[0] in tickers and c[1] in fields]
-        out = df[keep].copy()
-        out.index = pd.to_datetime(out.index)
-        return out.sort_index()
-
-    raise ValueError("Format parquet non reconnu.")
-
-
-
-def get_eur_usd_rate() -> float:
-    """
-    Returns EURUSD (USD per 1 EUR). If unavailable, returns 1.0.
-    """
-    if yf is None:
-        return 1.0
-    try:
-        t = yf.Ticker("EURUSD=X")
-        px = t.info.get("regularMarketPrice") or t.info.get("previousClose")
-        if px and float(px) > 0:
-            return float(px)
-    except Exception:
-        pass
-    return 1.0
-
-
-
-def load_data() -> pd.DataFrame:
-    # Prefer parquet cache
-    if os.path.exists(PARQUET_PATH):
-        ohlcv = load_ohlcv_parquet(PARQUET_PATH, UNIVERSE)
-        return ohlcv.sort_index()
-
-    # Fallback: yfinance (last 420 calendar days)
-    end = datetime.now()
-    start = end - timedelta(days=LOOKBACK_CAL_DAYS)
-    return load_ohlcv_yfinance(UNIVERSE, start=start, end=end)
-
-
-# =============================================================================
-# Indicators
-# =============================================================================
+    row["timestamp"] = _now_str()
+    trades["trades"].append(row)
 
 
 def _now_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
+    return datetime.now().isoformat()
 
+
+def send_telegram(message: str) -> None:
+    """Envoie un message via Telegram (v33 style)."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[Telegram] Bot token or chat ID not set. Skipping notification.")
+        return
+    if not requests:
+        print("[Telegram] requests module not found. Skipping notification.")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        resp = requests.post(
+            url,
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message,
+                "parse_mode": "HTML",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        print("[Telegram] Notification envoyée avec succès")
+    except Exception as e:
+        print(f"[Telegram] Erreur lors de l'envoi: {e}")
 
 
 # =============================================================================
-# MAIN (prod run)
+# Data loading (v33-compatible approach)
 # =============================================================================
-def main() -> None:
+def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Series]:
+    """
+    Returns: (close, high, low, open, eurusd_close)
+    where each is a DataFrame or Series indexed by date, columns=tickers.
+    """
+    print("[Data] Loading OHLCV data...")
+
+    if os.path.exists(PARQUET_PATH):
+        # Parquet mode (backtest)
+        print(f"[Data] Found local parquet: {PARQUET_PATH}")
+        ohlcv = pd.read_parquet(PARQUET_PATH)
+        
+        # Assume columns: date, ticker, open, high, low, close
+        # Pivot to wide format
+        close_df = ohlcv.pivot(index="date", columns="ticker", values="close").sort_index()
+        high_df  = ohlcv.pivot(index="date", columns="ticker", values="high").sort_index()
+        low_df   = ohlcv.pivot(index="date", columns="ticker", values="low").sort_index()
+        open_df  = ohlcv.pivot(index="date", columns="ticker", values="open").sort_index()
+
+        # EURUSD
+        eur_df = ohlcv[ohlcv["ticker"] == "EURUSD=X"].set_index("date")[["close"]].sort_index()
+        eurusd_close = eur_df["close"] if not eur_df.empty else pd.Series(dtype=float)
+
+    else:
+        # Live yfinance mode
+        if not yf:
+            raise RuntimeError("yfinance not installed and no local parquet found.")
+        print("[Data] No parquet found, fetching from yfinance...")
+
+        # Build ticker list from code or default
+        tickers = [
+            "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "BRK-B", "LLY", "AVGO",
+            "JPM", "V", "UNH", "XOM", "WMT", "MA", "JNJ", "PG", "ORCL", "COST",
+            "HD", "NFLX", "BAC", "CRM", "ABBV", "CVX", "KO", "MRK", "AMD", "ADBE",
+            "PEP", "TMO", "ACN", "MCD", "CSCO", "LIN", "ABT", "WFC", "TXN", "QCOM",
+            "INTU", "DHR", "PM", "AMGN", "VZ", "CAT", "IBM", "GE", "NOW", "COP",
+            "BKNG", "ISRG", "UNP", "RTX"
+        ]
+        tickers.append("EURUSD=X")
+
+        end = datetime.now()
+        start = end - timedelta(days=LOOKBACK_CAL_DAYS)
+
+        data = yf.download(tickers, start=start, end=end, group_by="ticker", auto_adjust=False, progress=False)
+        
+        # Build dataframes
+        close_df = pd.DataFrame()
+        high_df = pd.DataFrame()
+        low_df = pd.DataFrame()
+        open_df = pd.DataFrame()
+
+        for t in tickers:
+            if t == "EURUSD=X":
+                continue
+            if t in data.columns.levels[0]:
+                close_df[t] = data[t]["Close"]
+                high_df[t]  = data[t]["High"]
+                low_df[t]   = data[t]["Low"]
+                open_df[t]  = data[t]["Open"]
+
+        # EURUSD
+        if "EURUSD=X" in data.columns.levels[0]:
+            eurusd_close = data["EURUSD=X"]["Close"]
+        else:
+            eurusd_close = pd.Series(dtype=float)
+
+        close_df = close_df.sort_index()
+        high_df  = high_df.sort_index()
+        low_df   = low_df.sort_index()
+        open_df  = open_df.sort_index()
+
+    print(f"[Data] Loaded {len(close_df)} days for {len(close_df.columns)} tickers")
+    return close_df, high_df, low_df, open_df, eurusd_close
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+def main():
     print("=" * 90)
     print("🚀 APEX CHAMPION — PROD (base v33)")
     print("=" * 90)
 
+    # 1) Load data
+    close, high, low, open_df, eurusd = load_data()
+    tickers = [t for t in close.columns if t != "EURUSD=X"]
+
+    # 2) Compute indicators
+    print("[Indicators] Computing SMA200, High60, score, ATR%14, returns...")
+    sma200 = close.rolling(SMA200_WIN).mean()
+    high60 = high.rolling(HIGH60_WIN).max()
+    score  = compute_score(close)
+    atrp14 = compute_atr_pct14(high, low, close)
+    rets   = close.pct_change(fill_method=None)
+
+    # 3) Breadth
+    above_sma = (close > sma200).sum(axis=1)
+    breadth = above_sma / len(tickers)
+
+    # 4) Load portfolio
     portfolio = load_portfolio()
     trades = load_trades()
 
-    # Monthly DCA (same behavior as v33)
-    today = datetime.now()
-    month_key = today.strftime("%Y-%m")
-    if portfolio.get("last_dca_month") != month_key:
-        portfolio["cash"] = float(portfolio.get("cash", INITIAL_CAPITAL_EUR)) + float(portfolio.get("monthly_dca", MONTHLY_DCA_EUR))
-        portfolio["last_dca_month"] = month_key
-        print(f"💰 DCA: +{MONTHLY_DCA_EUR:.2f}€ (month={month_key})")
-
-    # Load data (parquet preferred)
-    ohlcv = load_data()
-    if ohlcv.empty:
-        raise RuntimeError("OHLCV vide.")
-
-    # Need at least 2 bars for "T+1" logic (signal day + execution day)
-    if len(ohlcv.index) < 2:
-        raise RuntimeError("OHLCV doit contenir au moins 2 jours.")
-
-    # Use last available date as execution date if available
-    exec_date = ohlcv.index.max()
-    sig_date = ohlcv.index[-2]  # signal at close of previous bar
-    print(f"📅 Signal (close): {pd.to_datetime(sig_date).strftime('%Y-%m-%d')} | Execute: {pd.to_datetime(exec_date).strftime('%Y-%m-%d')} (open est. si dispo)")
-
-    eurusd = get_eur_usd_rate()
-    print(f"💱 EURUSD=X: {eurusd:.4f} (USD -> EUR = USD / eurusd ; EUR tickers non convertis)")
-
-    tickers = sorted({t for t, _ in ohlcv.columns})
-    # Build panels
-    def field(f): 
-        x = ohlcv.loc[:, (tickers, f)].copy()
-        x.columns = tickers
-        return x.ffill()
-
-    open_  = field("open")  if (tickers[0], "open")  in ohlcv.columns else field("Open")
-    high_  = field("high")  if (tickers[0], "high")  in ohlcv.columns else field("High")
-    low_   = field("low")   if (tickers[0], "low")   in ohlcv.columns else field("Low")
-    close_ = field("close") if (tickers[0], "close") in ohlcv.columns else field("Close")
-
-    # Indicators
-    sma200 = close_.rolling(SMA200_WIN).mean()
-    high60 = close_.rolling(HIGH60_WIN).max()
-    score  = compute_score(close_)
-    atrp14 = compute_atr_pct14(high_, low_, close_)
-    rets   = close_.pct_change(fill_method=None)
-
-    # Breadth gate (exclude market ticker if present)
-    u_b = [t for t in tickers if t != "SPY"]
-    breadth = (close_[u_b] > sma200[u_b]).mean(axis=1) if len(u_b)>0 else pd.Series(index=close_.index, data=np.nan)
-
-    # Index positions
-    i_sig = close_.index.get_loc(sig_date)
-    i_exe = close_.index.get_loc(exec_date)
-
-    close_row = close_.iloc[i_sig]
-    high_row  = high_.iloc[i_sig]
-    low_row   = low_.iloc[i_sig]
-    sma_row   = sma200.iloc[i_sig]
-    score_row = score.iloc[i_sig]
-    atrp_row  = atrp14.iloc[i_sig]
-    breadth_val = float(breadth.iloc[i_sig]) if pd.notna(breadth.iloc[i_sig]) else float("nan")
-
-    regime_on = (breadth_val >= BREADTH_THR) if np.isfinite(breadth_val) else False
-
-    # Execution prices:
-    # - if we have open for exec_date, use it as "execution price proxy"
-    # - else fallback to close(sig_date)
-    px_exec_open = open_.iloc[i_exe] if i_exe < len(open_) else close_.iloc[i_sig]
-    px_sig_close = close_.iloc[i_sig]
-
-    fee = FEE_BPS/10000.0
-    slip= SLIPPAGE_BPS/10000.0
-
-    # Portfolio state (v33 structure)
     cash = float(portfolio.get("cash", INITIAL_CAPITAL_EUR))
     positions = portfolio.get("positions", {})
-
-    # Cooldown map stored in portfolio (add if missing)
     cooldown = portfolio.get("cooldown", {})
-    if not isinstance(cooldown, dict):
-        cooldown = {}
-    # Decrement cooldown
-    new_cooldown = {}
-    for t, v in cooldown.items():
-        try:
-            v = int(v)
-        except Exception:
-            v = 0
-        if v > 1:
-            new_cooldown[t] = v - 1
+    pending_swap = portfolio.get("pending_swap", {})
 
-    # Pending swap stored in portfolio (single pair)
-    pending = portfolio.get("pending_swap", {}) or {}
-    pending_worst = pending.get("worst")
-    pending_best  = pending.get("best")
-    pending_count = int(pending.get("count", 0) or 0)
+    pending_worst = pending_swap.get("worst")
+    pending_best = pending_swap.get("best")
+    pending_count = pending_swap.get("count", 0)
+
+    # 5) Determine trading dates
+    today = datetime.now()
+    dates = close.index
+
+    # Signal date = latest close we have
+    sig_date = dates[-1]
+    sig_idx = len(dates) - 1
+
+    # Execution date = T+1 (in backtest we used open_next, in prod we approximate at close)
+    if sig_idx + 1 < len(dates):
+        exec_date = dates[sig_idx + 1]
+        exec_idx = sig_idx + 1
+    else:
+        # If no future bar, we can't do anything
+        print("⚠️  No future bar to execute => EXIT")
+        return
+
+    print(f"[Dates] Signal={sig_date.strftime('%Y-%m-%d')} | Exec={exec_date.strftime('%Y-%m-%d')}")
+
+    # Prices for signal
+    px_sig_close = close.iloc[sig_idx]
+    px_sig_high60 = high60.iloc[sig_idx]
+    px_sig_sma200 = sma200.iloc[sig_idx]
+
+    # Prices for execution (in prod, we use exec_date close as proxy)
+    px_exec_open = close.iloc[exec_idx]  # Approximation
+    px_exec_close = close.iloc[exec_idx]
+
+    # EURUSD
+    eurusd_val = float(eurusd.iloc[exec_idx]) if exec_idx < len(eurusd) else 1.05
+
+    # Breadth gate
+    breadth_val = float(breadth.iloc[sig_idx])
+    if breadth_val < BREADTH_THR:
+        print(f"[Breadth] {breadth_val:.2f} < {BREADTH_THR} => EXIT RISK-OFF")
+        # Exit all positions
+        sells = []
+        for t in list(positions.keys()):
+            shares = float(positions[t]["shares"])
+            px_out = px_to_eur(t, float(px_exec_open[t]), eurusd_val) * (1.0 - FEE_BPS/10000.0 - SLIPPAGE_BPS/10000.0)
+            entry = float(positions[t].get("entry_price_eur", px_out))
+            pnl_pct = (px_out/entry - 1.0)*100.0 if entry>0 else 0.0
+
+            cash += px_out * shares
+            del positions[t]
+
+            sells.append((t, shares, "RISK_OFF", pnl_pct))
+            append_trade(trades, {
+                "side": "SELL",
+                "ticker": t,
+                "date": pd.to_datetime(exec_date).strftime("%Y-%m-%d"),
+                "reason": "RISK_OFF",
+                "shares": shares,
+                "price_eur": px_out,
+                "entry_price_eur": entry,
+                "pnl_pct": pnl_pct,
+            })
+
+        # Send message
+        msg = []
+        msg.append(f"APEX CHAMPION — {pd.to_datetime(sig_date).strftime('%Y-%m-%d')} -> {pd.to_datetime(exec_date).strftime('%Y-%m-%d')}")
+        msg.append(f"EURUSD=X {eurusd_val:.4f} | Breadth {breadth_val:.2f} < {BREADTH_THR} => RISK-OFF")
+        msg.append(f"Cash {cash:.2f}€")
+        msg.append("")
+        msg.append("ACTIONS (execute next open):")
+        for t, sh, reason, pnl in sells:
+            msg.append(f"SELL {t} {sh:.3f} ({reason}) PnL {pnl:+.1f}%")
+
+        message = "\n".join(msg)
+        portfolio["cash"] = float(cash)
+        portfolio["positions"] = positions
+        portfolio["cooldown"] = {}
+        portfolio["pending_swap"] = {}
+
+        save_portfolio(portfolio)
+        save_trades(trades)
+
+        print(message)
+        send_telegram(message)
+        print("=" * 90)
+        print("✅ Run terminé (RISK-OFF)")
+        print("=" * 90)
+        return
+
+    # =====================================================================
+    # RISK-ON: Process exits & entries
+    # =====================================================================
+    fee = FEE_BPS / 10000.0
+    slip = SLIPPAGE_BPS / 10000.0
 
     sells = []
-    buys  = []
+    buys = []
+
+    score_row = score.iloc[sig_idx]
+
+    # Decrement cooldown
+    new_cooldown = {}
+    for t, cnt in cooldown.items():
+        if cnt > 1:
+            new_cooldown[t] = cnt - 1
 
     # =====================================================================
-    # 1) Update position stats + exits (decide on close, execute at exec price proxy)
+    # 1) Exits
     # =====================================================================
-    for t, pos in list(positions.items()):
-        if t not in tickers:
+    i_sig = sig_idx
+    for t in list(positions.keys()):
+        pos = positions[t]
+        entry_px = float(pos.get("entry_price_eur", 0.0))
+        shares = float(pos.get("shares", 0.0))
+        peak_px = float(pos.get("peak_price_eur", entry_px))
+        trough_px = float(pos.get("trough_price_eur", entry_px))
+        mfe_pct = float(pos.get("mfe_pct", 0.0))
+        mae_pct = float(pos.get("mae_pct", 0.0))
+        trailing = bool(pos.get("trailing_active", False))
+
+        # Current price (signal close)
+        curr_px = px_to_eur(t, float(px_sig_close[t]), eurusd_val)
+        if not np.isfinite(curr_px) or curr_px <= 0:
             continue
 
-        px_close_eur = px_to_eur(t, float(close_row[t]), eurusd)
-        px_exec_eur  = px_to_eur(t, float(px_exec_open[t]), eurusd)
+        # Update peak/trough/MFE/MAE
+        if curr_px > peak_px:
+            peak_px = curr_px
+            mfe_now = (curr_px / entry_px - 1.0) if entry_px > 0 else 0.0
+            if mfe_now > mfe_pct:
+                mfe_pct = mfe_now
+        if curr_px < trough_px:
+            trough_px = curr_px
+            mae_now = (curr_px / entry_px - 1.0) if entry_px > 0 else 0.0
+            if mae_now < mae_pct:
+                mae_pct = mae_now
 
-        entry = float(pos.get("entry_price_eur", px_close_eur))
-        shares = float(pos.get("shares", 0.0))
+        pos["peak_price_eur"] = float(peak_px)
+        pos["trough_price_eur"] = float(trough_px)
+        pos["mfe_pct"] = float(mfe_pct)
+        pos["mae_pct"] = float(mae_pct)
 
-        # update peak/trough using signal day range
-        peak = float(pos.get("peak_price_eur", entry))
-        trough = float(pos.get("trough_price_eur", entry))
-        peak = max(peak, px_to_eur(t, float(high_row[t]), eurusd))
-        trough = min(trough, px_to_eur(t, float(low_row[t]), eurusd))
-
-        pos["peak_price_eur"] = float(peak)
-        pos["trough_price_eur"] = float(trough)
-
-        # MFE/MAE
-        mfe = (peak/entry - 1.0) if entry>0 else 0.0
-        mae = (trough/entry - 1.0) if entry>0 else 0.0
-        pos["mfe_pct"] = float(max(float(pos.get("mfe_pct", 0.0)), mfe*100.0))
-        pos["mae_pct"] = float(min(float(pos.get("mae_pct", 0.0)), mae*100.0))
-
-        # activate trailing if MFE trigger hit
-        trailing_active = bool(pos.get("trailing_active", False))
-        if (not trailing_active) and mfe >= MFE_TRIGGER_PCT:
-            trailing_active = True
-            pos["trailing_active"] = True
-
+        # Check exits
         reason = None
 
-        # HARD STOP (close-based)
-        if px_close_eur <= entry * (1.0 - HARD_STOP_PCT):
-            reason = "HARD_STOP"
+        # Hard stop
+        if entry_px > 0:
+            loss = (curr_px / entry_px - 1.0)
+            if loss <= -HARD_STOP_PCT:
+                reason = "HARD_STOP"
 
-        # TRAILING
-        if reason is None and trailing_active:
-            dd_from_peak = (px_close_eur / peak - 1.0) if peak>0 else 0.0
-            if dd_from_peak <= -TRAIL_FROM_PEAK_PCT:
+        # Trailing
+        if not trailing and mfe_pct >= MFE_TRIGGER_PCT:
+            trailing = True
+            pos["trailing_active"] = True
+
+        if trailing:
+            drawdown_from_peak = (curr_px / peak_px - 1.0) if peak_px > 0 else 0.0
+            if drawdown_from_peak <= -TRAIL_FROM_PEAK_PCT:
                 reason = "TRAILING"
 
-        # TREND_BREAK
-        if reason is None and pd.notna(sma_row[t]):
-            if float(close_row[t]) < float(sma_row[t]):
-                reason = "TREND_BREAK"
+        # Trend break
+        sma_val = px_to_eur(t, float(px_sig_sma200[t]), eurusd_val)
+        if np.isfinite(sma_val) and curr_px < sma_val:
+            reason = "TREND_BREAK"
 
-        if reason is not None:
-            # execute sell at proxy open next (net costs)
-            px_out = px_exec_eur * (1.0 - fee - slip)
-            proceeds = px_out * shares
-            cash += proceeds
+        if reason:
+            px_out = px_to_eur(t, float(px_exec_open[t]), eurusd_val) * (1.0 - fee - slip)
+            pnl_pct = (px_out/entry_px - 1.0)*100.0 if entry_px>0 else 0.0
 
-            pnl_pct = (px_out/entry - 1.0) * 100.0 if entry>0 else 0.0
+            cash += px_out * shares
+            del positions[t]
+            new_cooldown[t] = COOLDOWN_DAYS
 
             sells.append((t, shares, reason, pnl_pct))
             append_trade(trades, {
@@ -497,59 +532,75 @@ def main() -> None:
                 "reason": reason,
                 "shares": shares,
                 "price_eur": px_out,
-                "entry_price_eur": entry,
+                "entry_price_eur": entry_px,
                 "pnl_pct": pnl_pct,
-                "mfe_pct": pos.get("mfe_pct", 0.0),
-                "mae_pct": pos.get("mae_pct", 0.0),
             })
-            # remove position
-            del positions[t]
-            # cooldown
-            new_cooldown[t] = COOLDOWN_DAYS
 
     # =====================================================================
-    # 2) Entries / SwapEdge (only if regime ON)
+    # 2) Entries & SwapEdge
     # =====================================================================
-    if regime_on:
-        # Eligible candidates: breakout + above SMA200
-        eligible = (close_row > high60.shift(1).iloc[i_sig]).fillna(False)
-        eligible &= (close_row > sma_row).fillna(False)
+    # Build candidates: Breakout & Close > SMA200 & not in cooldown
+    candidates = []
+    for t in tickers:
+        if t in new_cooldown:
+            continue
+        c_close = float(px_sig_close[t])
+        c_high60 = float(px_sig_high60[t])
+        c_sma200 = float(px_sig_sma200[t])
 
-        # apply cooldown filter
-        for t in new_cooldown.keys():
-            if t in eligible.index:
-                eligible[t] = False
+        if not np.isfinite(c_close) or not np.isfinite(c_high60) or not np.isfinite(c_sma200):
+            continue
 
-        candidates = score_row.where(eligible).dropna().sort_values(ascending=False)
+        # Breakout
+        prev_high60_idx = i_sig - 1
+        if prev_high60_idx < 0:
+            continue
+        prev_high60_val = float(high60.iloc[prev_high60_idx, close.columns.get_loc(t)])
+        if not np.isfinite(prev_high60_val):
+            continue
 
-        def tier_and_sf(t: str) -> Tuple[str, float, float]:
-            sus = is_suspect(close_row, sma_row, atrp_row, t)
-            # In PROD, open next may not be known; if we have it in parquet, we can compute.
-            gap = gap_open_next(float(px_exec_open[t]), float(px_sig_close[t])) if i_exe != i_sig else float("nan")
-            tier="normal"; sf=1.0
-            if sus:
-                tier="suspect"; sf=SUSPECT_SIZE
-                if np.isfinite(gap) and gap < -GAP_GUARD_THR:
-                    tier="suspect_gap"; sf=GAP_GUARD_SIZE
-            return tier, sf, gap
+        if c_close > prev_high60_val and c_close > c_sma200:
+            candidates.append(t)
 
-        # Fill empty slots first
-        while len(positions) < MAX_POSITIONS and len(candidates) > 0:
-            slots_left = MAX_POSITIONS - len(positions)
-            alloc_cash = cash/slots_left if slots_left>0 else 0.0
+    candidates = pd.Series(candidates)
+    candidates = candidates[candidates.isin(score_row.index)]
+    candidates = pd.Series(candidates.values, index=candidates.values)
+    candidates = candidates[score_row[candidates.index].notna()]
+    candidates = candidates.reindex(score_row[candidates.index].sort_values(ascending=False).index)
 
-            pick=None
-            for t in candidates.index:
-                if t in positions:
-                    continue
-                if corr_ok(rets, i_sig, t, list(positions.keys())):
-                    pick=t; break
-            if pick is None:
+    # Tier & sizing function
+    def tier_and_sf(ticker: str) -> Tuple[str, float, float]:
+        """Returns (tier, size_fraction, gap)"""
+        susp = is_suspect(px_sig_close, px_sig_sma200, atrp14.iloc[sig_idx], ticker)
+        # In prod, we don't know tomorrow's open yet
+        # gap_val = gap_open_next(float(px_exec_open[ticker]), float(px_sig_close[ticker]))
+        gap_val = float("nan")  # unknown
+
+        if susp:
+            # We mark as suspect, user will adjust if gap < -1.5%
+            return ("suspect", SUSPECT_SIZE, gap_val)
+        else:
+            return ("normal", 1.0/MAX_POSITIONS, gap_val)
+
+    # Fill empty slots
+    if len(positions) < MAX_POSITIONS:
+        slots_needed = MAX_POSITIONS - len(positions)
+        alloc_cash = cash / slots_needed if slots_needed > 0 else 0.0
+
+        for pick in candidates.index:
+            if len(positions) >= MAX_POSITIONS:
                 break
+            if pick in positions:
+                continue
+
+            # Corr gate
+            if not corr_ok(rets, i_sig, pick, list(positions.keys())):
+                candidates = candidates.drop(index=pick, errors="ignore")
+                continue
 
             tier, sf, gap = tier_and_sf(pick)
             alloc = alloc_cash*sf
-            px_in_eur = px_to_eur(pick, float(px_exec_open[pick]), eurusd) * (1.0 + fee + slip)
+            px_in_eur = px_to_eur(pick, float(px_exec_open[pick]), eurusd_val) * (1.0 + fee + slip)
 
             shares = math.floor((alloc/px_in_eur)*1000)/1000
             if shares <= 0 or shares*px_in_eur > cash + 1e-9:
@@ -620,7 +671,7 @@ def main() -> None:
                         if pending_count >= CONFIRM_DAYS:
                             # SELL worst
                             shares_out = float(positions[worst]["shares"])
-                            px_out = px_to_eur(worst, float(px_exec_open[worst]), eurusd) * (1.0 - fee - slip)
+                            px_out = px_to_eur(worst, float(px_exec_open[worst]), eurusd_val) * (1.0 - fee - slip)
                             entry = float(positions[worst].get("entry_price_eur", px_out))
                             pnl_pct = (px_out/entry - 1.0)*100.0 if entry>0 else 0.0
 
@@ -643,7 +694,7 @@ def main() -> None:
                             # BUY best
                             tier, sf, gap = tier_and_sf(best)
                             alloc = cash * sf
-                            px_in = px_to_eur(best, float(px_exec_open[best]), eurusd) * (1.0 + fee + slip)
+                            px_in = px_to_eur(best, float(px_exec_open[best]), eurusd_val) * (1.0 + fee + slip)
                             shares_in = math.floor((alloc/px_in)*1000)/1000
                             if shares_in > 0 and shares_in*px_in <= cash + 1e-9:
                                 note=""
@@ -691,7 +742,7 @@ def main() -> None:
     pos_value = 0.0
     lines_pos = []
     for t, pos in positions.items():
-        px = px_to_eur(t, float(px_sig_close[t]), eurusd)
+        px = px_to_eur(t, float(px_sig_close[t]), eurusd_val)
         v = float(pos.get("shares", 0.0)) * px
         pos_value += v
         lines_pos.append(f"{t}: {v:.0f}€ ({pos.get('shares',0):.3f} sh)")
@@ -706,7 +757,7 @@ def main() -> None:
     # Build telegram message
     msg = []
     msg.append(f"APEX CHAMPION — {pd.to_datetime(sig_date).strftime('%Y-%m-%d')} -> {pd.to_datetime(exec_date).strftime('%Y-%m-%d')}")
-    msg.append(f"EURUSD=X {eurusd:.4f} | Breadth {breadth_val:.2f} (gate {BREADTH_THR})")
+    msg.append(f"EURUSD=X {eurusd_val:.4f} | Breadth {breadth_val:.2f} (gate {BREADTH_THR})")
     msg.append(f"Cash {cash:.2f}€ | Pos {pos_value:.2f}€ | Total {total:.2f}€")
     msg.append(f"Invested~ {invested:.2f}€ | PnL {pnl_total:+.2f}€ ({pnl_total_pct:+.1f}%)")
     msg.append("")
