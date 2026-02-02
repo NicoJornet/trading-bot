@@ -83,6 +83,7 @@ COOLDOWN_DAYS = 1
 
 SMA200_WIN = 200
 HIGH60_WIN = 60
+USE_HIGH60 = False  # if True, require HIGH60 breakout for entry/confirm
 R63 = 63
 R126 = 126
 R252 = 252
