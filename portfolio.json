@@ -12,7 +12,7 @@
       "shares": 2.354048,
       "initial_amount_eur": 451.0,
       "amount_invested_eur": 451.0,
-      "score": 1.4668682404456868,
+      "score": 1.4668681440884823,
       "peak_price_eur": 212.45235078162722,
       "stop_loss_eur": 156.7512,
       "rank": 2,
@@ -26,7 +26,7 @@
       "bars_held": 9
     }
   },
-  "last_updated": "2026-02-02 06:47",
+  "last_updated": "2026-02-02 09:54",
   "last_dca_month": "2026-02",
   "confirm_state": {},
   "cooldown_until": {},
