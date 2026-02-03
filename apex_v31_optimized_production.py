@@ -78,7 +78,7 @@ VOL_RELAX_ATR_PCT = 2.5
 SLOW_ASSETS_MULT = 2
 
 # Display
-TOP_MOMENTUM_N = 5  # ✅ Affichage Top N
+TOP_MOMENTUM_N = 10  # ✅ Affichage Top N
 
 # ✅ FIX: Download window for indicators when parquet missing
 def _get_int_env(name: str, default: int) -> int:
