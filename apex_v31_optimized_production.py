@@ -103,6 +103,7 @@ UNIVERSE = [
     "META",
     "NVDA",
     "TSLA",
+    "GDR",
     
     # --- Semi-conducteurs & IA Hardware (11) ---
     "AMD",
