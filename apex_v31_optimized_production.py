@@ -256,7 +256,6 @@ UNIVERSE = [
     "XAR",       # Aerospace & Defense
     "XLE",       # Energy
     "XLU",       # Utilities
-    "XLP",       # Consumer Staples
     "XLV",       # Healthcare
     "XME",       # Metals & Mining
     "URA",       # Uranium
@@ -286,7 +285,6 @@ SLOW_ASSETS = {
     # --- ETFs Larges & Défensifs (4) ---
     "SPY",
     "QQQ",
-    "XLP",       # Consumer Staples ETF
     "XLU",       # Utilities ETF
     "XLV",       # Healthcare ETF
     
