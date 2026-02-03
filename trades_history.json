@@ -136,57 +136,51 @@
       "ts": "2026-02-02 15:00"
     },
     {
+      "id": 10,
+      "date": "2026-02-03",
       "action": "BUY",
       "ticker": "KO",
-      "date": "2026-02-02",
-      "price_eur": 63.74424337036588,
-      "shares": 15.923006476093247,
-      "amount_eur": 1015.0,
-      "fee_eur": 1.0,
-      "reason": "BUY_RANK1_RF0",
-      "rank": 1,
-      "score": 5.687037861253012,
-      "id": 10,
-      "ts": "2026-02-03 06:34"
+      "shares": 11.547344110854503,
+      "price_eur": 64.95,
+      "amount_eur": 750.0,
+      "fee_eur": 0.0,
+      "reason": "MANUAL_BUY"
     },
     {
-      "action": "BUY",
-      "ticker": "XLP",
-      "date": "2026-02-02",
-      "price_eur": 71.50389531220462,
-      "shares": 3.5452614000000002,
-      "amount_eur": 253.5,
-      "fee_eur": 1.0,
-      "reason": "BUY_RANK2_RF0",
-      "rank": 2,
-      "score": 5.454922266387799,
       "id": 11,
-      "ts": "2026-02-03 06:34"
-    },
-    {
+      "date": "2026-02-03",
       "action": "BUY",
       "ticker": "GILD",
-      "date": "2026-02-02",
-      "price_eur": 120.91350955643081,
-      "shares": 1.57033734854404,
-      "amount_eur": 189.875,
-      "fee_eur": 1.0,
-      "reason": "BUY_RANK3_RF0",
-      "rank": 3,
-      "score": 5.4314656090526485,
+      "shares": 2.8392958546280522,
+      "price_eur": 123.27,
+      "amount_eur": 350.0,
+      "fee_eur": 0.0,
+      "reason": "MANUAL_BUY"
+    },
+    {
       "id": 12,
-      "ts": "2026-02-03 06:34"
+      "date": "2026-02-03",
+      "action": "SELL",
+      "ticker": "SLV",
+      "shares": 6.437911,
+      "price_eur": 69.89844997857224,
+      "amount_eur": 450.0,
+      "fee_eur": 0.0,
+      "pnl_eur": -30.0,
+      "pnl_pct": -6.25,
+      "reason": "MANUAL_EXIT_LOSS"
     }
   ],
   "summary": {
-    "total_records": 9,
-    "buys": 4,
-    "sells": 5,
+    "total_records": 12,
+    "buys": 5,
+    "sells": 7,
     "winning_sells": 3,
-    "losing_sells": 2,
-    "net_pnl_eur": 334.06,
+    "losing_sells": 4,
+    "net_pnl_eur": 305.06,
     "total_fees_eur": 5.0,
-    "win_rate_sells_pct": 60.0
+    "win_rate_sells_pct": 42.86,
+    "sell_records_with_pnl": 7
   },
-  "notes": "All positions closed. SLV last trade neutral (only fees). LRCX sold at small loss. KO never purchased (removed)."
+  "notes": "Updated per 2026-02-03 manual trades: KO & GILD purchased, XLP not executed, SLV (silver) sold at ~-30€."
 }
