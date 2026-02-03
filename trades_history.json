@@ -134,6 +134,48 @@
       "score": 1.8684573882672835,
       "reason": "MANUAL_EXIT",
       "ts": "2026-02-02 15:00"
+    },
+    {
+      "action": "BUY",
+      "ticker": "KO",
+      "date": "2026-02-02",
+      "price_eur": 63.74424337036588,
+      "shares": 15.923006476093247,
+      "amount_eur": 1015.0,
+      "fee_eur": 1.0,
+      "reason": "BUY_RANK1_RF0",
+      "rank": 1,
+      "score": 5.687037861253012,
+      "id": 10,
+      "ts": "2026-02-03 06:34"
+    },
+    {
+      "action": "BUY",
+      "ticker": "XLP",
+      "date": "2026-02-02",
+      "price_eur": 71.50389531220462,
+      "shares": 3.5452614000000002,
+      "amount_eur": 253.5,
+      "fee_eur": 1.0,
+      "reason": "BUY_RANK2_RF0",
+      "rank": 2,
+      "score": 5.454922266387799,
+      "id": 11,
+      "ts": "2026-02-03 06:34"
+    },
+    {
+      "action": "BUY",
+      "ticker": "GILD",
+      "date": "2026-02-02",
+      "price_eur": 120.91350955643081,
+      "shares": 1.57033734854404,
+      "amount_eur": 189.875,
+      "fee_eur": 1.0,
+      "reason": "BUY_RANK3_RF0",
+      "rank": 3,
+      "score": 5.4314656090526485,
+      "id": 12,
+      "ts": "2026-02-03 06:34"
     }
   ],
   "summary": {
