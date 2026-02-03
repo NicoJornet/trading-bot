@@ -240,7 +240,6 @@ UNIVERSE = [
     # --- Autres Européens (6) ---
     "HO.PA",     # Thales
     "SU.PA",     # Schneider Electric
-    "TTE.PA",    # TotalEnergies (duplicate TTE)
     "EQNR",      # Equinor (Norvège)
     "BA.L",      # BAE Systems (UK)
     "SAAB-B.ST", # SAAB (Suède)
