@@ -242,7 +242,6 @@ UNIVERSE = [
     "SU.PA",     # Schneider Electric
     "TTE.PA",    # TotalEnergies (duplicate TTE)
     "EQNR",      # Equinor (Norvège)
-    "ENI.MI",    # ENI (Italie)
     "BA.L",      # BAE Systems (UK)
     "SAAB-B.ST", # SAAB (Suède)
     
@@ -319,7 +318,7 @@ SLOW_ASSETS = {
     
     # --- Énergie Intégrée (3) ---
     "SHEL",
-    "TTE.PA",
+    "TTE",
     "KMI",       # Midstream
     "WMB",       # Midstream
     
@@ -330,7 +329,6 @@ SLOW_ASSETS = {
     
     # --- Autres (3) ---
     "BA.L",      # BAE Systems
-    "ENI.MI",    # ENI
     "DBC",       # Commodities ETF
 }
 
