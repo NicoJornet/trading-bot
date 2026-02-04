@@ -2,7 +2,7 @@
   "currency": "EUR",
   "initial_capital": 1500,
   "monthly_dca": 100,
-  "cash": 1000.0,
+  "cash": 749.0,
   "start_date": "2025-12-29",
   "last_dca_date": "2026-02-02",
   "positions": {
@@ -12,15 +12,15 @@
       "shares": 11.547344110854503,
       "initial_amount_eur": 750.0,
       "amount_invested_eur": 750.0,
-      "peak_price_eur": 64.95,
-      "trough_price_eur": 64.95,
-      "mfe_pct": 0.0,
-      "mae_pct": 0.0,
+      "peak_price_eur": 65.4642475247968,
+      "trough_price_eur": 63.46230628045235,
+      "mfe_pct": 0.7917590835978539,
+      "mae_pct": -2.2905215081565067,
       "trailing_active": false,
       "days_score_le0": 0,
-      "rank": null,
-      "score": null,
-      "bars_held": 0
+      "rank": 1,
+      "score": 6.338259807083438,
+      "bars_held": 1
     },
     "GILD": {
       "entry_date": "2026-02-03",
@@ -28,20 +28,35 @@
       "shares": 2.8392958546280522,
       "initial_amount_eur": 350.0,
       "amount_invested_eur": 350.0,
-      "peak_price_eur": 123.27,
-      "trough_price_eur": 123.27,
+      "peak_price_eur": 123.27551540120861,
+      "trough_price_eur": 119.97273543270293,
+      "mfe_pct": 0.004474244510910275,
+      "mae_pct": -2.674831319296722,
+      "trailing_active": false,
+      "days_score_le0": 0,
+      "rank": 7,
+      "score": 4.779819674452556,
+      "bars_held": 1
+    },
+    "WMT": {
+      "entry_date": "2026-02-03",
+      "entry_price_eur": 107.87663214783858,
+      "shares": 2.3174620399475367,
+      "initial_amount_eur": 250.0,
+      "amount_invested_eur": 250.0,
+      "peak_price_eur": 107.87663214783858,
+      "trough_price_eur": 107.87663214783858,
       "mfe_pct": 0.0,
       "mae_pct": 0.0,
       "trailing_active": false,
       "days_score_le0": 0,
-      "rank": null,
-      "score": null,
-      "bars_held": 0
+      "rank": 2,
+      "score": 6.091586500268036
     }
   },
-  "last_updated": "2026-02-03 00:00",
+  "last_updated": "2026-02-04 06:35",
   "last_dca_month": "2026-02",
   "confirm_state": {},
   "cooldown_until": {},
-  "last_updated_note": "Updated manual trades: BUY KO 750€ @64.95, BUY GILD 350€ @123.27. XLP not eligible (removed). Silver (SLV) sold at 450€ vs 480€ initial (≈ -30€). Cash set to 1000€ remaining to invest."
+  "last_updated_note": "Updated manual trades: BUY KO 750\u20ac @64.95, BUY GILD 350\u20ac @123.27. XLP not eligible (removed). Silver (SLV) sold at 450\u20ac vs 480\u20ac initial (\u2248 -30\u20ac). Cash set to 1000\u20ac remaining to invest."
 }

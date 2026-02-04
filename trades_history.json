@@ -169,6 +169,20 @@
       "pnl_eur": -30.0,
       "pnl_pct": -6.25,
       "reason": "MANUAL_EXIT_LOSS"
+    },
+    {
+      "action": "BUY",
+      "ticker": "WMT",
+      "date": "2026-02-03",
+      "price_eur": 107.87663214783858,
+      "shares": 2.3174620399475367,
+      "amount_eur": 250.0,
+      "fee_eur": 1.0,
+      "reason": "BUY_RANK2_RF0",
+      "rank": 2,
+      "score": 6.091586500268036,
+      "id": 13,
+      "ts": "2026-02-04 06:35"
     }
   ],
   "summary": {
@@ -182,5 +196,5 @@
     "win_rate_sells_pct": 42.86,
     "sell_records_with_pnl": 7
   },
-  "notes": "Updated per 2026-02-03 manual trades: KO & GILD purchased, XLP not executed, SLV (silver) sold at ~-30€."
+  "notes": "Updated per 2026-02-03 manual trades: KO & GILD purchased, XLP not executed, SLV (silver) sold at ~-30\u20ac."
 }
