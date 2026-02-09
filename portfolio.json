@@ -19,8 +19,8 @@
       "trailing_active": false,
       "days_score_le0": 0,
       "rank": 2,
-      "score": 5.974442261593237,
-      "bars_held": 3
+      "score": 5.835970320190075,
+      "bars_held": 4
     },
     "GILD": {
       "entry_date": "2026-02-03",
@@ -28,15 +28,15 @@
       "shares": 2.8392958546280522,
       "initial_amount_eur": 350.0,
       "amount_invested_eur": 350.0,
-      "peak_price_eur": 127.53370491259832,
+      "peak_price_eur": 129.11921513835057,
       "trough_price_eur": 119.97273543270293,
-      "mfe_pct": 3.4588341953422086,
+      "mfe_pct": 4.745043512898972,
       "mae_pct": -2.674831319296722,
       "trailing_active": false,
       "days_score_le0": 0,
-      "rank": 3,
-      "score": 5.47031621415557,
-      "bars_held": 3
+      "rank": 1,
+      "score": 6.016837771713398,
+      "bars_held": 4
     },
     "WMT": {
       "entry_date": "2026-02-03",
@@ -44,18 +44,18 @@
       "shares": 2.3174620399475367,
       "initial_amount_eur": 250.0,
       "amount_invested_eur": 250.0,
-      "peak_price_eur": 109.82304940250302,
-      "trough_price_eur": 107.24694606230472,
-      "mfe_pct": 1.8042992406335001,
-      "mae_pct": -0.583709440123148,
+      "peak_price_eur": 111.04943314469166,
+      "trough_price_eur": 107.12855844236498,
+      "mfe_pct": 2.941138348205885,
+      "mae_pct": -0.6934529662071864,
       "trailing_active": false,
       "days_score_le0": 0,
-      "rank": 10,
-      "score": 4.302234507583619,
-      "bars_held": 3
+      "rank": 5,
+      "score": 5.570024471672625,
+      "bars_held": 4
     }
   },
-  "last_updated": "2026-02-06 06:37",
+  "last_updated": "2026-02-09 06:51",
   "last_dca_month": "2026-02",
   "confirm_state": {},
   "cooldown_until": {},
