@@ -18,9 +18,9 @@
       "mae_pct": -2.2905215081565067,
       "trailing_active": false,
       "days_score_le0": 0,
-      "rank": 2,
-      "score": 5.835970320190075,
-      "bars_held": 4
+      "rank": 5,
+      "score": 4.738466444834873,
+      "bars_held": 5
     },
     "GILD": {
       "entry_date": "2026-02-03",
@@ -34,9 +34,9 @@
       "mae_pct": -2.674831319296722,
       "trailing_active": false,
       "days_score_le0": 0,
-      "rank": 1,
-      "score": 6.016837771713398,
-      "bars_held": 4
+      "rank": 2,
+      "score": 5.308656436925403,
+      "bars_held": 5
     },
     "WMT": {
       "entry_date": "2026-02-03",
@@ -50,12 +50,12 @@
       "mae_pct": -0.6934529662071864,
       "trailing_active": false,
       "days_score_le0": 0,
-      "rank": 5,
-      "score": 5.570024471672625,
-      "bars_held": 4
+      "rank": 11,
+      "score": 4.195423696653609,
+      "bars_held": 5
     }
   },
-  "last_updated": "2026-02-09 06:51",
+  "last_updated": "2026-02-10 06:51",
   "last_dca_month": "2026-02",
   "confirm_state": {},
   "cooldown_until": {},
