@@ -183,10 +183,25 @@
       "score": 6.091586500268036,
       "id": 13,
       "ts": "2026-02-04 06:35"
+    },
+    {
+      "id": 14,
+      "date": "2026-02-10",
+      "action": "RESET_PORTFOLIO",
+      "ticker": null,
+      "shares": null,
+      "price_eur": null,
+      "amount_eur": null,
+      "fee_eur": 0.0,
+      "pnl_eur": null,
+      "pnl_pct": null,
+      "reason": "USER_LIQUIDATED_ALL_POSITIONS",
+      "cash_after_eur": 2000.0,
+      "note": "Positions were sold manually outside the bot; this record resets state to all-cash."
     }
   ],
   "summary": {
-    "total_records": 12,
+    "total_records": 14,
     "buys": 5,
     "sells": 7,
     "winning_sells": 3,
@@ -194,7 +209,9 @@
     "net_pnl_eur": 305.06,
     "total_fees_eur": 5.0,
     "win_rate_sells_pct": 42.86,
-    "sell_records_with_pnl": 7
+    "sell_records_with_pnl": 7,
+    "portfolio_resets": 1,
+    "notes": "Summary counts refer to BUY/SELL records; RESET_PORTFOLIO is excluded."
   },
-  "notes": "Updated per 2026-02-03 manual trades: KO & GILD purchased, XLP not executed, SLV (silver) sold at ~-30\u20ac."
+  "notes": "Updated per 2026-02-03 manual trades: KO & GILD purchased, XLP not executed, SLV (silver) sold at ~-30€. | 2026-02-10: portfolio reset to cash=2000€, no positions."
 }
