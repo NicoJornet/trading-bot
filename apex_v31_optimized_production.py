@@ -1,28 +1,48 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-APEX v31/v33 — PROD (GitHub) — 127 TICKERS UNIVERSE
-====================================================
-- Fix NameError LOOKBACK_CAL_DAYS
-- Ajout affichage TOP 5 Momentum (console + Telegram)
-- Univers élargi: 127 tickers (vs 44 original)
-- Slow Assets: 35 tickers (rule-based sur 5 ans)
+APEX PROD — PACK_FINAL_V6C (A_rank5) — Telegram + Portfolio (v31 scaffold)
+=========================================================================
+
+✅ But
+- Conserver la plomberie "prod" de v31 : portfolio.json, trades_history.json, message Telegram.
+- Remplacer uniquement la logique stratégie par la version figée PACK_FINAL_V6C / A_rank5.
+- Source de prix : yfinance uniquement (aucun fichier OHLCV local).
+- Exécution : signal Close(J) -> exécution théorique Open(J+1) (message d'alerte).
+
+📌 Stratégie figée
+- Ranking: score = 0.2*R63 + 0.5*R126 + 0.3*R252 (Close)
+- Filtre: Close > SMA200 (par actif)
+- Sélection: Top-3 avec "A_rank5" (no-swap zone)
+    - on conserve une position si elle est encore dans le TOP 5 du ranking
+- Corr-aware:
+    - calcule max corr(63j) sur le pool ranked (rank_pool=15)
+    - si max_corr > 0.92 -> sélection greedy anti-corr (corr<0.80) sur 10 candidats
+- Sizing: inverse-vol (vol20) normalisé
+- Delta-rebalance: trade uniquement si |diff valeur| >= 5% equity
+- Frais: 1€ par ordre
+- DCA mensuel: +100€ au début de chaque mois (clé last_dca_month comme v31)
+
+📦 Fichiers
+- portfolio.json (état)
+- trades_history.json (historique)
+- Message Telegram (si TELEGRAM_BOT_TOKEN/CHAT_ID set)
+
+⚠️ IMPORTANT (FX)
+- Aucune conversion FX n'est utilisée ici (EURUSD=X désactivé). Le portefeuille est géré en "unités"
+  cohérentes avec le dataset (souvent USD pour tickers US). Si ton dataset mélange devises, il faut
+  séparer en blocs (US/EUR) — non fait dans ce script prod.
 """
 
 from __future__ import annotations
 
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-
-try:
-    import yfinance as yf
-except Exception:
-    yf = None
 
 try:
     import requests
@@ -31,346 +51,137 @@ except Exception:
 
 
 # =============================================================================
-# CONFIG
+# CONFIG (v31-like)
 # =============================================================================
 
-PARQUET_PATH = os.environ.get("APEX_OHLCV_PARQUET", "ohlcv_127tickers_2015_2025.parquet")
+DATA_SOURCE = os.environ.get("APEX_DATA_SOURCE", "yfinance")  # yfinance only
+YF_START = os.environ.get("APEX_YF_START", "2014-01-01")
+YF_END = os.environ.get("APEX_YF_END", "")  # empty => today
+YF_PERIOD = os.environ.get("APEX_YF_PERIOD", "")  # optional, e.g. "5y"
+YF_INTERVAL = os.environ.get("APEX_YF_INTERVAL", "1d")
+
 
 PORTFOLIO_FILE = "portfolio.json"
 TRADES_FILE = "trades_history.json"
 
-INITIAL_CAPITAL_EUR = 1500.0
-MONTHLY_DCA_EUR = 100.0
-FEE_EUR = 1.0
+# Capital & costs
+INITIAL_CAPITAL = float(os.environ.get("APEX_INITIAL_CAPITAL", "2000"))
+MONTHLY_DCA = float(os.environ.get("APEX_MONTHLY_DCA", "100"))
+FEE_PER_ORDER = float(os.environ.get("APEX_FEE_PER_ORDER", "1"))
 
+# Strategy params (PACK_FINAL_V6C)
 MAX_POSITIONS = 3
-ALLOC_WEIGHTS = {1: 0.50, 2: 0.25, 3: 0.25}
+KEEP_RANK = 5
+RANK_POOL = 15
+REBALANCE_TD = int(os.environ.get("APEX_REBALANCE_TD", "10"))  # informational for prod msg
+DELTA_REBAL = float(os.environ.get("APEX_DELTA_REBAL", "0.05"))
 
-# Stops
-HARD_STOP_PCT = 0.18
-MFE_TRIGGER_PCT = 0.12
-TRAIL_FROM_PEAK_PCT = 0.05
+SMA200_WIN = 200
+VOL_WIN = 20
+R63, R126, R252 = 63, 126, 252
+W63, W126, W252 = 0.2, 0.5, 0.3
 
-# Momentum score
-SMA_PERIOD = 20
-ATR_PERIOD = 14
-HIGH_LOOKBACK = 60
+CORR_WIN = 63
+CORR_GATE_THR = 0.92
+CORR_PICK_THR = 0.80
+CORR_SCAN = 10
 
-# Rotation
-FORCE_ROTATION_DAYS = 10
+TOP_MOMENTUM_N = 5
 
-# Entry filter RF0
-MAX_RED_FLAGS = 0
-RF_RSI_OVERBOUGHT = 78
-RF_DIST_HIGH_52W_MIN = -30.0
-RF_ATR_PCT_MAX = 7.0
-RF_DIST_SMA20_MAX = 20.0
-
-# Quality exits
-Q1_BARS = 10
-Q1_MFE_PCT = 5.0
-Q2_BARS = 15
-Q2_MFE_PCT = 8.0
-
-# COMBO guards
-RANK_GATE = 15
-VOL_RELAX_ATR_PCT = 2.5
-SLOW_ASSETS_MULT = 2
-
-# Display
-TOP_MOMENTUM_N = 15  # ✅ Affichage Top N
-
-# ✅ FIX: Download window for indicators when parquet missing
-def _get_int_env(name: str, default: int) -> int:
-    try:
-        v = int(str(os.environ.get(name, "")).strip())
-        return v if v > 0 else default
-    except Exception:
-        return default
-
-LOOKBACK_CAL_DAYS = _get_int_env("APEX_LOOKBACK_CAL_DAYS", 420)
-
-# =============================================================================
-# UNIVERSE (127 tickers) — Élargi pour diversification sectorielle
-# =============================================================================
-
-UNIVERSE = [
-    # --- Magnificent Seven & Big Tech (13) ---
-    "AAPL",
-    "MSFT",
-    "GOOGL",
-    "AMZN",
-    "META",
-    "NVDA",
-    "TSLA",
-    "GDR",
-    
-    # --- Semi-conducteurs & IA Hardware (11) ---
-    "AMD",
-    "MU",
-    "ASML",
-    "TSM",
-    "LRCX",
-    "AMAT",
-    "AVGO",
-    "ANET",
-    "SMCI",
-    
-    # --- Cybersécurité & Cloud (5) ---
-    "PLTR",
-    "CRWD",
-    "NET",
-    "DDOG",
-    "ZS",
-    
-    # --- Growth Tech & Disrupteurs (6) ---
-    "SHOP",
-    "UBER",
-    "ABNB",
-    "RKLB",
-    "APP",
-    "VRT",
-    
-    # --- Crypto Exposure (3) ---
-    "MSTR",
-    "MARA",
-    "RIOT",
-    
-    # --- Santé & Biotechnologie (15) ---
-    "LLY",
-    "NVO",
-    "UNH",
-    "JNJ",
-    "ABBV",
-    "VRTX",
-    "ISRG",
-    "TMO",
-    "DHR",
-    "ABT",
-    "AMGN",
-    "BMY",
-    "MRK",
-    "MDT",
-    "GILD",
-    "PFE",
-    
-    # --- Défense & Aérospatiale (11) ---
-    "RTX",
-    "LHX",
-    "GD",
-    "LMT",
-    "NOC",
-    "BA",
-    "AXON",
-    "HEI",
-    "HWM",
-    "HII",
-    "AVAV",
-    "KTOS",
-    "TDG",
-    
-    # --- Énergie (13) ---
-    # E&P
-    "COP",
-    "EOG",
-    "DVN",
-    "OXY",
-    # Intégrés
-    "XOM",
-    "CVX",
-    "SHEL",
-    "TTE",
-    "BP",
-    # Midstream
-    "KMI",
-    "WMB",
-    "LNG",
-    # Services
-    "SLB",
-    "HAL",
-    # Raffinerie
-    "MPC",
-    "VLO",
-    
-    # --- Métaux Précieux & Mines (11) ---
-    # Royalties/Streaming
-    "FNV",
-    # Producteurs Or
-    "NEM",
-    "GOLD",
-    "AEM",
-    "PAAS",
-    # Diversifiés
-    "BHP",
-    "RIO",
-    "VALE",
-    "SCCO",
-    "FCX",
-    "TECK",
-    
-    # --- Uranium & Nucléaire (6) ---
-    "CCJ",
-    "UEC",
-    "DNN",
-    "LEU",
-    "NXE",
-    "CEG",
-    "BWXT",
-    
-    # --- Matériaux & Industriels (5) ---
-    "ALB",
-    "SQM",
-    "ETN",
-    
-    # --- Retail & Consommation (4) ---
-    "WMT",
-    "COST",
-    "PG",
-    "KO",
-    
-    # --- Luxe Européen (3) ---
-    "MC.PA",     # LVMH
-    "RMS.PA",    # Hermès
-    "RACE",      # Ferrari
-    
-    # --- Aérospatiale Européen (2) ---
-    "AIR.PA",    # Airbus
-    "SAF.PA",    # Safran
-    
-    # --- Autres Européens (6) ---
-    "HO.PA",     # Thales
-    "SU.PA",     # Schneider Electric
-    "EQNR",      # Equinor (Norvège)
-    "BA.L",      # BAE Systems (UK)
-    "SAAB-B.ST", # SAAB (Suède)
-    
-    # --- Allemagne (2) ---
-    "HAG.DE",    # Hensoldt
-    "RHM.DE",    # Rheinmetall
-    
-    # --- Italie (1) ---
-    "LDO.MI",    # Leonardo
-    
-    # --- ETFs Sectoriels (11) ---
-    "ITA",       # Aerospace & Defense
-    "XAR",       # Aerospace & Defense
-    "XLE",       # Energy
-    "XLU",       # Utilities
-    "XLV",       # Healthcare
-    "XME",       # Metals & Mining
-    "URA",       # Uranium
-    "REMX",      # Rare Earth
-    "DBC",       # Commodities
-    
-    # --- ETFs Larges (4) ---
-    "SPY",       # S&P 500
-    "QQQ",       # Nasdaq-100
-    "GLD",       # Gold
-    "SLV",       # Silver
-]
-
-# =============================================================================
-# SLOW_ASSETS (35 tickers) — Bottom quartile slowness over ~5y
-# =============================================================================
-# Définition: Actions avec volatilité et mouvements quotidiens dans le bottom 25%
-# Critères: avg(rank_pct(ann_vol), rank_pct(mean_abs_daily_return), rank_pct(avg_abs_20d_move))
-# Période: 2021-01-04 → 2025-12-30 (environ 5 ans)
-#
-# Ces actifs bénéficient de délais Quality Exit multipliés par SLOW_ASSETS_MULT (x2)
-
-SLOW_ASSETS = {
-    # --- Métaux Précieux (1) ---
-    "GLD",
-    
-    # --- ETFs Larges & Défensifs (4) ---
-    "SPY",
-    "QQQ",
-    "XLU",       # Utilities ETF
-    "XLV",       # Healthcare ETF
-    
-    # --- Santé Mature (8) ---
-    "JNJ",
-    "ABBV",
-    "ABT",
-    "AMGN",
-    "BMY",
-    "MRK",
-    "MDT",
-    "GILD",
-    
-    # --- Consumer Staples (4) ---
-    "WMT",
-    "COST",
-    "PG",
-    "KO",
-    
-    # --- Défense (7) ---
-    "LMT",
-    "NOC",
-    "RTX",
-    "GD",
-    "LHX",
-    "ITA",       # Aerospace & Defense ETF
-    "XAR",       # Aerospace & Defense ETF
-    
-    # --- Énergie Intégrée (3) ---
-    "SHEL",
-    "TTE",
-    "KMI",       # Midstream
-    "WMB",       # Midstream
-    
-    # --- Luxe Européen (3) ---
-    "MC.PA",     # LVMH
-    "RACE",      # Ferrari
-    "RMS.PA",    # Hermès
-    
-    # --- Autres (3) ---
-    "BA.L",      # BAE Systems
-    "DBC",       # Commodities ETF
-}
-
+# Telegram
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 
 # =============================================================================
-# IO: portfolio + trades
+# Universe (copied from v31 file)
+# =============================================================================
+
+UNIVERSE = [
+    # Magnificent Seven & Big Tech (7)
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
+
+    # Semi-conducteurs & IA (9)
+    "AMD", "MU", "ASML", "TSM", "LRCX", "AMAT", "AVGO", "ANET", "SMCI",
+
+    # Cybersécurité & Cloud (5)
+    "PLTR", "CRWD", "NET", "DDOG", "ZS",
+
+    # Growth Tech (6)
+    "SHOP", "UBER", "ABNB", "RKLB", "APP", "VRT",
+
+    # Crypto (3)
+    "MSTR", "MARA", "RIOT",
+
+    # Santé & Biotech (16)
+    "LLY", "NVO", "UNH", "JNJ", "ABBV", "VRTX", "ISRG", "TMO", "DHR", "ABT",
+    "PFE", "MRK", "BMY", "AMGN", "GILD", "REGN",
+
+    # Conso / Retail (10)
+    "WMT", "COST", "PG", "KO", "PEP", "MCD", "SBUX", "NKE", "DIS", "NFLX",
+
+    # Energie / Commodities (8)
+    "XOM", "CVX", "SLB", "COP", "OXY", "CNQ", "EOG", "PSX",
+
+    # Finance (10)
+    "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "AXP", "BRK-B", "BLK",
+
+    # Industrie / Défense (10)
+    "CAT", "DE", "BA", "GE", "HON", "LMT", "RTX", "NOC", "GD", "ETN",
+
+    # Utilities / Infrastructure (5)
+    "NEE", "DUK", "SO", "AEP", "D",
+
+    # Matériaux (5)
+    "LIN", "APD", "SHW", "FCX", "NEM",
+
+    # REITs (5)
+    "AMT", "PLD", "CCI", "EQIX", "O",
+
+    # ETFs / Indices (13)
+    "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "XLY", "XLI",
+    "TLT", "IEF", "HYG",
+
+    # Métaux précieux (2)
+    "GLD", "SLV",
+
+    # Europe (some)
+    "MC.PA", "OR.PA", "RMS.PA", "ASML.AS", "SAP.DE", "DAX", "CAC40",
+]
+
+
+# =============================================================================
+# IO: portfolio + trades (v31 style)
 # =============================================================================
 
 def _now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
-
 def load_portfolio() -> dict:
     if os.path.exists(PORTFOLIO_FILE):
         with open(PORTFOLIO_FILE, "r") as f:
             p = json.load(f)
-        p.setdefault("currency", "EUR")
-        p.setdefault("cash", INITIAL_CAPITAL_EUR)
-        p.setdefault("initial_capital", INITIAL_CAPITAL_EUR)
-        p.setdefault("monthly_dca", MONTHLY_DCA_EUR)
+        p.setdefault("cash", INITIAL_CAPITAL)
+        p.setdefault("initial_capital", INITIAL_CAPITAL)
+        p.setdefault("monthly_dca", MONTHLY_DCA)
         p.setdefault("positions", {})
         p.setdefault("start_date", datetime.now().strftime("%Y-%m-%d"))
         p.setdefault("last_dca_month", None)
         return p
-
     return {
-        "currency": "EUR",
-        "cash": float(INITIAL_CAPITAL_EUR),
-        "initial_capital": float(INITIAL_CAPITAL_EUR),
-        "monthly_dca": float(MONTHLY_DCA_EUR),
+        "cash": float(INITIAL_CAPITAL),
+        "initial_capital": float(INITIAL_CAPITAL),
+        "monthly_dca": float(MONTHLY_DCA),
         "positions": {},
         "start_date": datetime.now().strftime("%Y-%m-%d"),
         "last_dca_month": None,
         "created_at": _now_str(),
     }
 
-
 def save_portfolio(p: dict) -> None:
     p["last_updated"] = _now_str()
     with open(PORTFOLIO_FILE, "w") as f:
         json.dump(p, f, indent=2)
-
 
 def load_trades() -> dict:
     if os.path.exists(TRADES_FILE):
@@ -378,11 +189,9 @@ def load_trades() -> dict:
             return json.load(f)
     return {"trades": [], "summary": {}}
 
-
 def save_trades(t: dict) -> None:
     with open(TRADES_FILE, "w") as f:
         json.dump(t, f, indent=2)
-
 
 def append_trade(trades: dict, row: dict) -> None:
     row = dict(row)
@@ -406,605 +215,357 @@ def send_telegram(message: str) -> None:
 
 
 # =============================================================================
-# Data loading (parquet > yfinance)
+# Data loading (CSV -> MultiIndex like v31)
 # =============================================================================
 
-def _standardize_ohlcv_columns(df: pd.DataFrame) -> pd.DataFrame:
-    cols = {str(c).lower(): c for c in df.columns}
-    out = df.copy()
-    ren = {}
-    for target in ["open", "high", "low", "close", "volume"]:
-        if target in cols:
-            ren[cols[target]] = target
-    return out.rename(columns=ren)
+# =============================================================================
+# Data loading (YFINANCE ONLY) — MultiIndex-compatible long format
+# =============================================================================
 
+def load_data_yfinance(tickers: List[str]) -> pd.DataFrame:
+    """Download OHLCV from yfinance and return long format columns:
+    date,ticker,open,high,low,close,volume
 
-def load_ohlcv_parquet(path: str, tickers: List[str]) -> pd.DataFrame:
-    df = pd.read_parquet(path)
+    Notes:
+    - interval fixed to daily by default (YF_INTERVAL=1d)
+    - if YF_PERIOD is set (e.g. "5y"), it is used; else start/end are used.
+    - no FX conversion (data in local currencies).
+    """
+    try:
+        import yfinance as yf
+    except Exception as e:
+        raise RuntimeError("yfinance is required (pip install yfinance>=0.2.33)") from e
 
-    if {"date", "ticker"}.issubset(df.columns):
-        df = df.copy()
-        df["date"] = pd.to_datetime(df["date"])
-        df = df[df["ticker"].isin(tickers)]
-        df = _standardize_ohlcv_columns(df)
-        needed = ["open", "high", "low", "close", "volume"]
-        missing = [c for c in needed if c not in df.columns]
-        if missing:
-            raise ValueError(f"Parquet long: colonnes manquantes {missing}")
-        pivot = df.pivot_table(index="date", columns="ticker", values=needed)
-        pivot = pivot.swaplevel(0, 1, axis=1).sort_index(axis=1)  # (ticker, field)
-        pivot.index = pd.to_datetime(pivot.index)
-        return pivot.sort_index()
+    if not tickers:
+        return pd.DataFrame(columns=["date","ticker","open","high","low","close","volume"])
 
-    if isinstance(df.columns, pd.MultiIndex):
-        fields = {"open", "high", "low", "close", "volume"}
-        lev0 = set(map(lambda x: str(x).lower(), df.columns.get_level_values(0)))
-        if fields.issubset(lev0):
-            df = df.swaplevel(0, 1, axis=1).sort_index(axis=1)
-        df.columns = pd.MultiIndex.from_tuples(
-            [(t, str(f).lower()) for (t, f) in df.columns],
-            names=["ticker", "field"]
-        )
-        keep = [c for c in df.columns if c[0] in tickers and c[1] in fields]
-        out = df[keep].copy()
-        out.index = pd.to_datetime(out.index)
-        return out.sort_index()
-
-    raise ValueError("Format parquet non reconnu.")
-
-
-def load_ohlcv_yfinance(tickers: List[str], start: datetime, end: datetime) -> pd.DataFrame:
-    if yf is None:
-        raise RuntimeError("yfinance indisponible.")
-    data = yf.download(
-        tickers,
-        start=start.strftime("%Y-%m-%d"),
-        end=end.strftime("%Y-%m-%d"),
-        auto_adjust=True,
+    kwargs = dict(
+        tickers=" ".join(tickers),
+        interval=YF_INTERVAL,
+        auto_adjust=False,
         group_by="ticker",
-        progress=False,
         threads=True,
+        progress=False,
     )
-    if not isinstance(data.columns, pd.MultiIndex):
-        raise ValueError("yfinance n'a pas renvoyé un MultiIndex attendu.")
-    lev0 = set(map(lambda x: str(x).lower(), data.columns.get_level_values(0)))
-    if {"open", "high", "low", "close", "volume"}.issubset(lev0):
-        data = data.swaplevel(0, 1, axis=1).sort_index(axis=1)
-    data.columns = pd.MultiIndex.from_tuples(
-        [(t, str(f).lower()) for (t, f) in data.columns],
-        names=["ticker", "field"]
-    )
-    data.index = pd.to_datetime(data.index)
-    return data.sort_index()
+
+    if YF_PERIOD:
+        kwargs["period"] = YF_PERIOD
+    else:
+        kwargs["start"] = YF_START
+        if YF_END:
+            kwargs["end"] = YF_END
+
+    data = yf.download(**kwargs)
+
+    if data is None or len(data) == 0:
+        return pd.DataFrame(columns=["date","ticker","open","high","low","close","volume"])
+
+    # yfinance returns:
+    # - MultiIndex columns for multiple tickers: (field, ticker) or (ticker, field) depending on version
+    # Normalize to long format
+    if isinstance(data.columns, pd.MultiIndex):
+        cols = data.columns
+        # detect orientation
+        lvl0 = set(map(str, cols.get_level_values(0)))
+        lvl1 = set(map(str, cols.get_level_values(1)))
+        fields = {"Open","High","Low","Close","Volume"}
+        if fields.issubset(lvl0):
+            # (field, ticker)
+            pieces = []
+            for field in ["Open","High","Low","Close","Volume"]:
+                wide = data[field].copy()
+                wide.columns = wide.columns.astype(str)
+                pieces.append(wide.stack().rename(field.lower()))
+            out = pd.concat(pieces, axis=1).reset_index()
+            out.columns = ["date","ticker","open","high","low","close","volume"]
+        elif fields.issubset(lvl1):
+            # (ticker, field)
+            pieces=[]
+            for t in sorted(lvl0):
+                sub = data[t].copy()
+                sub.columns = sub.columns.astype(str)
+                sub = sub.rename(columns={"Open":"open","High":"high","Low":"low","Close":"close","Volume":"volume"})
+                sub["ticker"]=t
+                pieces.append(sub.reset_index())
+            out = pd.concat(pieces, axis=0, ignore_index=True)
+            out = out[["Date","ticker","open","high","low","close","volume"]].rename(columns={"Date":"date"})
+        else:
+            raise RuntimeError("Unexpected yfinance column MultiIndex format.")
+    else:
+        # single ticker: columns are fields
+        df1 = data.copy()
+        df1 = df1.rename(columns={"Open":"open","High":"high","Low":"low","Close":"close","Volume":"volume"})
+        df1["ticker"] = tickers[0]
+        out = df1.reset_index()[["Date","ticker","open","high","low","close","volume"]].rename(columns={"Date":"date"})
+
+    
+    out = out.dropna(subset=["date","ticker","close"]).copy()
+    out["ticker"] = out["ticker"].astype(str)
+    out = out.sort_values(["date","ticker"])
+
+    # Pivot to v31-like wide MultiIndex: columns = (ticker, field), index = date
+    frames = []
+    for field in ["open","high","low","close","volume"]:
+        wide = out.pivot(index="date", columns="ticker", values=field).sort_index()
+        wide.columns = pd.MultiIndex.from_product([wide.columns.astype(str), [field]])
+        frames.append(wide)
+    ohlcv = pd.concat(frames, axis=1).sort_index(axis=1)
+
+    # Ensure DatetimeIndex (no timezone) and float columns
+    ohlcv.index = pd.to_datetime(ohlcv.index)
+    return ohlcv
 
 
-def load_data() -> pd.DataFrame:
-    if os.path.exists(PARQUET_PATH):
-        ohlcv = load_ohlcv_parquet(PARQUET_PATH, UNIVERSE)
-        return ohlcv.sort_index()
 
-    end = datetime.now()
-    start = end - timedelta(days=LOOKBACK_CAL_DAYS)
-    return load_ohlcv_yfinance(UNIVERSE, start=start, end=end)
+def _corr_matrix(win: pd.DataFrame) -> np.ndarray:
+    mat = win.to_numpy(dtype=float)
+    mat = mat - np.nanmean(mat, axis=0, keepdims=True)
+    mat = mat / (np.nanstd(mat, axis=0, keepdims=True) + 1e-12)
+    mat = np.nan_to_num(mat, nan=0.0, posinf=0.0, neginf=0.0)
+    corr = (mat.T @ mat) / max(mat.shape[0]-1, 1)
+    return np.clip(corr, -1, 1)
 
+def _max_offdiag(corr: np.ndarray) -> float:
+    if corr is None or corr.shape[0] < 2:
+        return float("nan")
+    m = corr.copy()
+    np.fill_diagonal(m, np.nan)
+    return float(np.nanmax(m))
 
-# =============================================================================
-# Indicators
-# =============================================================================
+def greedy_pick_low_corr(candidates: List[str], corr_assets: List[str], corr: np.ndarray,
+                         topk: int, thr: float, max_scan: int) -> List[str]:
+    if corr is None or len(corr_assets) < 2:
+        return candidates[:topk]
+    idx = {t:i for i,t in enumerate(corr_assets)}
+    chosen=[]
+    scanned=0
+    for t in candidates:
+        scanned += 1
+        if scanned > max_scan:
+            break
+        if t not in idx:
+            continue
+        ti = idx[t]
+        ok = True
+        for c in chosen:
+            if c in idx and corr[ti, idx[c]] >= thr:
+                ok = False
+                break
+        if ok:
+            chosen.append(t)
+        if len(chosen) >= topk:
+            break
+    if len(chosen) < topk:
+        for t in candidates:
+            if t not in chosen:
+                chosen.append(t)
+            if len(chosen) >= topk:
+                break
+    return chosen
 
-def rsi(close: pd.Series, period: int = 14) -> float:
-    c = close.dropna()
-    if c.shape[0] < period + 5:
-        return np.nan
-    d = c.diff()
-    gain = d.clip(lower=0.0)
-    loss = -d.clip(upper=0.0)
-    avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1/period, adjust=False).mean().replace(0, np.nan)
-    rs = avg_gain / avg_loss
-    out = 100 - (100 / (1 + rs))
-    return float(out.iloc[-1])
+def apply_a_rank5(current: List[str], ranked: List[str], topk: int, keep_rank: int) -> List[str]:
+    if not ranked:
+        return []
+    rank_pos = {t:i+1 for i,t in enumerate(ranked)}  # 1-based
+    kept = [t for t in current if rank_pos.get(t, 10**9) <= keep_rank]
+    kept = kept[:topk]
+    out = list(kept)
+    for t in ranked:
+        if t in out:
+            continue
+        out.append(t)
+        if len(out) >= topk:
+            break
+    return out[:topk]
 
-
-def atr_percent(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> float:
-    h = high.dropna()
-    l = low.dropna()
-    c = close.dropna()
-    if min(h.shape[0], l.shape[0], c.shape[0]) < period + 5:
-        return np.nan
-    prev = c.shift(1)
-    tr = pd.concat([(h - l).abs(), (h - prev).abs(), (l - prev).abs()], axis=1).max(axis=1)
-    atr = tr.rolling(period).mean().iloc[-1]
-    last = float(c.iloc[-1])
-    if pd.isna(atr) or last <= 0:
-        return np.nan
-    return float(atr) / last * 100.0
-
-
-def dist_sma20(close: pd.Series, period: int = 20) -> float:
-    c = close.dropna()
-    if c.shape[0] < period + 5:
-        return np.nan
-    sma = c.rolling(period).mean().iloc[-1]
-    if pd.isna(sma) or sma <= 0:
-        return np.nan
-    return (float(c.iloc[-1]) / float(sma) - 1.0) * 100.0
-
-
-def dist_high_52w(close: pd.Series, lookback: int = 252) -> float:
-    c = close.dropna()
-    if c.shape[0] < 30:
-        return np.nan
-    h52 = c.rolling(lookback).max().iloc[-1] if c.shape[0] >= lookback else c.max()
-    if pd.isna(h52) or h52 <= 0:
-        return np.nan
-    return (float(c.iloc[-1]) / float(h52) - 1.0) * 100.0
-
-
-def momentum_score(close: pd.Series, high: pd.Series) -> float:
-    c = close.dropna()
-    h = high.dropna()
-    if c.shape[0] < max(SMA_PERIOD, ATR_PERIOD, HIGH_LOOKBACK) + 5:
-        return np.nan
-
-    sma = c.rolling(SMA_PERIOD).mean()
-    prev = c.shift(1)
-    tr = (h - prev).abs()
-    atr = tr.rolling(ATR_PERIOD).mean().replace(0, np.nan)
-
-    high60 = h.rolling(HIGH_LOOKBACK).max().replace(0, np.nan)
-    base = (c - sma) / atr
-    penalty = (high60 / c.replace(0, np.nan))
-    s = (base / penalty).iloc[-1]
-    return float(s) if not pd.isna(s) else np.nan
-
-
-def entry_red_flags(close: pd.Series, high: pd.Series, low: pd.Series) -> Tuple[int, List[str], dict]:
-    ind = {
-        "rsi14": rsi(close, 14),
-        "atr_pct": atr_percent(high, low, close, 14),
-        "dist_sma20_pct": dist_sma20(close, 20),
-        "dist_high_52w_pct": dist_high_52w(close, 252),
-    }
-    flags = []
-    if not pd.isna(ind["rsi14"]) and ind["rsi14"] > RF_RSI_OVERBOUGHT:
-        flags.append(f"RSI>{RF_RSI_OVERBOUGHT}")
-    if not pd.isna(ind["dist_high_52w_pct"]) and ind["dist_high_52w_pct"] < RF_DIST_HIGH_52W_MIN:
-        flags.append(f"52W<{RF_DIST_HIGH_52W_MIN}%")
-    if not pd.isna(ind["atr_pct"]) and ind["atr_pct"] > RF_ATR_PCT_MAX:
-        flags.append(f"ATR%>{RF_ATR_PCT_MAX}")
-    if not pd.isna(ind["dist_sma20_pct"]) and ind["dist_sma20_pct"] > RF_DIST_SMA20_MAX:
-        flags.append(f"EXT>{RF_DIST_SMA20_MAX}%SMA20")
-    return len(flags), flags, ind
-
-
-# =============================================================================
-# FX (USD -> EUR)
-# =============================================================================
-
-def get_eur_usd_rate() -> float:
-    if yf is None:
-        return 1.0
-    try:
-        t = yf.Ticker("EURUSD=X")
-        px = t.info.get("regularMarketPrice") or t.info.get("previousClose")
-        if px and float(px) > 0:
-            return float(px)
-    except Exception:
-        pass
-    return 1.0
-
-
-def usd_to_eur(price_usd: float, eurusd: float) -> float:
-    if eurusd <= 0:
-        return float(price_usd)
-    return float(price_usd) / float(eurusd)
-
-
-# =============================================================================
-# Trading logic helpers
-# =============================================================================
-
-def allocate_cash(cash: float, slot_rank: int) -> float:
-    w = ALLOC_WEIGHTS.get(slot_rank, 1.0 / MAX_POSITIONS)
-    return cash * w
-
-
-def bars_held(index: pd.Index, entry_date_str: str, current_date: pd.Timestamp) -> int:
-    try:
-        entry_dt = pd.to_datetime(entry_date_str)
-    except Exception:
-        return 0
-    mask = (index >= entry_dt) & (index <= current_date)
-    return int(mask.sum())
+def invvol_weights(vol: pd.Series, tickers: List[str]) -> Dict[str, float]:
+    if not tickers:
+        return {}
+    v = vol.reindex(tickers).replace(0, np.nan)
+    inv = (1.0 / v).replace([np.inf, -np.inf], np.nan).dropna()
+    if inv.empty:
+        return {}
+    inv = inv / inv.sum()
+    return {t: float(inv.loc[t]) for t in inv.index}
 
 
 # =============================================================================
-# MAIN
+# MAIN (prod daily)
 # =============================================================================
 
 def main() -> None:
-    print("=" * 90)
-    print("🚀 APEX — PROD (fixed LOOKBACK_CAL_DAYS + TOP Momentum)")
-    print("=" * 90)
+    print("="*90)
+    print("APEX PROD — PACK_FINAL_V6C (A_rank5) — YFINANCE ONLY")
+    print("="*90)
     print(f"🕒 {_now_str()}")
-    print(f"🔎 LOOKBACK_CAL_DAYS={LOOKBACK_CAL_DAYS} (fallback yfinance)")
-
     portfolio = load_portfolio()
     trades = load_trades()
 
-    # Monthly DCA
+    # Monthly DCA (v31 mechanism)
     today = datetime.now()
     month_key = f"{today.year}-{today.month:02d}"
     if portfolio.get("last_dca_month") != month_key:
-        portfolio["cash"] = float(portfolio.get("cash", 0.0)) + MONTHLY_DCA_EUR
+        portfolio["cash"] = float(portfolio.get("cash", 0.0)) + MONTHLY_DCA
         portfolio["last_dca_month"] = month_key
-        print(f"💰 DCA: +{MONTHLY_DCA_EUR:.2f}€ (month={month_key})")
+        print(f"💰 DCA: +{MONTHLY_DCA:.2f} (month={month_key})")
 
-    # Load data
-    ohlcv = load_data()
+    ohlcv = load_data_yfinance(UNIVERSE)
     if ohlcv.empty:
         raise RuntimeError("OHLCV vide.")
 
-    # Use latest available date as "signal day"
     d = ohlcv.index.max()
     d_str = pd.to_datetime(d).strftime("%Y-%m-%d")
     print(f"📅 Dernière date OHLCV: {d_str}")
 
-    eurusd = get_eur_usd_rate()
-    print(f"💱 EURUSD=X: {eurusd:.4f} (prixUSD -> prixEUR = USD / eurusd)")
+    # Precompute cross-sectional features at date d
+    closes = pd.Series({t: ohlcv[(t,"close")].loc[d] for t in UNIVERSE if (t,"close") in ohlcv.columns}, dtype=float)
+    opens_next = pd.Series({t: ohlcv[(t,"open")].iloc[-1] for t in UNIVERSE if (t,"open") in ohlcv.columns}, dtype=float)
 
-    # Precompute score/rank + indicators for all tickers
-    score_map: Dict[str, float] = {}
-    ind_map: Dict[str, dict] = {}
+    # Build Close matrix for indicators
+    C = pd.DataFrame({t: ohlcv[(t,"close")] for t in UNIVERSE if (t,"close") in ohlcv.columns})
+    r1 = C.pct_change()
 
-    for t in UNIVERSE:
-        if (t, "close") not in ohlcv.columns or (t, "high") not in ohlcv.columns or (t, "low") not in ohlcv.columns:
+    R63s  = C / C.shift(R63)  - 1.0
+    R126s = C / C.shift(R126) - 1.0
+    R252s = C / C.shift(R252) - 1.0
+    score = W63*R63s + W126*R126s + W252*R252s
+    sma200 = C.rolling(SMA200_WIN, min_periods=SMA200_WIN).mean()
+    vol20 = r1.rolling(VOL_WIN, min_periods=VOL_WIN).std()
+
+    elig = (C.loc[d] > sma200.loc[d]) & score.loc[d].notna() & vol20.loc[d].notna()
+    s = score.loc[d].where(elig, np.nan).dropna()
+    ranked_all = list(s.sort_values(ascending=False).index)
+    ranked_pool = ranked_all[:RANK_POOL]
+
+    # Corr gate and pick (for informational + selection)
+    max_corr = float("nan")
+    corr_gate_on = False
+    desired_ranked = ranked_pool[:MAX_POSITIONS]
+    if len(ranked_pool) >= 2:
+        win = r1[ranked_pool].iloc[-CORR_WIN:]
+        if win.shape[0] >= int(0.8*CORR_WIN):
+            corr = _corr_matrix(win)
+            max_corr = _max_offdiag(corr)
+            corr_gate_on = bool(np.isfinite(max_corr) and max_corr > CORR_GATE_THR)
+            if corr_gate_on:
+                desired_ranked = greedy_pick_low_corr(ranked_pool, ranked_pool, corr, MAX_POSITIONS, CORR_PICK_THR, CORR_SCAN)
+            else:
+                desired_ranked = ranked_pool[:MAX_POSITIONS]
+
+    current = list(portfolio.get("positions", {}).keys())
+    desired = apply_a_rank5(current=current, ranked=desired_ranked, topk=MAX_POSITIONS, keep_rank=KEEP_RANK)
+
+    # Top momentum display
+    topN = ranked_all[:TOP_MOMENTUM_N]
+    top_lines = []
+    for i, t in enumerate(topN, 1):
+        top_lines.append(f"{i}. {t} score {float(score.loc[d, t]):.3f}")
+
+    # Portfolio valuation at close d
+    cash = float(portfolio.get("cash", 0.0))
+    pos_val = 0.0
+    for t, pos in portfolio.get("positions", {}).items():
+        px = float(closes.get(t, np.nan))
+        if np.isnan(px) or px <= 0:
             continue
+        pos_val += float(pos.get("shares", 0.0)) * px
+    equity = cash + pos_val
 
-        c = ohlcv[(t, "close")].loc[:d]
-        h = ohlcv[(t, "high")].loc[:d]
-        l = ohlcv[(t, "low")].loc[:d]
+    # Target weights
+    w = invvol_weights(vol20.loc[d], desired)
+    targets_val = {t: w[t]*equity for t in w}
 
-        if c.dropna().shape[0] < 60:
-            continue
+    # Build orders (rebalance at next open, but we simulate with close for sizing)
+    orders = []
 
-        sc = momentum_score(c, h)
-        if pd.isna(sc) or sc <= 0:
-            continue
-
-        rf_n, rf_flags, ind = entry_red_flags(c, h, l)
-        score_map[t] = float(sc)
-        ind_map[t] = {"rf_n": rf_n, "rf_flags": rf_flags, **ind}
-
-    ranked = sorted(score_map.items(), key=lambda x: x[1], reverse=True)
-    rank_map = {t: (i + 1) for i, (t, _) in enumerate(ranked)}
-
-    # Latest prices (USD), then convert to EUR
-    last_close_usd = {}
-    last_high_usd = {}
-    last_low_usd = {}
-    for t in UNIVERSE:
-        if (t, "close") not in ohlcv.columns:
-            last_close_usd[t] = np.nan
-            last_high_usd[t] = np.nan
-            last_low_usd[t] = np.nan
-            continue
-        c = ohlcv[(t, "close")].loc[d]
-        hi = ohlcv[(t, "high")].loc[d] if (t, "high") in ohlcv.columns else np.nan
-        lo = ohlcv[(t, "low")].loc[d] if (t, "low") in ohlcv.columns else np.nan
-        last_close_usd[t] = float(c) if pd.notna(c) else np.nan
-        last_high_usd[t] = float(hi) if pd.notna(hi) else np.nan
-        last_low_usd[t] = float(lo) if pd.notna(lo) else np.nan
-
-    # ✅ TOP MOMENTUM (display only)
-    topN = ranked[:TOP_MOMENTUM_N]
-    top_lines_console = []
-    for i, (t, sc) in enumerate(topN, 1):
-        rf = ind_map.get(t, {})
-        flags = ",".join(rf.get("rf_flags", [])) if rf.get("rf_flags") else "-"
-        top_lines_console.append(
-            f"{i:>2}. {t:<5} | score {sc:>7.3f} | RSI {rf.get('rsi14', np.nan):>5.1f} | "
-            f"ATR% {rf.get('atr_pct', np.nan):>4.1f} | RF {rf.get('rf_n', 0)} [{flags}]"
-        )
-
-    print("\n📈 TOP MOMENTUM:")
-    if top_lines_console:
-        for line in top_lines_console:
-            print("   " + line)
-    else:
-        print("   (aucun score valide)")
-
-    # =====================================================================
-    # 1) Evaluate positions -> SELL signals
-    # =====================================================================
-    sells = []
-    positions = portfolio.get("positions", {})
-
-    for t, pos in list(positions.items()):
-        px_usd = last_close_usd.get(t, np.nan)
-        hi_usd = last_high_usd.get(t, np.nan)
-        lo_usd = last_low_usd.get(t, np.nan)
-        if np.isnan(px_usd):
-            continue
-
-        px_eur = usd_to_eur(px_usd, eurusd)
-        hi_eur = usd_to_eur(hi_usd, eurusd) if not np.isnan(hi_usd) else px_eur
-        lo_eur = usd_to_eur(lo_usd, eurusd) if not np.isnan(lo_usd) else px_eur
-
-        entry_price = float(pos.get("entry_price_eur", pos.get("entry_price", px_eur)))
-        shares = float(pos.get("shares", 0.0))
-        if shares <= 0:
-            continue
-
-        peak = float(pos.get("peak_price_eur", entry_price))
-        trough = float(pos.get("trough_price_eur", entry_price))
-        peak = max(peak, hi_eur)
-        trough = min(trough, lo_eur)
-
-        mfe_pct = (peak / entry_price - 1.0) * 100.0
-        mae_pct = (trough / entry_price - 1.0) * 100.0
-        trailing_active = (mfe_pct / 100.0) >= MFE_TRIGGER_PCT
-
-        pos["peak_price_eur"] = peak
-        pos["trough_price_eur"] = trough
-        pos["mfe_pct"] = mfe_pct
-        pos["mae_pct"] = mae_pct
-        pos["trailing_active"] = trailing_active
-
-        cur_score = float(score_map.get(t, 0.0))
-        cur_rank = int(rank_map.get(t, 999))
-        pos["score"] = cur_score
-        pos["rank"] = cur_rank
-
-        if cur_score <= 0:
-            pos["days_score_le0"] = int(pos.get("days_score_le0", 0)) + 1
-        else:
-            pos["days_score_le0"] = 0
-
-        entry_date = pos.get("entry_date", pos.get("date", d_str))
-        bh = bars_held(ohlcv.index, entry_date, pd.to_datetime(d))
-        pos["bars_held"] = int(bh)
-
-        pnl_eur = (px_eur - entry_price) * shares
-        pnl_pct = (px_eur / entry_price - 1.0) * 100.0
-
-        reason = None
-
-        stop_price = entry_price * (1.0 - HARD_STOP_PCT)
-        if px_eur <= stop_price:
-            reason = "HARD_STOP"
-
-        if reason is None and trailing_active:
-            dd_from_peak = (px_eur / peak - 1.0)
-            if dd_from_peak <= -TRAIL_FROM_PEAK_PCT:
-                reason = "MFE_TRAILING"
-
-        if reason is None and trailing_active:
-            pass
-        else:
-            if reason is None and int(pos.get("days_score_le0", 0)) >= FORCE_ROTATION_DAYS:
-                reason = f"FORCE_ROTATION_{FORCE_ROTATION_DAYS}d"
-
-            if reason is None and cur_rank > RANK_GATE:
-                atrp = ind_map.get(t, {}).get("atr_pct", np.nan)
-                mult = 1
-                if t in SLOW_ASSETS:
-                    mult = max(mult, SLOW_ASSETS_MULT)
-                if not pd.isna(atrp) and atrp < VOL_RELAX_ATR_PCT:
-                    mult = max(mult, 2)
-
-                q1_b = Q1_BARS * mult
-                q2_b = Q2_BARS * mult
-
-                if bh >= q1_b and mfe_pct < Q1_MFE_PCT:
-                    reason = f"QUALITY_MFE<{Q1_MFE_PCT}%_{q1_b}b"
-                elif bh >= q2_b and mfe_pct < Q2_MFE_PCT:
-                    reason = f"QUALITY_MFE<{Q2_MFE_PCT}%_{q2_b}b"
-
-        if reason is not None:
-            value_eur = px_eur * shares
-            sells.append({
-                "ticker": t,
-                "price_eur": px_eur,
-                "shares": shares,
-                "value_eur": value_eur,
-                "pnl_eur": pnl_eur - FEE_EUR,
-                "pnl_pct": pnl_pct,
-                "mfe_pct": mfe_pct,
-                "mae_pct": mae_pct,
-                "bars_held": bh,
-                "reason": reason,
-                "rank": cur_rank,
-                "score": cur_score,
-                "entry_date": entry_date,
-                "entry_price_eur": entry_price,
+    # SELL tickers not in targets
+    for t in list(portfolio.get("positions", {}).keys()):
+        if t not in targets_val:
+            px = float(closes.get(t, np.nan))
+            if np.isnan(px) or px <= 0:
+                continue
+            sh = float(portfolio["positions"][t].get("shares", 0.0))
+            val = sh * px
+            cash += val - FEE_PER_ORDER
+            orders.append(("SELL", t, sh, px, val, "exit"))
+            append_trade(trades, {
+                "action":"SELL","ticker":t,"date":d_str,"price":px,"shares":sh,"amount":val,"fee":FEE_PER_ORDER,"reason":"exit"
             })
-
-        positions[t] = pos
-
-    for s in sells:
-        t = s["ticker"]
-        proceeds = float(s["value_eur"]) - FEE_EUR
-        portfolio["cash"] = float(portfolio.get("cash", 0.0)) + proceeds
-
-        append_trade(trades, {
-            "action": "SELL",
-            "ticker": t,
-            "date": d_str,
-            "price_eur": float(s["price_eur"]),
-            "shares": float(s["shares"]),
-            "amount_eur": float(s["value_eur"]),
-            "fee_eur": float(FEE_EUR),
-            "reason": s["reason"],
-            "pnl_eur": float(s["pnl_eur"]),
-            "pnl_pct": float(s["pnl_pct"]),
-            "mfe_pct": float(s["mfe_pct"]),
-            "mae_pct": float(s["mae_pct"]),
-            "bars_held": int(s["bars_held"]),
-            "rank": int(s["rank"]),
-            "score": float(s["score"]),
-        })
-
-        if t in portfolio.get("positions", {}):
             del portfolio["positions"][t]
 
-    # =====================================================================
-    # 2) BUY signals (RF0) for top ranks 1..MAX_POSITIONS
-    # =====================================================================
-    buys = []
-    held = set(portfolio.get("positions", {}).keys())
-    slots = MAX_POSITIONS - len(held)
+    # REBAL / BUY targets (delta threshold)
+    equity = cash + sum(float(pos.get("shares",0.0))*float(closes.get(t,np.nan))
+                        for t,pos in portfolio.get("positions",{}).items()
+                        if (t in closes.index and float(closes.get(t,np.nan))>0))
+    for t, tgt in targets_val.items():
+        px = float(closes.get(t, np.nan))
+        if np.isnan(px) or px <= 0:
+            continue
+        cur_sh = float(portfolio.get("positions", {}).get(t, {}).get("shares", 0.0))
+        cur_val = cur_sh * px
+        diff = tgt - cur_val
+        if abs(diff) < DELTA_REBAL * equity:
+            continue
 
-    cash = float(portfolio.get("cash", 0.0))
-    if slots > 0 and cash > 50:
-        for t, sc in ranked:
-            if slots <= 0:
-                break
-            r = int(rank_map.get(t, 999))
-            if r > MAX_POSITIONS:
+        if diff < 0 and cur_sh > 0:
+            # sell down
+            sh = min((-diff)/px, cur_sh)
+            val = sh * px
+            cash += val - FEE_PER_ORDER
+            new_sh = cur_sh - sh
+            orders.append(("SELL", t, sh, px, val, "rebalance"))
+            append_trade(trades, {"action":"SELL","ticker":t,"date":d_str,"price":px,"shares":sh,"amount":val,"fee":FEE_PER_ORDER,"reason":"rebalance"})
+            if new_sh <= 1e-10:
+                portfolio["positions"].pop(t, None)
+            else:
+                portfolio["positions"][t]["shares"] = float(new_sh)
+        elif diff > 0:
+            # buy up (bounded by cash)
+            max_buy = max(cash - FEE_PER_ORDER, 0.0)
+            buy_val = min(diff, max_buy)
+            if buy_val <= 1e-8:
                 continue
-            if t in held:
-                continue
+            sh = buy_val / px
+            cash -= buy_val + FEE_PER_ORDER
+            orders.append(("BUY", t, sh, px, buy_val, "rebalance"))
+            if t not in portfolio["positions"]:
+                portfolio["positions"][t] = {"entry_date": d_str, "entry_price": px, "shares": 0.0}
+            portfolio["positions"][t]["shares"] = float(portfolio["positions"][t].get("shares", 0.0) + sh)
+            append_trade(trades, {"action":"BUY","ticker":t,"date":d_str,"price":px,"shares":sh,"amount":buy_val,"fee":FEE_PER_ORDER,"reason":"rebalance"})
 
-            rf = ind_map.get(t, {})
-            if int(rf.get("rf_n", 99)) > MAX_RED_FLAGS:
-                continue
+    portfolio["cash"] = float(cash)
 
-            px_usd = last_close_usd.get(t, np.nan)
-            if np.isnan(px_usd) or px_usd <= 0:
-                continue
-            px_eur = usd_to_eur(px_usd, eurusd)
-
-            alloc = allocate_cash(cash, r)
-            alloc = min(alloc, max(0.0, cash - 10.0))
-            if alloc < 50:
-                continue
-
-            shares = alloc / px_eur
-            cost = alloc + FEE_EUR
-            if cost > cash:
-                continue
-
-            buys.append({
-                "ticker": t,
-                "rank": r,
-                "score": float(sc),
-                "price_eur": px_eur,
-                "shares": shares,
-                "amount_eur": alloc,
-                "rsi14": rf.get("rsi14", np.nan),
-                "atr_pct": rf.get("atr_pct", np.nan),
-            })
-
-            cash -= cost
-            portfolio["cash"] = cash
-            portfolio["positions"][t] = {
-                "entry_date": d_str,
-                "entry_price_eur": float(px_eur),
-                "shares": float(shares),
-                "initial_amount_eur": float(alloc),
-                "amount_invested_eur": float(alloc),
-                "peak_price_eur": float(px_eur),
-                "trough_price_eur": float(px_eur),
-                "mfe_pct": 0.0,
-                "mae_pct": 0.0,
-                "trailing_active": False,
-                "days_score_le0": 0,
-                "rank": int(r),
-                "score": float(sc),
-            }
-
-            append_trade(trades, {
-                "action": "BUY",
-                "ticker": t,
-                "date": d_str,
-                "price_eur": float(px_eur),
-                "shares": float(shares),
-                "amount_eur": float(alloc),
-                "fee_eur": float(FEE_EUR),
-                "reason": f"BUY_RANK{r}_RF0",
-                "rank": int(r),
-                "score": float(sc),
-            })
-
-            held.add(t)
-            slots -= 1
-
-    # =====================================================================
-    # 3) Portfolio summary + Telegram
-    # =====================================================================
-    pos_value = 0.0
+    # Summary + Telegram
     lines_pos = []
     for t, pos in portfolio.get("positions", {}).items():
-        px_usd = last_close_usd.get(t, np.nan)
-        if np.isnan(px_usd):
-            continue
-        px_eur = usd_to_eur(px_usd, eurusd)
-        entry = float(pos.get("entry_price_eur", px_eur))
+        px = float(closes.get(t, np.nan))
         sh = float(pos.get("shares", 0.0))
-        val = px_eur * sh
-        pos_value += val
-        pnl_pct = (px_eur / entry - 1.0) * 100.0 if entry > 0 else 0.0
-        mfe = float(pos.get("mfe_pct", 0.0))
-        trail = "ON" if bool(pos.get("trailing_active", False)) else "OFF"
-        rk = int(pos.get("rank", 999))
-        lines_pos.append(f"- {t} (#{rk}) PnL {pnl_pct:+.1f}% | MFE {mfe:+.1f}% | Trail {trail}")
-
-    cash = float(portfolio.get("cash", 0.0))
-    total = cash + pos_value
-
-    start_date = pd.to_datetime(portfolio.get("start_date", d_str))
-    months = (today.year - start_date.year) * 12 + (today.month - start_date.month)
-    invested = float(portfolio.get("initial_capital", INITIAL_CAPITAL_EUR)) + max(0, months) * float(portfolio.get("monthly_dca", MONTHLY_DCA_EUR))
-    pnl_total = total - invested
-    pnl_total_pct = (total / invested - 1.0) * 100.0 if invested > 0 else 0.0
-
-    # ✅ Add Top Momentum to message
-    top_lines_msg = []
-    for i, (t, sc) in enumerate(topN, 1):
-        rf = ind_map.get(t, {})
-        flags = ",".join(rf.get("rf_flags", [])) if rf.get("rf_flags") else "-"
-        top_lines_msg.append(
-            f"{i}. {t} score {sc:.3f} | RSI {rf.get('rsi14', np.nan):.0f} | ATR% {rf.get('atr_pct', np.nan):.1f} | RF {rf.get('rf_n', 0)} [{flags}]"
-        )
+        val = sh*px if (not np.isnan(px) and px>0) else np.nan
+        lines_pos.append(f"{t}: {val:.0f}" if np.isfinite(val) else f"{t}: n/a")
 
     msg = []
-    msg.append(f"APEX PROD — {d_str}")
-    msg.append(f"EURUSD=X {eurusd:.4f}")
-    msg.append(f"Cash {cash:.2f}€ | Pos {pos_value:.2f}€ | Total {total:.2f}€")
-    msg.append(f"Invested~ {invested:.2f}€ | PnL {pnl_total:+.2f}€ ({pnl_total_pct:+.1f}%)")
+    msg.append(f"APEX PROD — PACK_FINAL_V6C (A_rank5) — {d_str}")
+    msg.append(f"Cash {portfolio['cash']:.2f} | Pos {pos_val:.2f} | Total {equity:.2f}")
     msg.append("")
-    msg.append(f"TOP {TOP_MOMENTUM_N} MOMENTUM:")
-    msg.extend(top_lines_msg if top_lines_msg else ["(aucun score valide)"])
+    msg.append("TOP 5 MOMENTUM:")
+    msg.extend([f"{line}" for line in top_lines] if top_lines else ["(none)"])
     msg.append("")
-    msg.append("ACTIONS:")
-    if sells:
-        for s in sells:
-            msg.append(f"SELL {s['ticker']} — {s['reason']} | PnL {s['pnl_pct']:+.1f}% | MFE {s['mfe_pct']:+.1f}% | Hold {s['bars_held']}b")
-    if buys:
-        for b in buys:
-            msg.append(f"BUY  {b['ticker']} (#{b['rank']}) amt {b['amount_eur']:.0f}€ | score {b['score']:.3f} | RSI {b['rsi14']:.0f} | ATR% {b['atr_pct']:.1f}")
-    if not sells and not buys:
-        msg.append("HOLD — no action")
+    msg.append(f"Desired: {', '.join(desired) if desired else '(none)'}")
+    msg.append(f"CorrGate: {int(corr_gate_on)} | max_corr {max_corr:.3f}" if np.isfinite(max_corr) else f"CorrGate: {int(corr_gate_on)}")
     msg.append("")
-    msg.append("POSITIONS:")
-    msg.extend(lines_pos if lines_pos else ["- (none)"])
+    if orders:
+        msg.append("ORDERS (signal close, exec open+1):")
+        for a,t,sh,px,val,reason in orders:
+            msg.append(f"- {a} {t} {val:.0f} ({reason})")
+    else:
+        msg.append("ORDERS: none")
 
     message = "\n".join(msg)
+    print(message)
+    send_telegram(message)
 
     save_portfolio(portfolio)
     save_trades(trades)
-
-    print("\n" + "=" * 90)
-    print(message)
-    print("=" * 90)
-
-    send_telegram(message)
-
-    print("=" * 90)
-    print("✅ Run terminé | portfolio.json + trades_history.json mis à jour")
-    print("=" * 90)
 
 
 if __name__ == "__main__":
