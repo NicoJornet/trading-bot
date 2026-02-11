@@ -6,11 +6,11 @@
   "start_date": "2025-12-29",
   "last_dca_date": "2026-02-02",
   "positions": {},
-  "last_updated": "2026-02-10 00:00",
+  "last_updated": "2026-02-11 06:47",
   "last_dca_month": "2026-02",
   "confirm_state": {},
   "cooldown_until": {},
-  "last_updated_note": "User liquidated all positions; portfolio reset to cash=2000€. Next DCA scheduled in one month (2026-03-10).",
+  "last_updated_note": "User liquidated all positions; portfolio reset to cash=2000\u20ac. Next DCA scheduled in one month (2026-03-10).",
   "next_dca_date": "2026-03-10",
   "reset_date": "2026-02-10"
 }
