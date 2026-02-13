@@ -16,9 +16,10 @@ Base canonique:
 - Données: 100% yfinance (aucun CSV/parquet)
 ==========================================================================================
 
-✅ PATCH V6C — Allocation lisible
-- Affiche les poids inv-vol20 et les montants € cibles (approx) dès le run, même si pas jour de rebalance
-- Réserve les frais estimés (1€ par BUY) pour afficher un "investable" réaliste
+ PATCH V6C — Allocation lisible (CORRIGÉ)
+- Affiche aussi HOLDINGS (positions actuelles) pour éviter la confusion avec "Desired"
+- Calcule les TARGET € sur la valeur totale du portefeuille (cash + positions) même si cash=0
+- Réserve les frais estimés seulement pour les BUY manquants (desired - held)
 - Ajoute ces infos au message Telegram
 """
 
@@ -38,23 +39,23 @@ import yfinance as yf
 # =============================================================================
 
 UNIVERSE: List[str] = [
-    "AAPL","ABBV","ABNB","ABT","AEM","AIR.PA","ALB","AMAT","AMD","AMGN","AMZN","ANET","APP","ASML",
-    "AVAV","AVGO","AXON","BA","BA.L","BHP","BMY","BP","BWXT","CCJ","CEG","CHTR","CL","CMCSA","CNI",
-    "COP","COST","CP","CRWD","CSU.TO","CVX","DHR","DIA","DIS","DLR","DOV","DUK","ENI.MI","EQIX",
-    "EQR","EWW","FNV","FSLR","FTNT","GD","GDX","GE","GILD","GLD","GOOGL","GS","HAL","HAG.DE",
-    "HD","HO.PA","HON","HUM","IEF","INTC","ISRG","IWM","JNJ","JPM","KLAC","KO","LDO.MI","LLY",
-    "LMT","LRCX","LULU","MA","MCD","MELI","META","MC.PA","MMM","MO","MRK","MSTR","MSFT","MU",
-    "NEE","NET","NKE","NOC","NVO","NVDA","O","ORCL","PAAS","PANW","PEP","PFE","PG","PLTR","PM",
-    "PNC","QCOM","QQQ","RACE","RHM.DE","RIO","RMS.PA","ROK","RTX","SAAB-B.ST","SAF.PA","SBUX",
-    "SCHW","SHOP","SLV","SMCI","SO","SPY","SU.PA","T","TGT","TM","TMO","TSLA","TSM","TXN",
-    "UNH","UPS","V","VRTX","VZ","WFC","WM","WMT","XOM","ZS"
+ "AAPL","ABBV","ABNB","ABT","AEM","AIR.PA","ALB","AMAT","AMD","AMGN","AMZN","ANET","APP","ASML",
+ "AVAV","AVGO","AXON","BA","BA.L","BHP","BMY","BP","BWXT","CCJ","CEG","CHTR","CL","CMCSA","CNI",
+ "COP","COST","CP","CRWD","CSU.TO","CVX","DHR","DIA","DIS","DLR","DOV","DUK","ENI.MI","EQIX",
+ "EQR","EWW","FNV","FSLR","FTNT","GD","GDX","GE","GILD","GLD","GOOGL","GS","HAL","HAG.DE",
+ "HD","HO.PA","HON","HUM","IEF","INTC","ISRG","IWM","JNJ","JPM","KLAC","KO","LDO.MI","LLY",
+ "LMT","LRCX","LULU","MA","MCD","MELI","META","MC.PA","MMM","MO","MRK","MSTR","MSFT","MU",
+ "NEE","NET","NKE","NOC","NVO","NVDA","O","ORCL","PAAS","PANW","PEP","PFE","PG","PLTR","PM",
+ "PNC","QCOM","QQQ","RACE","RHM.DE","RIO","RMS.PA","ROK","RTX","SAAB-B.ST","SAF.PA","SBUX",
+ "SCHW","SHOP","SLV","SMCI","SO","SPY","SU.PA","T","TGT","TM","TMO","TSLA","TSM","TXN",
+ "UNH","UPS","V","VRTX","VZ","WFC","WM","WMT","XOM","ZS"
 ]
 
 YF_TICKER_MAP: Dict[str, str] = {
-    "CAC40": "^FCHI",
-    "DAX": "^GDAXI",
-    "EUROSTOXX50": "^STOXX50E",
-    "FTSE100": "^FTSE",
+ "CAC40": "^FCHI",
+ "DAX": "^GDAXI",
+ "EUROSTOXX50": "^STOXX50E",
+ "FTSE100": "^FTSE",
 }
 
 HISTORY_START = "2014-01-01"
@@ -69,7 +70,7 @@ RANK_POOL = 15
 KEEP_RANK = 5
 
 REB_EVERY_N_DAYS = 10
-DELTA_REBAL = 0.10  # 10%
+DELTA_REBAL = 0.10 # 10%
 
 CORR_WIN = 63
 CORR_GATE = 0.92
@@ -97,12 +98,12 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 @dataclass
 class OHLCV:
-    open: pd.DataFrame
-    high: pd.DataFrame
-    low: pd.DataFrame
-    close: pd.DataFrame
-    volume: pd.DataFrame
-    close_ffill: pd.DataFrame
+ open: pd.DataFrame
+ high: pd.DataFrame
+ low: pd.DataFrame
+ close: pd.DataFrame
+ volume: pd.DataFrame
+ close_ffill: pd.DataFrame
 
 
 # =============================================================================
@@ -110,48 +111,48 @@ class OHLCV:
 # =============================================================================
 
 def _now_str() -> str:
-    return dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+ return dt.datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
 def safe_float(x, default=np.nan) -> float:
-    try:
-        return float(x)
-    except Exception:
-        return float(default)
+ try:
+ return float(x)
+ except Exception:
+ return float(default)
 
 
 def send_telegram(text: str) -> None:
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    try:
-        import requests
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
-        requests.post(url, json=payload, timeout=10)
-    except Exception:
-        pass
+ if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+ return
+ try:
+ import requests
+ url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+ payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+ requests.post(url, json=payload, timeout=10)
+ except Exception:
+ pass
 
 
 def load_json(path: str) -> dict:
-    if not os.path.exists(path):
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+ if not os.path.exists(path):
+ return {}
+ with open(path, "r", encoding="utf-8") as f:
+ return json.load(f)
 
 
 def save_json(path: str, obj: dict) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2, ensure_ascii=False)
+ with open(path, "w", encoding="utf-8") as f:
+ json.dump(obj, f, indent=2, ensure_ascii=False)
 
 
 def map_to_yfinance_symbols(tickers: List[str]) -> Tuple[List[str], Dict[str, str]]:
-    yf_symbols = []
-    rev = {}
-    for t in tickers:
-        yf_t = YF_TICKER_MAP.get(t, t)
-        yf_symbols.append(yf_t)
-        rev[yf_t] = t
-    return yf_symbols, rev
+ yf_symbols = []
+ rev = {}
+ for t in tickers:
+ yf_t = YF_TICKER_MAP.get(t, t)
+ yf_symbols.append(yf_t)
+ rev[yf_t] = t
+ return yf_symbols, rev
 
 
 # =============================================================================
@@ -159,65 +160,65 @@ def map_to_yfinance_symbols(tickers: List[str]) -> Tuple[List[str], Dict[str, st
 # =============================================================================
 
 def load_data_yfinance(tickers: List[str]) -> OHLCV:
-    yf_symbols, rev_map = map_to_yfinance_symbols(tickers)
+ yf_symbols, rev_map = map_to_yfinance_symbols(tickers)
 
-    kwargs = dict(
-        tickers=yf_symbols,
-        group_by="column",
-        auto_adjust=False,
-        threads=True,
-        progress=False,
-        interval="1d",
-    )
-    kwargs["start"] = HISTORY_START
-    if YF_END:
-        kwargs["end"] = YF_END
+ kwargs = dict(
+ tickers=yf_symbols,
+ group_by="column",
+ auto_adjust=False,
+ threads=True,
+ progress=False,
+ interval="1d",
+ )
+ kwargs["start"] = HISTORY_START
+ if YF_END:
+ kwargs["end"] = YF_END
 
-    data = yf.download(**kwargs)
+ data = yf.download(**kwargs)
 
-    if data is None or len(data) == 0:
-        raise RuntimeError("yfinance returned empty dataset.")
+ if data is None or len(data) == 0:
+ raise RuntimeError("yfinance returned empty dataset.")
 
-    if not isinstance(data.columns, pd.MultiIndex):
-        raise RuntimeError("Unexpected yfinance format: expected MultiIndex columns.")
+ if not isinstance(data.columns, pd.MultiIndex):
+ raise RuntimeError("Unexpected yfinance format: expected MultiIndex columns.")
 
-    lvl0 = list(data.columns.get_level_values(0).unique())
-    if "Open" not in lvl0 and "Close" not in lvl0:
-        data = data.swaplevel(axis=1).sort_index(axis=1)
+ lvl0 = list(data.columns.get_level_values(0).unique())
+ if "Open" not in lvl0 and "Close" not in lvl0:
+ data = data.swaplevel(axis=1).sort_index(axis=1)
 
-    def _get_field(field: str) -> pd.DataFrame:
-        if field not in data.columns.get_level_values(0):
-            return pd.DataFrame(index=data.index)
-        df_f = data[field].copy()
-        df_f.columns = [rev_map.get(c, c) for c in df_f.columns]
-        return df_f
+ def _get_field(field: str) -> pd.DataFrame:
+ if field not in data.columns.get_level_values(0):
+ return pd.DataFrame(index=data.index)
+ df_f = data[field].copy()
+ df_f.columns = [rev_map.get(c, c) for c in df_f.columns]
+ return df_f
 
-    o = _get_field("Open")
-    h = _get_field("High")
-    l = _get_field("Low")
-    c = _get_field("Close")
-    v = _get_field("Volume")
+ o = _get_field("Open")
+ h = _get_field("High")
+ l = _get_field("Low")
+ c = _get_field("Close")
+ v = _get_field("Volume")
 
-    cols = sorted(list(set(o.columns) | set(c.columns) | set(h.columns) | set(l.columns) | set(v.columns)))
-    o = o.reindex(columns=cols)
-    h = h.reindex(columns=cols)
-    l = l.reindex(columns=cols)
-    c = c.reindex(columns=cols)
-    v = v.reindex(columns=cols)
+ cols = sorted(list(set(o.columns) | set(c.columns) | set(h.columns) | set(l.columns) | set(v.columns)))
+ o = o.reindex(columns=cols)
+ h = h.reindex(columns=cols)
+ l = l.reindex(columns=cols)
+ c = c.reindex(columns=cols)
+ v = v.reindex(columns=cols)
 
-    c_ff = c.ffill()
+ c_ff = c.ffill()
 
-    if DEBUG_DATA_COVERAGE:
-        bars = c_ff.notna().sum().sort_values(ascending=False)
-        min_bars = int(bars.min()) if len(bars) else 0
-        print(f"🧪 Coverage bars (min={min_bars}, required={MIN_BARS_REQUIRED}) | tickers={len(bars)}")
-        bad = bars[bars < MIN_BARS_REQUIRED]
-        if len(bad) > 0:
-            print("⚠️ Tickers with insufficient history (excluded from ranking):")
-            for t, n in bad.items():
-                print(f"  - {t}: {int(n)} bars")
+ if DEBUG_DATA_COVERAGE:
+ bars = c_ff.notna().sum().sort_values(ascending=False)
+ min_bars = int(bars.min()) if len(bars) else 0
+ print(f" Coverage bars (min={min_bars}, required={MIN_BARS_REQUIRED}) | tickers={len(bars)}")
+ bad = bars[bars < MIN_BARS_REQUIRED]
+ if len(bad) > 0:
+ print(" Tickers with insufficient history (excluded from ranking):")
+ for t, n in bad.items():
+ print(f" - {t}: {int(n)} bars")
 
-    return OHLCV(open=o, high=h, low=l, close=c, volume=v, close_ffill=c_ff)
+ return OHLCV(open=o, high=h, low=l, close=c, volume=v, close_ffill=c_ff)
 
 
 # =============================================================================
@@ -225,126 +226,131 @@ def load_data_yfinance(tickers: List[str]) -> OHLCV:
 # =============================================================================
 
 def compute_signals(ohlcv: OHLCV) -> dict:
-    c = ohlcv.close_ffill
-    ret1 = c.pct_change(fill_method=None)
+ c = ohlcv.close_ffill
+ ret1 = c.pct_change(fill_method=None)
 
-    r63 = c / c.shift(63) - 1.0
-    r126 = c / c.shift(126) - 1.0
-    r252 = c / c.shift(252) - 1.0
+ r63 = c / c.shift(63) - 1.0
+ r126 = c / c.shift(126) - 1.0
+ r252 = c / c.shift(252) - 1.0
 
-    score = W_R63 * r63 + W_R126 * r126 + W_R252 * r252
-    sma = c.rolling(SMA_WIN, min_periods=SMA_WIN).mean()
-    vol = ret1.rolling(VOL_WIN, min_periods=VOL_WIN).std()
+ score = W_R63 * r63 + W_R126 * r126 + W_R252 * r252
+ sma = c.rolling(SMA_WIN, min_periods=SMA_WIN).mean()
+ vol = ret1.rolling(VOL_WIN, min_periods=VOL_WIN).std()
 
-    enough_history = (c.notna().sum() >= MIN_BARS_REQUIRED)
-    return dict(score=score, sma=sma, vol=vol, ret1=ret1, enough_history=enough_history)
+ enough_history = (c.notna().sum() >= MIN_BARS_REQUIRED)
+ return dict(score=score, sma=sma, vol=vol, ret1=ret1, enough_history=enough_history)
 
 
 def corr_matrix(window_returns: np.ndarray) -> np.ndarray:
-    m = window_returns.astype(float)
-    m = m - np.nanmean(m, axis=0, keepdims=True)
-    s = np.nanstd(m, axis=0, keepdims=True) + 1e-12
-    m = m / s
-    m = np.nan_to_num(m, nan=0.0, posinf=0.0, neginf=0.0)
-    corr = (m.T @ m) / max(m.shape[0] - 1, 1)
-    return np.clip(corr, -1, 1)
+ m = window_returns.astype(float)
+ m = m - np.nanmean(m, axis=0, keepdims=True)
+ s = np.nanstd(m, axis=0, keepdims=True) + 1e-12
+ m = m / s
+ m = np.nan_to_num(m, nan=0.0, posinf=0.0, neginf=0.0)
+ corr = (m.T @ m) / max(m.shape[0] - 1, 1)
+ return np.clip(corr, -1, 1)
 
 
 def corr_cap_pick(
-    ranked: List[str],
-    win_slice: np.ndarray,
-    topk: int,
-    thr: float,
-    max_scan: int,
-    held: Optional[List[str]] = None
+ ranked: List[str],
+ win_slice: np.ndarray,
+ topk: int,
+ thr: float,
+ max_scan: int,
+ held: Optional[List[str]] = None
 ) -> List[str]:
-    held = held or []
-    corr = corr_matrix(win_slice)
-    idx = {t: i for i, t in enumerate(ranked)}
+ held = held or []
+ corr = corr_matrix(win_slice)
+ idx = {t: i for i, t in enumerate(ranked)}
 
-    chosen: List[str] = []
-    for h in held:
-        if h in idx and h not in chosen:
-            chosen.append(h)
-            if len(chosen) >= topk:
-                return chosen[:topk]
+ chosen: List[str] = []
+ for h in held:
+ if h in idx and h not in chosen:
+ chosen.append(h)
+ if len(chosen) >= topk:
+ return chosen[:topk]
 
-    for t in ranked[:max_scan]:
-        if t in chosen:
-            continue
-        ti = idx.get(t)
-        if ti is None:
-            continue
-        ok = True
-        for c in chosen:
-            ci = idx.get(c)
-            if ci is None:
-                continue
-            if corr[ti, ci] >= thr:
-                ok = False
-                break
-        if ok:
-            chosen.append(t)
-        if len(chosen) >= topk:
-            break
+ for t in ranked[:max_scan]:
+ if t in chosen:
+ continue
+ ti = idx.get(t)
+ if ti is None:
+ continue
+ ok = True
+ for c in chosen:
+ ci = idx.get(c)
+ if ci is None:
+ continue
+ if corr[ti, ci] >= thr:
+ ok = False
+ break
+ if ok:
+ chosen.append(t)
+ if len(chosen) >= topk:
+ break
 
-    if len(chosen) < topk:
-        for t in ranked:
-            if t not in chosen:
-                chosen.append(t)
-            if len(chosen) >= topk:
-                break
+ if len(chosen) < topk:
+ for t in ranked:
+ if t not in chosen:
+ chosen.append(t)
+ if len(chosen) >= topk:
+ break
 
-    return chosen[:topk]
+ return chosen[:topk]
 
 
 def apply_keep_rank(current: List[str], ranked: List[str], topk: int, keep_rank: int) -> List[str]:
-    if not ranked:
-        return []
-    rankpos = {t: i + 1 for i, t in enumerate(ranked)}
-    kept = [t for t in current if rankpos.get(t, 10**9) <= keep_rank][:topk]
-    out = list(kept)
-    for t in ranked:
-        if t in out:
-            continue
-        out.append(t)
-        if len(out) >= topk:
-            break
-    return out[:topk]
+ if not ranked:
+ return []
+ rankpos = {t: i + 1 for i, t in enumerate(ranked)}
+ kept = [t for t in current if rankpos.get(t, 10**9) <= keep_rank][:topk]
+ out = list(kept)
+ for t in ranked:
+ if t in out:
+ continue
+ out.append(t)
+ if len(out) >= topk:
+ break
+ return out[:topk]
 
 
 def invvol_weights(vol_row: pd.Series, tickers: List[str]) -> Dict[str, float]:
-    v = vol_row.reindex(tickers).replace(0, np.nan)
-    inv = (1.0 / v).replace([np.inf, -np.inf], np.nan).dropna()
-    if inv.empty:
-        return {}
-    inv = inv / inv.sum()
-    return {t: float(inv.loc[t]) for t in inv.index}
+ v = vol_row.reindex(tickers).replace(0, np.nan)
+ inv = (1.0 / v).replace([np.inf, -np.inf], np.nan).dropna()
+ if inv.empty:
+ return {}
+ inv = inv / inv.sum()
+ return {t: float(inv.loc[t]) for t in inv.index}
 
 
 def pretty_weights_and_targets(
-    cash: float,
-    desired: List[str],
-    vol_row: pd.Series,
-    fee_per_order: float
-) -> Tuple[Dict[str, float], Dict[str, float], float]:
-    """
-    Returns:
-      weights: {ticker: w}
-      targets_eur: {ticker: target€}
-      investable: cash - fees_reserved
-    Notes:
-      - fee reservation assumes 1 BUY per desired name when portfolio is in cash.
-      - This is an "approx" allocation view (uses CLOSE-date vol, not next open).
-    """
-    w = invvol_weights(vol_row, desired)
+ total_equity: float,
+ cash: float,
+ desired: List[str],
+ held: List[str],
+ vol_row: pd.Series,
+ fee_per_order: float
+) -> Tuple[Dict[str, float], Dict[str, float], float, float]:
+ """
+ Returns:
+ weights: {ticker: w}
+ targets_eur: {ticker: target€} based on TOTAL_EQUITY (cash + positions)
+ investable_equity: total_equity - fees_reserved (floored at 0)
+ fees_reserved: fee_per_order * #missing_buys
+ Notes:
+ - fee reservation assumes 1 BUY per missing desired name (desired - held).
+ - This is an "approx allocation view" (uses CLOSE-date vol, not next open).
+ """
+ w = invvol_weights(vol_row, desired)
+ if not w:
+ return {}, {}, 0.0, 0.0
 
-    # Reserve fees for BUYs (approx). If you already have positions, this is only indicative.
-    fees_reserved = fee_per_order * len(desired)
-    investable = max(cash - fees_reserved, 0.0)
+ missing_buys = [t for t in desired if t not in set(held)]
+ fees_reserved = fee_per_order * len(missing_buys)
 
-    targets = {t: float(w.get(t, 0.0) * investable) for t in desired}
-    return w, targets, investable
+ investable_equity = max(total_equity - fees_reserved, 0.0)
+ targets = {t: float(w.get(t, 0.0) * investable_equity) for t in desired}
+ return w, targets, investable_equity, fees_reserved
 
 
 # =============================================================================
@@ -352,24 +358,24 @@ def pretty_weights_and_targets(
 # =============================================================================
 
 def load_portfolio() -> dict:
-    p = load_json(PORTFOLIO_FILE)
-    if not p:
-        p = {"cash": INITIAL_CASH, "positions": {}, "last_rebalance_idx": None, "last_dca_month": None}
-    p["cash"] = safe_float(p.get("cash", INITIAL_CASH), INITIAL_CASH)
-    p["positions"] = p.get("positions", {}) or {}
-    return p
+ p = load_json(PORTFOLIO_FILE)
+ if not p:
+ p = {"cash": INITIAL_CASH, "positions": {}, "last_rebalance_idx": None, "last_dca_month": None}
+ p["cash"] = safe_float(p.get("cash", INITIAL_CASH), INITIAL_CASH)
+ p["positions"] = p.get("positions", {}) or {}
+ return p
 
 
 def save_portfolio(p: dict) -> None:
-    save_json(PORTFOLIO_FILE, p)
+ save_json(PORTFOLIO_FILE, p)
 
 
 def append_trades(rows: List[dict]) -> None:
-    hist = load_json(TRADES_FILE)
-    if not isinstance(hist, list):
-        hist = []
-    hist.extend(rows)
-    save_json(TRADES_FILE, hist)
+ hist = load_json(TRADES_FILE)
+ if not isinstance(hist, list):
+ hist = []
+ hist.extend(rows)
+ save_json(TRADES_FILE, hist)
 
 
 # =============================================================================
@@ -377,309 +383,329 @@ def append_trades(rows: List[dict]) -> None:
 # =============================================================================
 
 def get_month_key(d: pd.Timestamp) -> str:
-    return f"{d.year:04d}-{d.month:02d}"
+ return f"{d.year:04d}-{d.month:02d}"
 
 
 def first_trading_day_each_month(calendar: pd.DatetimeIndex) -> Dict[str, pd.Timestamp]:
-    out = {}
-    for d in calendar:
-        mk = get_month_key(d)
-        if mk not in out:
-            out[mk] = d
-    return out
+ out = {}
+ for d in calendar:
+ mk = get_month_key(d)
+ if mk not in out:
+ out[mk] = d
+ return out
 
 
 def main():
-    print("=" * 90)
-    print("APEX PROD — PACK_FINAL_V6C (A_rank5) — YFINANCE ONLY")
-    print("=" * 90)
-    print(f"🕒 {_now_str()}")
+ print("=" * 90)
+ print("APEX PROD — PACK_FINAL_V6C (A_rank5) — YFINANCE ONLY")
+ print("=" * 90)
+ print(f" {_now_str()}")
 
-    port = load_portfolio()
+ port = load_portfolio()
 
-    ohlcv = load_data_yfinance(UNIVERSE)
-    last_date = ohlcv.close.index.max()
-    print(f"📅 Dernière date OHLCV: {last_date.date()}")
+ ohlcv = load_data_yfinance(UNIVERSE)
+ last_date = ohlcv.close.index.max()
+ print(f" Dernière date OHLCV: {last_date.date()}")
 
-    # Calendar anchor SPY if available
-    if "SPY" in ohlcv.close.columns and ohlcv.close["SPY"].notna().sum() > 0:
-        cal = ohlcv.close.index[ohlcv.close["SPY"].notna()]
-    else:
-        cal = ohlcv.close.index
+ # Calendar anchor SPY if available
+ if "SPY" in ohlcv.close.columns and ohlcv.close["SPY"].notna().sum() > 0:
+ cal = ohlcv.close.index[ohlcv.close["SPY"].notna()]
+ else:
+ cal = ohlcv.close.index
 
-    month_first = first_trading_day_each_month(cal)
-    mk = get_month_key(last_date)
-    last_dca_month = port.get("last_dca_month")
+ month_first = first_trading_day_each_month(cal)
+ mk = get_month_key(last_date)
+ last_dca_month = port.get("last_dca_month")
 
-    # DCA only on first trading day of month
-    if mk != last_dca_month and mk in month_first and month_first[mk] == last_date:
-        port["cash"] += MONTHLY_DCA
-        port["last_dca_month"] = mk
-        print(f"💰 DCA: +{MONTHLY_DCA:.2f} (month={mk})")
+ # DCA only on first trading day of month
+ if mk != last_dca_month and mk in month_first and month_first[mk] == last_date:
+ port["cash"] += MONTHLY_DCA
+ port["last_dca_month"] = mk
+ print(f" DCA: +{MONTHLY_DCA:.2f} (month={mk})")
 
-    sig = compute_signals(ohlcv)
-    score = sig["score"]
-    sma = sig["sma"]
-    vol = sig["vol"]
-    ret1 = sig["ret1"]
-    enough_history = sig["enough_history"]
+ sig = compute_signals(ohlcv)
+ score = sig["score"]
+ sma = sig["sma"]
+ vol = sig["vol"]
+ ret1 = sig["ret1"]
+ enough_history = sig["enough_history"]
 
-    if DEBUG_DATA_COVERAGE:
-        try:
-            score_non_nan = int(score.loc[last_date].notna().sum())
-            above_sma = int((ohlcv.close_ffill.loc[last_date] > sma.loc[last_date]).sum())
-            print(f"🧪 elig debug @ {last_date.date()} | score_non_nan={score_non_nan} | above_SMA={above_sma}")
-        except Exception as e:
-            print("elig debug failed:", e)
+ if DEBUG_DATA_COVERAGE:
+ try:
+ score_non_nan = int(score.loc[last_date].notna().sum())
+ above_sma = int((ohlcv.close_ffill.loc[last_date] > sma.loc[last_date]).sum())
+ print(f" elig debug @ {last_date.date()} | score_non_nan={score_non_nan} | above_SMA={above_sma}")
+ except Exception as e:
+ print("elig debug failed:", e)
 
-    idx_map = {d: i for i, d in enumerate(ohlcv.close.index)}
-    last_idx = idx_map.get(last_date, None)
-    if last_idx is None:
-        raise RuntimeError("last_date not in index map (unexpected).")
+ idx_map = {d: i for i, d in enumerate(ohlcv.close.index)}
+ last_idx = idx_map.get(last_date, None)
+ if last_idx is None:
+ raise RuntimeError("last_date not in index map (unexpected).")
 
-    do_rebalance = (last_idx % REB_EVERY_N_DAYS == 0)
+ do_rebalance = (last_idx % REB_EVERY_N_DAYS == 0)
 
-    positions = port.get("positions", {}) or {}
-    cash = float(port.get("cash", 0.0))
+ positions = port.get("positions", {}) or {}
+ cash = float(port.get("cash", 0.0))
 
-    def pos_value_at_close(d: pd.Timestamp) -> float:
-        v_ = 0.0
-        for t, sh in positions.items():
-            px = safe_float(ohlcv.close.loc[d].get(t, np.nan))
-            if np.isfinite(px):
-                v_ += float(sh) * px
-        return v_
+ def pos_value_at_close(d: pd.Timestamp) -> float:
+ v_ = 0.0
+ for t, sh in positions.items():
+ px = safe_float(ohlcv.close.loc[d].get(t, np.nan))
+ if np.isfinite(px):
+ v_ += float(sh) * px
+ return v_
 
-    total_pos = pos_value_at_close(last_date)
-    total = cash + total_pos
+ total_pos = pos_value_at_close(last_date)
+ total = cash + total_pos
 
-    header = f"APEX PROD — PACK_FINAL_V6C (A_rank5) — {last_date.date()}"
-    print(header)
-    print(f"Cash {cash:.2f} | Pos {total_pos:.2f} | Total {total:.2f}\n")
+ header = f"APEX PROD — PACK_FINAL_V6C (A_rank5) — {last_date.date()}"
+ print(header)
+ print(f"Cash {cash:.2f} | Pos {total_pos:.2f} | Total {total:.2f}\n")
 
-    elig = (
-        (ohlcv.close_ffill.loc[last_date] > sma.loc[last_date]) &
-        score.loc[last_date].notna() &
-        vol.loc[last_date].notna()
-    )
-    elig = elig & enough_history.reindex(elig.index, fill_value=False)
+ elig = (
+ (ohlcv.close_ffill.loc[last_date] > sma.loc[last_date]) &
+ score.loc[last_date].notna() &
+ vol.loc[last_date].notna()
+ )
+ elig = elig & enough_history.reindex(elig.index, fill_value=False)
 
-    srow = score.loc[last_date].where(elig, np.nan).dropna()
-    ranked = list(srow.sort_values(ascending=False).head(RANK_POOL).index)
+ srow = score.loc[last_date].where(elig, np.nan).dropna()
+ ranked = list(srow.sort_values(ascending=False).head(RANK_POOL).index)
 
-    print("TOP 5 MOMENTUM:")
-    if len(ranked) == 0:
-        print("(none)")
-    else:
-        for i, t in enumerate(ranked[:5], 1):
-            print(f"{i}. {t} score {float(srow.loc[t]):.4f}")
-    print("")
+ print("TOP 5 MOMENTUM:")
+ if len(ranked) == 0:
+ print("(none)")
+ else:
+ for i, t in enumerate(ranked[:5], 1):
+ print(f"{i}. {t} score {float(srow.loc[t]):.4f}")
+ print("")
 
-    desired_ranked = ranked[:TOPK]
+ desired_ranked = ranked[:TOPK]
 
-    corr_gate_hit = 0
-    if len(ranked) >= 2:
-        loc = idx_map[last_date]
-        w0 = max(0, loc - CORR_WIN + 1)
-        win_slice = ret1.iloc[w0:loc + 1][ranked].to_numpy()
-        if win_slice.shape[0] >= int(0.8 * CORR_WIN):
-            corr = corr_matrix(win_slice)
-            max_corr = float(np.nanmax(np.where(np.eye(corr.shape[0]), np.nan, corr)))
-            if np.isfinite(max_corr) and max_corr > CORR_GATE:
-                corr_gate_hit = 1
-                desired_ranked = corr_cap_pick(
-                    ranked=ranked,
-                    win_slice=win_slice,
-                    topk=TOPK,
-                    thr=CORR_PICK,
-                    max_scan=CORR_SCAN,
-                    held=None
-                )
+ corr_gate_hit = 0
+ if len(ranked) >= 2:
+ loc = idx_map[last_date]
+ w0 = max(0, loc - CORR_WIN + 1)
+ win_slice = ret1.iloc[w0:loc + 1][ranked].to_numpy()
+ if win_slice.shape[0] >= int(0.8 * CORR_WIN):
+ corr = corr_matrix(win_slice)
+ max_corr = float(np.nanmax(np.where(np.eye(corr.shape[0]), np.nan, corr)))
+ if np.isfinite(max_corr) and max_corr > CORR_GATE:
+ corr_gate_hit = 1
+ desired_ranked = corr_cap_pick(
+ ranked=ranked,
+ win_slice=win_slice,
+ topk=TOPK,
+ thr=CORR_PICK,
+ max_scan=CORR_SCAN,
+ held=None
+ )
 
-    current = list(positions.keys())
-    desired = apply_keep_rank(current=current, ranked=desired_ranked, topk=TOPK, keep_rank=KEEP_RANK)
+ current = list(positions.keys())
+ desired = apply_keep_rank(current=current, ranked=desired_ranked, topk=TOPK, keep_rank=KEEP_RANK)
 
-    print(f"Desired: {desired if desired else '(none)'}")
-    print(f"CorrGate: {corr_gate_hit}\n")
+ held = sorted(list(positions.keys()))
+ print(f"HELD: {held if held else '(none)'}")
+ print(f"Desired: {desired if desired else '(none)'}")
+ print(f"CorrGate: {corr_gate_hit}\n")
 
-    # ✅ NEW: show weights and target € (approx) even if not a rebalance day
-    w_dbg, targets_dbg, investable_dbg = pretty_weights_and_targets(
-        cash=cash,
-        desired=desired,
-        vol_row=vol.loc[last_date],
-        fee_per_order=FEE_PER_ORDER
-    )
-    if desired and w_dbg:
-        print("WEIGHTS (inv-vol20):", {t: round(w_dbg.get(t, 0.0), 4) for t in desired})
-        print("TARGET € (approx, fees reserved):", {t: round(targets_dbg.get(t, 0.0), 2) for t in desired})
-        print(f"INVESTABLE (cash - est_fees): {investable_dbg:.2f}\n")
-    else:
-        print("WEIGHTS/TARGETS: (unavailable)\n")
+ # CORRIGÉ: show weights and target € based on TOTAL equity (cash + positions),
+ # and reserve fees only for missing BUYs (desired - held).
+ total_equity_close = cash + total_pos
+ w_dbg, targets_dbg, investable_eq_dbg, fees_reserved_dbg = pretty_weights_and_targets(
+ total_equity=total_equity_close,
+ cash=cash,
+ desired=desired,
+ held=held,
+ vol_row=vol.loc[last_date],
+ fee_per_order=FEE_PER_ORDER
+ )
 
-    if not do_rebalance:
-        print("ORDERS: none (not a rebalance day)")
-        save_portfolio(port)
+ if desired and w_dbg:
+ print("WEIGHTS (inv-vol20):", {t: round(w_dbg.get(t, 0.0), 4) for t in desired})
+ print("TARGET € (based on TOTAL, fees reserved for missing BUYs):",
+ {t: round(targets_dbg.get(t, 0.0), 2) for t in desired})
+ print(f"TOTAL_EQUITY(close): {total_equity_close:.2f}")
+ print(f"FEES_RESERVED (missing buys): {fees_reserved_dbg:.2f}")
+ print(f"INVESTABLE_EQUITY: {investable_eq_dbg:.2f}\n")
+ else:
+ print("WEIGHTS/TARGETS: (unavailable)\n")
 
-        # Telegram message also (with weights/targets)
-        msg_lines = [
-            header,
-            f"Cash {cash:.2f} | Pos {total_pos:.2f} | Total {total:.2f}",
-            "",
-            "TOP 5 MOMENTUM:",
-        ]
-        if len(ranked) == 0:
-            msg_lines.append("(none)")
-        else:
-            for i, t in enumerate(ranked[:5], 1):
-                msg_lines.append(f"{i}. {t} score {float(srow.loc[t]):.4f}")
-        msg_lines.append("")
-        msg_lines.append(f"Desired: {desired if desired else '(none)'}")
-        msg_lines.append(f"CorrGate: {corr_gate_hit}")
-        if desired and w_dbg:
-            msg_lines.append("")
-            msg_lines.append("WEIGHTS (inv-vol20): " + str({t: round(w_dbg.get(t, 0.0), 4) for t in desired}))
-            msg_lines.append("TARGET € (approx): " + str({t: round(targets_dbg.get(t, 0.0), 2) for t in desired}))
-            msg_lines.append(f"INVESTABLE: {investable_dbg:.2f}")
-        msg_lines.append("")
-        msg_lines.append("ORDERS: none (not a rebalance day)")
-        send_telegram("\n".join(msg_lines))
-        return
+ if not do_rebalance:
+ print("ORDERS: none (not a rebalance day)")
+ save_portfolio(port)
 
-    # From here: rebalance day execution @ next open
-    if last_idx + 1 >= len(ohlcv.open.index):
-        print("ORDERS: none (no next open available)")
-        save_portfolio(port)
-        return
+ # Telegram message also (with holdings + weights/targets)
+ msg_lines = [
+ header,
+ f"Cash {cash:.2f} | Pos {total_pos:.2f} | Total {total:.2f}",
+ "",
+ "TOP 5 MOMENTUM:",
+ ]
+ if len(ranked) == 0:
+ msg_lines.append("(none)")
+ else:
+ for i, t in enumerate(ranked[:5], 1):
+ msg_lines.append(f"{i}. {t} score {float(srow.loc[t]):.4f}")
 
-    exec_date = ohlcv.open.index[last_idx + 1]
-    px_open = ohlcv.open.loc[exec_date]
+ msg_lines.append("")
+ msg_lines.append(f"HELD: {held if held else '(none)'}")
+ msg_lines.append(f"Desired: {desired if desired else '(none)'}")
+ msg_lines.append(f"CorrGate: {corr_gate_hit}")
 
-    needed = set(current) | set(desired)
-    for t in needed:
-        if not np.isfinite(safe_float(px_open.get(t, np.nan))):
-            print(f"ORDERS: none (missing next open for {t} on {exec_date.date()})")
-            save_portfolio(port)
-            return
+ if desired and w_dbg:
+ msg_lines.append("")
+ msg_lines.append("WEIGHTS (inv-vol20): " + str({t: round(w_dbg.get(t, 0.0), 4) for t in desired}))
+ msg_lines.append("TARGET € (approx): " + str({t: round(targets_dbg.get(t, 0.0), 2) for t in desired}))
+ msg_lines.append(f"TOTAL_EQUITY(close): {total_equity_close:.2f}")
+ msg_lines.append(f"FEES_RESERVED: {fees_reserved_dbg:.2f}")
+ msg_lines.append(f"INVESTABLE_EQUITY: {investable_eq_dbg:.2f}")
 
-    port_val_open = cash
-    for t, sh in positions.items():
-        port_val_open += float(sh) * float(px_open[t])
+ msg_lines.append("")
+ msg_lines.append("ORDERS: none (not a rebalance day)")
+ send_telegram("\n".join(msg_lines))
+ return
 
-    # Actual target weights (inv-vol) used for trading
-    w = invvol_weights(vol.loc[last_date], desired)
-    targets_val = {t: w[t] * port_val_open for t in w}
+ # From here: rebalance day execution @ next open
+ if last_idx + 1 >= len(ohlcv.open.index):
+ print("ORDERS: none (no next open available)")
+ save_portfolio(port)
+ return
 
-    orders: List[dict] = []
+ exec_date = ohlcv.open.index[last_idx + 1]
+ px_open = ohlcv.open.loc[exec_date]
 
-    # Sell names not in target
-    for t in list(positions.keys()):
-        if t not in targets_val:
-            sh = float(positions.pop(t))
-            cash += sh * float(px_open[t]) - FEE_PER_ORDER
-            orders.append({
-                "Date": str(exec_date.date()),
-                "Side": "SELL",
-                "Ticker": t,
-                "Shares": sh,
-                "Price": float(px_open[t]),
-                "Fee": FEE_PER_ORDER,
-                "Reason": "EXIT_NOT_TARGET",
-            })
+ needed = set(current) | set(desired)
+ for t in needed:
+ if not np.isfinite(safe_float(px_open.get(t, np.nan))):
+ print(f"ORDERS: none (missing next open for {t} on {exec_date.date()})")
+ save_portfolio(port)
+ return
 
-    port_val_open = cash
-    for t, sh in positions.items():
-        port_val_open += float(sh) * float(px_open[t])
+ port_val_open = cash
+ for t, sh in positions.items():
+ port_val_open += float(sh) * float(px_open[t])
 
-    # Delta rebalance
-    for t, tgt_val in targets_val.items():
-        cur_sh = float(positions.get(t, 0.0))
-        price = float(px_open[t])
-        cur_val = cur_sh * price
-        diff = tgt_val - cur_val
+ # Actual target weights (inv-vol) used for trading
+ w = invvol_weights(vol.loc[last_date], desired)
+ targets_val = {t: w[t] * port_val_open for t in w}
 
-        if abs(diff) < DELTA_REBAL * port_val_open:
-            continue
+ orders: List[dict] = []
 
-        if diff < 0 and cur_sh > 0:
-            sell_sh = min((-diff) / price, cur_sh)
-            cash += sell_sh * price - FEE_PER_ORDER
-            new_sh = cur_sh - sell_sh
-            if new_sh <= 1e-10:
-                positions.pop(t, None)
-            else:
-                positions[t] = new_sh
-            orders.append({
-                "Date": str(exec_date.date()),
-                "Side": "SELL",
-                "Ticker": t,
-                "Shares": sell_sh,
-                "Price": price,
-                "Fee": FEE_PER_ORDER,
-                "Reason": "DELTA_REBAL_SELL",
-            })
-        elif diff > 0:
-            max_buy_val = max(cash - FEE_PER_ORDER, 0.0)
-            buy_val = min(diff, max_buy_val)
-            if buy_val > 1e-8:
-                buy_sh = buy_val / price
-                cash -= buy_val + FEE_PER_ORDER
-                positions[t] = cur_sh + buy_sh
-                orders.append({
-                    "Date": str(exec_date.date()),
-                    "Side": "BUY",
-                    "Ticker": t,
-                    "Shares": buy_sh,
-                    "Price": price,
-                    "Fee": FEE_PER_ORDER,
-                    "Reason": "DELTA_REBAL_BUY",
-                })
+ # Sell names not in target
+ for t in list(positions.keys()):
+ if t not in targets_val:
+ sh = float(positions.pop(t))
+ cash += sh * float(px_open[t]) - FEE_PER_ORDER
+ orders.append({
+ "Date": str(exec_date.date()),
+ "Side": "SELL",
+ "Ticker": t,
+ "Shares": sh,
+ "Price": float(px_open[t]),
+ "Fee": FEE_PER_ORDER,
+ "Reason": "EXIT_NOT_TARGET",
+ })
 
-    port["cash"] = cash
-    port["positions"] = positions
-    port["last_rebalance_idx"] = int(last_idx)
-    save_portfolio(port)
+ port_val_open = cash
+ for t, sh in positions.items():
+ port_val_open += float(sh) * float(px_open[t])
 
-    if orders:
-        append_trades(orders)
+ # Delta rebalance
+ for t, tgt_val in targets_val.items():
+ cur_sh = float(positions.get(t, 0.0))
+ price = float(px_open[t])
+ cur_val = cur_sh * price
+ diff = tgt_val - cur_val
 
-    if not orders:
-        print("ORDERS: none")
-    else:
-        print("ORDERS:")
-        for o in orders:
-            print(f" - {o['Side']} {o['Ticker']} sh={o['Shares']:.6f} @ {o['Price']:.2f} fee={o['Fee']:.2f} ({o['Reason']})")
+ if abs(diff) < DELTA_REBAL * port_val_open:
+ continue
 
-    msg_lines = [
-        header,
-        f"Cash {cash:.2f} | Pos {pos_value_at_close(last_date):.2f} | Total {cash + pos_value_at_close(last_date):.2f}",
-        "",
-        "TOP 5 MOMENTUM:",
-    ]
-    if len(ranked) == 0:
-        msg_lines.append("(none)")
-    else:
-        for i, t in enumerate(ranked[:5], 1):
-            msg_lines.append(f"{i}. {t} score {float(srow.loc[t]):.4f}")
-    msg_lines.append("")
-    msg_lines.append(f"Desired: {desired if desired else '(none)'}")
-    msg_lines.append(f"CorrGate: {corr_gate_hit}")
+ if diff < 0 and cur_sh > 0:
+ sell_sh = min((-diff) / price, cur_sh)
+ cash += sell_sh * price - FEE_PER_ORDER
+ new_sh = cur_sh - sell_sh
+ if new_sh <= 1e-10:
+ positions.pop(t, None)
+ else:
+ positions[t] = new_sh
+ orders.append({
+ "Date": str(exec_date.date()),
+ "Side": "SELL",
+ "Ticker": t,
+ "Shares": sell_sh,
+ "Price": price,
+ "Fee": FEE_PER_ORDER,
+ "Reason": "DELTA_REBAL_SELL",
+ })
+ elif diff > 0:
+ max_buy_val = max(cash - FEE_PER_ORDER, 0.0)
+ buy_val = min(diff, max_buy_val)
+ if buy_val > 1e-8:
+ buy_sh = buy_val / price
+ cash -= buy_val + FEE_PER_ORDER
+ positions[t] = cur_sh + buy_sh
+ orders.append({
+ "Date": str(exec_date.date()),
+ "Side": "BUY",
+ "Ticker": t,
+ "Shares": buy_sh,
+ "Price": price,
+ "Fee": FEE_PER_ORDER,
+ "Reason": "DELTA_REBAL_BUY",
+ })
 
-    # Add weights/targets to Telegram on rebalance days too
-    if desired and w:
-        msg_lines.append("")
-        msg_lines.append("WEIGHTS (inv-vol20): " + str({t: round(w.get(t, 0.0), 4) for t in desired}))
-        msg_lines.append("TARGET € (open-based): " + str({t: round(targets_val.get(t, 0.0), 2) for t in desired}))
+ port["cash"] = cash
+ port["positions"] = positions
+ port["last_rebalance_idx"] = int(last_idx)
+ save_portfolio(port)
 
-    msg_lines.append("")
-    if not orders:
-        msg_lines.append("ORDERS: none")
-    else:
-        msg_lines.append("ORDERS:")
-        for o in orders:
-            msg_lines.append(f"- {o['Side']} {o['Ticker']} @ {o['Price']:.2f} (fee {o['Fee']:.2f})")
+ if orders:
+ append_trades(orders)
 
-    send_telegram("\n".join(msg_lines))
+ if not orders:
+ print("ORDERS: none")
+ else:
+ print("ORDERS:")
+ for o in orders:
+ print(f" - {o['Side']} {o['Ticker']} sh={o['Shares']:.6f} @ {o['Price']:.2f} fee={o['Fee']:.2f} ({o['Reason']})")
+
+ # Telegram message on rebalance days
+ msg_lines = [
+ header,
+ f"Cash {cash:.2f} | Pos {pos_value_at_close(last_date):.2f} | Total {cash + pos_value_at_close(last_date):.2f}",
+ "",
+ "TOP 5 MOMENTUM:",
+ ]
+ if len(ranked) == 0:
+ msg_lines.append("(none)")
+ else:
+ for i, t in enumerate(ranked[:5], 1):
+ msg_lines.append(f"{i}. {t} score {float(srow.loc[t]):.4f}")
+
+ held_after = sorted(list(positions.keys()))
+ msg_lines.append("")
+ msg_lines.append(f"HELD: {held_after if held_after else '(none)'}")
+ msg_lines.append(f"Desired: {desired if desired else '(none)'}")
+ msg_lines.append(f"CorrGate: {corr_gate_hit}")
+
+ # Add weights/targets to Telegram on rebalance days too (open-based)
+ if desired and w:
+ msg_lines.append("")
+ msg_lines.append("WEIGHTS (inv-vol20): " + str({t: round(w.get(t, 0.0), 4) for t in desired}))
+ msg_lines.append("TARGET € (open-based): " + str({t: round(targets_val.get(t, 0.0), 2) for t in desired}))
+
+ msg_lines.append("")
+ if not orders:
+ msg_lines.append("ORDERS: none")
+ else:
+ msg_lines.append("ORDERS:")
+ for o in orders:
+ msg_lines.append(f"- {o['Side']} {o['Ticker']} @ {o['Price']:.2f} (fee {o['Fee']:.2f})")
+
+ send_telegram("\n".join(msg_lines))
 
 
 if __name__ == "__main__":
-    main()
+ main()
