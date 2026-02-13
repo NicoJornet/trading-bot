@@ -16,10 +16,12 @@ Base canonique:
 - Données: 100% yfinance (aucun CSV/parquet)
 ==========================================================================================
 
-✅ PATCH V6C — Allocation lisible (CORRIGÉ)
-- Affiche aussi HOLDINGS (positions actuelles) pour éviter la confusion avec "Desired"
+✅ PATCH V6C — Allocation lisible (CORRIGÉ v2)
+- Affiche HOLDINGS (positions actuelles) pour éviter la confusion avec "Desired"
 - Calcule les TARGET € sur la valeur totale du portefeuille (cash + positions) même si cash=0
 - Réserve les frais estimés seulement pour les BUY manquants (desired - held)
+- ✅ FIX: last_date = dernier jour réellement tradé (anchor SPY si dispo)
+- ✅ FIX: valorisation positions = close_ffill (évite Pos=0 à cause de NaN de close brut)
 - Ajoute ces infos au message Telegram
 """
 
@@ -404,14 +406,15 @@ def main():
     port = load_portfolio()
 
     ohlcv = load_data_yfinance(UNIVERSE)
-    last_date = ohlcv.close.index.max()
-    print(f"📅 Dernière date OHLCV: {last_date.date()}")
 
-    # Calendar anchor SPY if available
+    # ✅ FIX: last_date = dernier jour réellement tradé (anchor SPY si dispo)
     if "SPY" in ohlcv.close.columns and ohlcv.close["SPY"].notna().sum() > 0:
         cal = ohlcv.close.index[ohlcv.close["SPY"].notna()]
     else:
         cal = ohlcv.close.index
+    last_date = cal.max()
+
+    print(f"📅 Dernière date OHLCV (cal): {last_date.date()}")
 
     month_first = first_trading_day_each_month(cal)
     mk = get_month_key(last_date)
@@ -438,10 +441,11 @@ def main():
         except Exception as e:
             print("elig debug failed:", e)
 
-    idx_map = {d: i for i, d in enumerate(ohlcv.close.index)}
+    # IMPORTANT: use calendar index, not raw OHLCV index max
+    idx_map = {d: i for i, d in enumerate(cal)}
     last_idx = idx_map.get(last_date, None)
     if last_idx is None:
-        raise RuntimeError("last_date not in index map (unexpected).")
+        raise RuntimeError("last_date not in calendar index map (unexpected).")
 
     do_rebalance = (last_idx % REB_EVERY_N_DAYS == 0)
 
@@ -449,9 +453,12 @@ def main():
     cash = float(port.get("cash", 0.0))
 
     def pos_value_at_close(d: pd.Timestamp) -> float:
+        """
+        ✅ FIX: valorise sur close_ffill (évite Pos=0 quand close brut est NaN sur last_date)
+        """
         v_ = 0.0
         for t, sh in positions.items():
-            px = safe_float(ohlcv.close.loc[d].get(t, np.nan))
+            px = safe_float(ohlcv.close_ffill.loc[d].get(t, np.nan))
             if np.isfinite(px):
                 v_ += float(sh) * px
         return v_
@@ -485,9 +492,10 @@ def main():
 
     corr_gate_hit = 0
     if len(ranked) >= 2:
-        loc = idx_map[last_date]
-        w0 = max(0, loc - CORR_WIN + 1)
-        win_slice = ret1.iloc[w0:loc + 1][ranked].to_numpy()
+        # Use calendar location in the full ret1 index
+        loc_full = ohlcv.close.index.get_loc(last_date)
+        w0 = max(0, loc_full - CORR_WIN + 1)
+        win_slice = ret1.iloc[w0:loc_full + 1][ranked].to_numpy()
         if win_slice.shape[0] >= int(0.8 * CORR_WIN):
             corr = corr_matrix(win_slice)
             max_corr = float(np.nanmax(np.where(np.eye(corr.shape[0]), np.nan, corr)))
@@ -510,7 +518,7 @@ def main():
     print(f"Desired: {desired if desired else '(none)'}")
     print(f"CorrGate: {corr_gate_hit}\n")
 
-    # ✅ CORRIGÉ: show weights and target € based on TOTAL equity (cash + positions),
+    # show weights and target € based on TOTAL equity (cash + positions),
     # and reserve fees only for missing BUYs (desired - held).
     total_equity_close = cash + total_pos
     w_dbg, targets_dbg, investable_eq_dbg, fees_reserved_dbg = pretty_weights_and_targets(
@@ -536,7 +544,6 @@ def main():
         print("ORDERS: none (not a rebalance day)")
         save_portfolio(port)
 
-        # Telegram message also (with holdings + weights/targets)
         msg_lines = [
             header,
             f"Cash {cash:.2f} | Pos {total_pos:.2f} | Total {total:.2f}",
@@ -567,13 +574,15 @@ def main():
         send_telegram("\n".join(msg_lines))
         return
 
-    # From here: rebalance day execution @ next open
-    if last_idx + 1 >= len(ohlcv.open.index):
+    # Rebalance day execution @ next open (T+1 open)
+    # Need next trading day in the FULL index
+    loc_full = ohlcv.open.index.get_loc(last_date)
+    if loc_full + 1 >= len(ohlcv.open.index):
         print("ORDERS: none (no next open available)")
         save_portfolio(port)
         return
 
-    exec_date = ohlcv.open.index[last_idx + 1]
+    exec_date = ohlcv.open.index[loc_full + 1]
     px_open = ohlcv.open.loc[exec_date]
 
     needed = set(current) | set(desired)
@@ -587,7 +596,6 @@ def main():
     for t, sh in positions.items():
         port_val_open += float(sh) * float(px_open[t])
 
-    # Actual target weights (inv-vol) used for trading
     w = invvol_weights(vol.loc[last_date], desired)
     targets_val = {t: w[t] * port_val_open for t in w}
 
@@ -690,7 +698,6 @@ def main():
     msg_lines.append(f"Desired: {desired if desired else '(none)'}")
     msg_lines.append(f"CorrGate: {corr_gate_hit}")
 
-    # Add weights/targets to Telegram on rebalance days too (open-based)
     if desired and w:
         msg_lines.append("")
         msg_lines.append("WEIGHTS (inv-vol20): " + str({t: round(w.get(t, 0.0), 4) for t in desired}))
