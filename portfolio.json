@@ -2,15 +2,34 @@
   "currency": "EUR",
   "initial_capital": 2000,
   "monthly_dca": 100,
-  "cash": 2000.0,
+  "cash": -3.0,
   "start_date": "2025-12-29",
   "last_dca_date": "2026-02-02",
-  "positions": {},
-  "last_updated": "2026-02-13 06:43",
+  "positions": {
+    "MU": {
+      "shares": 2.30596,
+      "avg_price_eur": 333.05,
+      "cost_eur": 769.0,
+      "entry_date": "2026-02-11"
+    },
+    "LRCX": {
+      "shares": 4.208991,
+      "avg_price_eur": 198.86,
+      "cost_eur": 838.0,
+      "entry_date": "2026-02-11"
+    },
+    "PAAS": {
+      "shares": 7.599855,
+      "avg_price_eur": 51.58,
+      "cost_eur": 393.0,
+      "entry_date": "2026-02-11"
+    }
+  },
+  "last_updated": "2026-02-13 12:00",
   "last_dca_month": "2026-02",
   "confirm_state": {},
   "cooldown_until": {},
-  "last_updated_note": "User liquidated all positions; portfolio reset to cash=2000\u20ac. Next DCA scheduled in one month (2026-03-10).",
+  "last_updated_note": "User correction applied: KO/GILD/WMT not bought. Manual buys executed 2026-02-11: MU, LRCX, PAAS. Cash reflects 1€ fee/order (3€ total); small negative cash may occur due to rounding/amounts provided.",
   "next_dca_date": "2026-03-10",
   "reset_date": "2026-02-10"
 }
