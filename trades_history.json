@@ -136,28 +136,6 @@
       "ts": "2026-02-02 15:00"
     },
     {
-      "id": 10,
-      "date": "2026-02-03",
-      "action": "BUY",
-      "ticker": "KO",
-      "shares": 11.547344110854503,
-      "price_eur": 64.95,
-      "amount_eur": 750.0,
-      "fee_eur": 0.0,
-      "reason": "MANUAL_BUY"
-    },
-    {
-      "id": 11,
-      "date": "2026-02-03",
-      "action": "BUY",
-      "ticker": "GILD",
-      "shares": 2.8392958546280522,
-      "price_eur": 123.27,
-      "amount_eur": 350.0,
-      "fee_eur": 0.0,
-      "reason": "MANUAL_BUY"
-    },
-    {
       "id": 12,
       "date": "2026-02-03",
       "action": "SELL",
@@ -169,20 +147,6 @@
       "pnl_eur": -30.0,
       "pnl_pct": -6.25,
       "reason": "MANUAL_EXIT_LOSS"
-    },
-    {
-      "action": "BUY",
-      "ticker": "WMT",
-      "date": "2026-02-03",
-      "price_eur": 107.87663214783858,
-      "shares": 2.3174620399475367,
-      "amount_eur": 250.0,
-      "fee_eur": 1.0,
-      "reason": "BUY_RANK2_RF0",
-      "rank": 2,
-      "score": 6.091586500268036,
-      "id": 13,
-      "ts": "2026-02-04 06:35"
     },
     {
       "id": 14,
@@ -198,20 +162,56 @@
       "reason": "USER_LIQUIDATED_ALL_POSITIONS",
       "cash_after_eur": 2000.0,
       "note": "Positions were sold manually outside the bot; this record resets state to all-cash."
+    },
+    {
+      "id": 15,
+      "date": "2026-02-11",
+      "action": "BUY",
+      "ticker": "MU",
+      "shares": 2.30596,
+      "price_eur": 333.05,
+      "amount_eur": 769.0,
+      "fee_eur": 1.0,
+      "reason": "MANUAL_BUY_REAL",
+      "ts": "2026-02-13 12:00"
+    },
+    {
+      "id": 16,
+      "date": "2026-02-11",
+      "action": "BUY",
+      "ticker": "LRCX",
+      "shares": 4.208991,
+      "price_eur": 198.86,
+      "amount_eur": 838.0,
+      "fee_eur": 1.0,
+      "reason": "MANUAL_BUY_REAL",
+      "ts": "2026-02-13 12:00"
+    },
+    {
+      "id": 17,
+      "date": "2026-02-11",
+      "action": "BUY",
+      "ticker": "PAAS",
+      "shares": 7.599855,
+      "price_eur": 51.58,
+      "amount_eur": 393.0,
+      "fee_eur": 1.0,
+      "reason": "MANUAL_BUY_REAL",
+      "ts": "2026-02-13 12:00"
     }
   ],
   "summary": {
     "total_records": 14,
-    "buys": 5,
+    "buys": 6,
     "sells": 7,
     "winning_sells": 3,
     "losing_sells": 4,
     "net_pnl_eur": 305.06,
-    "total_fees_eur": 5.0,
+    "total_fees_eur": 8.0,
     "win_rate_sells_pct": 42.86,
     "sell_records_with_pnl": 7,
     "portfolio_resets": 1,
     "notes": "Summary counts refer to BUY/SELL records; RESET_PORTFOLIO is excluded."
   },
-  "notes": "Updated per 2026-02-03 manual trades: KO & GILD purchased, XLP not executed, SLV (silver) sold at ~-30\u20ac. | 2026-02-10: portfolio reset to cash=2000\u20ac, no positions."
+  "notes": "Updated per user correction: KO/GILD/WMT buys removed (never executed). Added real manual buys on 2026-02-11: MU, LRCX, PAAS with provided shares/prices/amounts."
 }
