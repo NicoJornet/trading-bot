@@ -123,6 +123,26 @@ def safe_float(x, default=np.nan) -> float:
         return float(default)
 
 
+def extract_shares(pos_val) -> float:
+    '''
+    Robust shares extractor for portfolio formats.
+
+    Supported:
+      - float/int : shares directly
+      - dict      : {"shares": x} or {"qty": x} or {"quantity": x} or {"units": x}
+    '''
+    if pos_val is None:
+        return 0.0
+    if isinstance(pos_val, (int, float, np.integer, np.floating)):
+        return float(pos_val)
+    if isinstance(pos_val, dict):
+        for k in ("shares", "qty", "quantity", "units", "sh", "size"):
+            if k in pos_val:
+                return safe_float(pos_val.get(k), 0.0)
+        return 0.0
+    return safe_float(pos_val, 0.0)
+
+
 def send_telegram(text: str) -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
@@ -457,10 +477,13 @@ def main():
         ✅ FIX: valorise sur close_ffill (évite Pos=0 quand close brut est NaN sur last_date)
         """
         v_ = 0.0
-        for t, sh in positions.items():
+        for t, pos_val in positions.items():
+            sh = extract_shares(pos_val)
+            if sh <= 0:
+                continue
             px = safe_float(ohlcv.close_ffill.loc[d].get(t, np.nan))
             if np.isfinite(px):
-                v_ += float(sh) * px
+                v_ += sh * px
         return v_
 
     total_pos = pos_value_at_close(last_date)
@@ -593,8 +616,11 @@ def main():
             return
 
     port_val_open = cash
-    for t, sh in positions.items():
-        port_val_open += float(sh) * float(px_open[t])
+    for t, pos_val in positions.items():
+        sh = extract_shares(pos_val)
+        if sh <= 0:
+            continue
+        port_val_open += sh * float(px_open[t])
 
     w = invvol_weights(vol.loc[last_date], desired)
     targets_val = {t: w[t] * port_val_open for t in w}
@@ -604,7 +630,7 @@ def main():
     # Sell names not in target
     for t in list(positions.keys()):
         if t not in targets_val:
-            sh = float(positions.pop(t))
+            sh = extract_shares(positions.pop(t))
             cash += sh * float(px_open[t]) - FEE_PER_ORDER
             orders.append({
                 "Date": str(exec_date.date()),
@@ -617,12 +643,15 @@ def main():
             })
 
     port_val_open = cash
-    for t, sh in positions.items():
-        port_val_open += float(sh) * float(px_open[t])
+    for t, pos_val in positions.items():
+        sh = extract_shares(pos_val)
+        if sh <= 0:
+            continue
+        port_val_open += sh * float(px_open[t])
 
     # Delta rebalance
     for t, tgt_val in targets_val.items():
-        cur_sh = float(positions.get(t, 0.0))
+        cur_sh = extract_shares(positions.get(t, 0.0))
         price = float(px_open[t])
         cur_val = cur_sh * price
         diff = tgt_val - cur_val
