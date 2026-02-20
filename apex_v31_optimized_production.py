@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 ==========================================================================================
-APEX PROD — PACK_FINAL_V6C (A_rank5) — YFINANCE ONLY (U127/129)
+APEX PROD — PACK_FINAL_V6C (A_rank5) — YFINANCE ONLY (U127/130)
 ==========================================================================================
 Base canonique:
 - Ranking CSMOM: R63=0.20, R126=0.40, R252=0.40
@@ -50,7 +50,7 @@ UNIVERSE: List[str] = [
     "NEE","NET","NKE","NOC","NVO","NVDA","O","ORCL","PAAS","PANW","PEP","PFE","PG","PLTR","PM",
     "PNC","QCOM","QQQ","RACE","RHM.DE","RIO","RMS.PA","ROK","RTX","SAAB-B.ST","SAF.PA","SBUX",
     "SCHW","SHOP","SLV","SMCI","SO","SPY","SU.PA","T","TGT","TM","TMO","TSLA","TSM","TXN",
-    "UNH","UPS","V","VRTX","VZ","WFC","WM","WMT","XOM","ZS"
+    "UNH","UPS","V","VRTX","VZ","WFC","WM","WMT","XOM","ZS","SNDK","HOOD","BE","WDC",
 ]
 
 YF_TICKER_MAP: Dict[str, str] = {
