@@ -31,5 +31,29 @@
   "cooldown_until": {},
   "last_updated_note": "User correction applied: KO/GILD/WMT not bought. Manual buys executed 2026-02-11: MU, LRCX, PAAS. Cash reflects 1€ fee/order (3€ total); small negative cash may occur due to rounding/amounts provided.",
   "next_dca_date": "2026-03-10",
-  "reset_date": "2026-02-10"
+  "reset_date": "2026-02-10",
+  "pp_state": {
+    "MU": {
+      "entry_px": 418.010009765625,
+      "entry_idx": 3053,
+      "peak": 418.010009765625,
+      "armed": false,
+      "arm_idx": null
+    },
+    "LRCX": {
+      "entry_px": 244.25,
+      "entry_idx": 3053,
+      "peak": 244.25,
+      "armed": false,
+      "arm_idx": null
+    },
+    "PAAS": {
+      "entry_px": 65.36000061035156,
+      "entry_idx": 3053,
+      "peak": 65.36000061035156,
+      "armed": false,
+      "arm_idx": null
+    }
+  },
+  "exit_defer": {}
 }
