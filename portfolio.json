@@ -55,5 +55,7 @@
       "arm_idx": null
     }
   },
-  "exit_defer": {}
+  "exit_defer": {},
+  "entry_date": {},
+  "exit_stage": {}
 }
