@@ -51,10 +51,6 @@ UNIVERSE: List[str] = [
     "PNC","QCOM","QQQ","RACE","RHM.DE","RIO","RMS.PA","ROK","RTX","SAAB-B.ST","SAF.PA","SBUX",
     "SCHW","SHOP","SLV","SMCI","SO","SPY","SU.PA","T","TGT","TM","TMO","TSLA","TSM","TXN",
     "UNH","UPS","V","VRTX","VZ","WFC","WM","WMT","XOM","ZS","SNDK","HOOD","BE","WDC",
-    "KTOS",
-    "LEU",
-    "DNN",
-    "UEC"
 ]
 
 YF_TICKER_MAP: Dict[str, str] = {
@@ -68,6 +64,36 @@ HISTORY_START = "2014-01-01"
 YF_END: Optional[str] = None
 
 W_R63, W_R126, W_R252 = 0.20, 0.40, 0.40
+# =============================================================================
+# CHAMPION ENGINE2 FEATURES (ported from zip, yfinance-compatible)
+# =============================================================================
+RISK_SET_15 = {
+    # Tail-risk set (edit if needed)
+    "MARA","RIOT","LEU","MSTR","SMCI","RKLB","APP","NET","COIN","TSLA","NVDA","AMD","PLTR","SMH","TQQQ"
+}
+
+# OEG2 conditional (risk_set): veto entry if overextended vs SMA220 AND breaks SMA20
+OEG2_ENABLE = 1
+OEG2_DIST_TH = 0.85        # distSMA220 > 0.85
+OEG2_SMA20_WIN = 20
+
+# TailVeto spike (risk_set): veto entry if ATR% high AND vol spike high
+TAILVETO_ENABLE = 1
+TAIL_ATR_TH = 0.07         # 7%
+TAIL_SPIKE_TH = 1.60       # vol20/vol60
+
+# MIE: Momentum Invalidation Exit (risk_set & non-risk), position-based
+MIE_ENABLE = 1
+MIE_RS63_TH = -0.03        # exit if R63 < -3%
+MIE_MIN_HOLD_DAYS = 9
+
+# ExitSmooth3: smooth exit for names leaving target (3-step)
+EXITSMOOTH_ENABLE = 1
+EXITSMOOTH_STEPS = 3       # 3 tranches
+
+# Leader Overweight (A022): boost top name weight, renormalize
+LEADER_OVW_ENABLE = 1
+LEADER_ALPHA = 0.22
 SMA_WIN = 220
 VOL_WIN = 20
 
@@ -80,50 +106,10 @@ DELTA_REBAL = 0.10  # 10%
 
 CORR_WIN = 63
 CORR_GATE = 0.92
-CORR_PICK = 0.80
+CORR_PICK = 0.75  # champion
 CORR_SCAN = 10
 
 FEE_PER_ORDER = 1.0
-# =============================================================================
-# CHAMPION V7.1 (EXITSMOOTH3 + TAILVETO + OEG2_COND + PP + MIE + LeaderOverweight A022)
-# =============================================================================
-
-# TailVeto Spike (risk_set only) — veto ENTRY if tail risk is detected
-TAILVETO_ENABLE = True
-TAILVETO_ATRP20_TH = 0.06
-TAILVETO_VOLSPIKE_TH = 1.10  # vol20 / vol60
-
-# OEG2_COND (risk_set only, entry only)
-OEG2_ENABLE = True
-OEG2_DIST_TH = 0.85          # distSMA220 = Close/SMA220 - 1
-OEG2_SMA_SHORT = 20          # SMA20
-
-# Risk set (15 tickers) — frozen from RUN_FULL V7.1 config
-RISK_SET = {
-    "RKLB","MSTR","KTOS","LEU","SMCI","APP","MARA","RIOT","DNN","VRT","RHM.DE","PLTR","COP","UEC","TSLA"
-}
-
-# EXITSMOOTH3 — defer SELL of losers not-in-target if still trending (Close>SMA220)
-EXIT_SMOOTH_ENABLE = True
-EXIT_SMOOTH_MAX_DEFERS = 2
-EXIT_SMOOTH_REQUIRE_TREND = True
-
-# Profit Protection (PP) — armed after MFE trigger, then trailing DD from peak
-PP_ENABLE = True
-PP_MFE_TRIGGER = 0.38
-PP_TRAIL_DD = 0.10
-PP_MIN_DAYS_AFTER_ARM = 5
-
-# MIE (Momentum Invalidation Exit) — checked on close, executed next open (PP-safe)
-MIE_ENABLE = True
-MIE_RS63_TH = 0.03
-MIE_MIN_HOLD = 9
-
-# Leader Overweight (A022) — blend inv-vol weights with a leader one-hot
-LEADER_OVW_ENABLE = True
-LEADER_ALPHA = 0.22
-LEADER_W_CAP = 0.50
-
 
 INITIAL_CASH = 2000.0
 MONTHLY_DCA = 100.0
@@ -291,46 +277,47 @@ def load_data_yfinance(tickers: List[str]) -> OHLCV:
 # Signals
 # =============================================================================
 
+def _rsi(series: pd.Series, window: int = 14) -> pd.Series:
+    delta = series.diff()
+    up = delta.clip(lower=0)
+    down = (-delta).clip(lower=0)
+    ma_up = up.ewm(alpha=1/window, adjust=False, min_periods=window).mean()
+    ma_down = down.ewm(alpha=1/window, adjust=False, min_periods=window).mean()
+    rs = ma_up / (ma_down + 1e-12)
+    return 100 - (100 / (1 + rs))
+
+
 def compute_signals(ohlcv: OHLCV) -> dict:
     c = ohlcv.close_ffill
-    o = ohlcv.open
-    h = ohlcv.high
-    l = ohlcv.low
-
     ret1 = c.pct_change(fill_method=None)
 
     r63 = c / c.shift(63) - 1.0
     r126 = c / c.shift(126) - 1.0
     r252 = c / c.shift(252) - 1.0
-    r5 = c / c.shift(5) - 1.0
 
-    # Cross-sectional momentum score
+    # Base score (champion backbone)
     score = W_R63 * r63 + W_R126 * r126 + W_R252 * r252
 
     sma220 = c.rolling(SMA_WIN, min_periods=SMA_WIN).mean()
-    sma20 = c.rolling(OEG2_SMA_SHORT, min_periods=OEG2_SMA_SHORT).mean()
+    sma20 = c.rolling(OEG2_SMA20_WIN, min_periods=OEG2_SMA20_WIN).mean()
 
+    # Volatility (std) and spike
     vol20 = ret1.rolling(VOL_WIN, min_periods=VOL_WIN).std()
     vol60 = ret1.rolling(60, min_periods=60).std()
+    vol_spike = (vol20 / (vol60 + 1e-12)).replace([np.inf, -np.inf], np.nan)
 
-    # ATR%20 (true range based)
-    prev_c = c.shift(1)
-    tr = pd.concat([
-        (h - l),
-        (h - prev_c).abs(),
-        (l - prev_c).abs()
-    ], axis=0).groupby(level=0).max()
-    atr20 = tr.rolling(20, min_periods=20).mean()
-    atrp20 = atr20 / c
+    # ATR% proxy (mean absolute return)
+    atrp20 = ret1.abs().rolling(20, min_periods=20).mean()
 
-    # RS63 vs SPY (fallback neutral if SPY missing)
-    if "SPY" in c.columns and c["SPY"].notna().any():
-        spy_r63 = c["SPY"] / c["SPY"].shift(63) - 1.0
-        rs63 = (1.0 + r63).div(1.0 + spy_r63, axis=0) - 1.0
-    else:
-        rs63 = r63 * 0.0
+    # Drawdown vs high60 (negative/0)
+    high60 = c.rolling(60, min_periods=60).max()
+    dd60 = (c / (high60 + 1e-12) - 1.0).clip(upper=0.0)
 
-    dist_sma220 = c / sma220 - 1.0
+    # Overextension vs SMA220
+    dist_sma220 = (c / (sma220 + 1e-12) - 1.0)
+
+    # RSI red flag
+    rsi14 = c.apply(lambda s: _rsi(s, 14))
 
     enough_history = (c.notna().sum() >= MIN_BARS_REQUIRED)
 
@@ -338,17 +325,17 @@ def compute_signals(ohlcv: OHLCV) -> dict:
         score=score,
         sma220=sma220,
         sma20=sma20,
-        dist_sma220=dist_sma220,
         vol20=vol20,
         vol60=vol60,
+        vol_spike=vol_spike,
         atrp20=atrp20,
-        rs63=rs63,
-        r5=r5,
+        dd60=dd60,
+        dist_sma220=dist_sma220,
+        r63=r63,
+        rsi14=rsi14,
         ret1=ret1,
-        enough_history=enough_history,
+        enough_history=enough_history
     )
-
-
 def corr_matrix(window_returns: np.ndarray) -> np.ndarray:
     m = window_returns.astype(float)
     m = m - np.nanmean(m, axis=0, keepdims=True)
@@ -468,9 +455,11 @@ def pretty_weights_and_targets(
 def load_portfolio() -> dict:
     p = load_json(PORTFOLIO_FILE)
     if not p:
-        p = {"cash": INITIAL_CASH, "positions": {}, "last_rebalance_idx": None, "last_dca_month": None}
+        p = {"cash": INITIAL_CASH, "positions": {}, "entry_date": {}, "exit_stage": {}, "last_rebalance_idx": None, "last_dca_month": None}
     p["cash"] = safe_float(p.get("cash", INITIAL_CASH), INITIAL_CASH)
     p["positions"] = p.get("positions", {}) or {}
+    p["entry_date"] = p.get("entry_date", {}) or {}
+    p["exit_stage"] = p.get("exit_stage", {}) or {}
     return p
 
 
@@ -536,12 +525,13 @@ def main():
     score = sig["score"]
     sma220 = sig["sma220"]
     sma20 = sig["sma20"]
-    dist_sma220 = sig["dist_sma220"]
     vol20 = sig["vol20"]
-    vol60 = sig["vol60"]
+    vol_spike = sig["vol_spike"]
     atrp20 = sig["atrp20"]
-    rs63 = sig["rs63"]
-    r5 = sig["r5"]
+    dd60 = sig["dd60"]
+    dist_sma220 = sig["dist_sma220"]
+    r63 = sig["r63"]
+    rsi14 = sig["rsi14"]
     ret1 = sig["ret1"]
     enough_history = sig["enough_history"]
 
@@ -562,9 +552,9 @@ def main():
     do_rebalance = (last_idx % REB_EVERY_N_DAYS == 0)
 
     positions = port.get("positions", {}) or {}
+    entry_date = port.get("entry_date", {}) or {}
+    exit_stage = port.get("exit_stage", {}) or {}
     cash = float(port.get("cash", 0.0))
-    pp_state = port.get("pp_state", {}) or {}
-    exit_defer = port.get("exit_defer", {}) or {}
 
     def pos_value_at_close(d: pd.Timestamp) -> float:
         """
@@ -588,25 +578,30 @@ def main():
     print(f"Cash {cash:.2f} | Pos {total_pos:.2f} | Total {total:.2f}\n")
 
     elig = (
-    (ohlcv.close_ffill.loc[last_date] > sma220.loc[last_date]) &
-    score.loc[last_date].notna() &
-    vol20.loc[last_date].notna()
+        (ohlcv.close_ffill.loc[last_date] > sma220.loc[last_date]) &
+        score.loc[last_date].notna() &
+        vol20.loc[last_date].notna()
     )
     elig = elig & enough_history.reindex(elig.index, fill_value=False)
 
-    # Champion V7.1 entry vetoes (risk_set only)
-    if TAILVETO_ENABLE:
-        tail = (atrp20.loc[last_date] >= TAILVETO_ATRP20_TH) & ((vol20.loc[last_date] / (vol60.loc[last_date] + 1e-12)) >= TAILVETO_VOLSPIKE_TH)
-        tail = tail & pd.Series([t in RISK_SET for t in elig.index], index=elig.index)
-        elig = elig & (~tail.fillna(False))
-
-    if OEG2_ENABLE:
-        oeg2 = (dist_sma220.loc[last_date] > OEG2_DIST_TH) & (ohlcv.close_ffill.loc[last_date] < sma20.loc[last_date])
-        oeg2 = oeg2 & pd.Series([t in RISK_SET for t in elig.index], index=elig.index)
-        elig = elig & (~oeg2.fillna(False))
-
     srow = score.loc[last_date].where(elig, np.nan).dropna()
     ranked = list(srow.sort_values(ascending=False).head(RANK_POOL).index)
+    # Champion guards (risk_set only): OEG2 conditional + TailVeto spike
+    if ranked:
+        close_row = ohlcv.close_ffill.loc[last_date]
+        filt: List[str] = []
+        for t in ranked:
+            if t in RISK_SET_15:
+                if OEG2_ENABLE and (safe_float(dist_sma220.loc[last_date].get(t, np.nan)) > OEG2_DIST_TH) and (
+                    safe_float(close_row.get(t, np.nan)) < safe_float(sma20.loc[last_date].get(t, np.nan))
+                ):
+                    continue  # OEG2 veto
+                if TAILVETO_ENABLE and (safe_float(atrp20.loc[last_date].get(t, np.nan)) > TAIL_ATR_TH) and (
+                    safe_float(vol_spike.loc[last_date].get(t, np.nan)) > TAIL_SPIKE_TH
+                ):
+                    continue  # TailVeto spike
+            filt.append(t)
+        ranked = filt
 
     print("TOP 5 MOMENTUM:")
     if len(ranked) == 0:
@@ -617,6 +612,8 @@ def main():
     print("")
 
     desired_ranked = ranked[:TOPK]
+
+    current = list(positions.keys())
 
     corr_gate_hit = 0
     if len(ranked) >= 2:
@@ -635,7 +632,7 @@ def main():
                     topk=TOPK,
                     thr=CORR_PICK,
                     max_scan=CORR_SCAN,
-                    held=None
+                    held=current if current else None
                 )
 
     current = list(positions.keys())
@@ -668,110 +665,8 @@ def main():
     else:
         print("WEIGHTS/TARGETS: (unavailable)\n")
 
-
-
-
-    # Next open date for any execution (PP/MIE exits and/or rebalance) — T+1 open
-    loc_full = ohlcv.open.index.get_loc(last_date)
-    exec_date = None
-    if loc_full + 1 < len(ohlcv.open.index):
-        exec_date = ohlcv.open.index[loc_full + 1]
-        px_open_exec = ohlcv.open.loc[exec_date]
-    else:
-        px_open_exec = None
-
-    orders: List[dict] = []
-
-    # -------------------------------------------------------------
-    # Daily risk exits (checked on close last_date, executed next open)
-    # -------------------------------------------------------------
-    if exec_date is not None and px_open_exec is not None:
-        # Ensure state exists for held tickers
-        for t in list(positions.keys()):
-            if t not in pp_state:
-                entry_px = safe_float(ohlcv.close_ffill.loc[last_date].get(t, np.nan))
-                pp_state[t] = {"entry_px": entry_px, "entry_idx": int(last_idx), "peak": entry_px, "armed": False, "arm_idx": None}
-
-        pp_exit = []
-        if PP_ENABLE:
-            for t in list(positions.keys()):
-                st = pp_state.get(t, None)
-                if st is None:
-                    continue
-                px = safe_float(ohlcv.close_ffill.loc[last_date].get(t, np.nan))
-                if not np.isfinite(px):
-                    continue
-                st["peak"] = float(max(float(st.get("peak", px)), px))
-                entry_px = safe_float(st.get("entry_px", px))
-                mfe = (float(st["peak"]) / entry_px - 1.0) if entry_px > 0 else 0.0
-                if (not bool(st.get("armed", False))) and mfe >= PP_MFE_TRIGGER:
-                    st["armed"] = True
-                    st["arm_idx"] = int(last_idx)
-                if bool(st.get("armed", False)) and (int(last_idx) - int(st.get("arm_idx", last_idx))) >= PP_MIN_DAYS_AFTER_ARM:
-                    dd = 1.0 - (px / float(st["peak"])) if float(st["peak"]) > 0 else 0.0
-                    if dd >= PP_TRAIL_DD:
-                        pp_exit.append(t)
-
-        mie_exit = []
-        if MIE_ENABLE and ("SPY" in ohlcv.close_ffill.columns):
-            for t in list(positions.keys()):
-                st = pp_state.get(t, None)
-                if st is None:
-                    continue
-                if bool(st.get("armed", False)):
-                    continue  # PP-safe
-                entry_px = safe_float(st.get("entry_px", np.nan))
-                entry_idx = int(st.get("entry_idx", last_idx))
-                age = int(last_idx) - entry_idx
-                if age < MIE_MIN_HOLD:
-                    continue
-                px = safe_float(ohlcv.close_ffill.loc[last_date].get(t, np.nan))
-                if not (np.isfinite(px) and np.isfinite(entry_px) and entry_px > 0):
-                    continue
-                live_pnl = px / entry_px - 1.0
-                if live_pnl > 0:
-                    continue
-                if (safe_float(rs63.loc[last_date].get(t, 0.0)) <= -MIE_RS63_TH) and (px < safe_float(sma220.loc[last_date].get(t, np.inf))) and (safe_float(r5.loc[last_date].get(t, 0.0)) < 0.0):
-                    mie_exit.append(t)
-
-        forced_exit = {t: "PP" for t in pp_exit}
-        forced_exit.update({t: "MIE" for t in mie_exit})
-
-        for t, reason in list(forced_exit.items()):
-            if t not in positions:
-                continue
-            price = safe_float(px_open_exec.get(t, np.nan))
-            if not np.isfinite(price) or price <= 0:
-                continue
-            sh = extract_shares(positions.get(t))
-            if sh <= 0:
-                continue
-            cash += sh * price - FEE_PER_ORDER
-            positions.pop(t, None)
-            pp_state.pop(t, None)
-            exit_defer.pop(t, None)
-            orders.append({
-                "Date": str(exec_date.date()),
-                "Side": "SELL",
-                "Ticker": t,
-                "Shares": sh,
-                "Price": price,
-                "Fee": FEE_PER_ORDER,
-                "Reason": reason,
-            })
-
-    # Persist state after possible exits
-    port["pp_state"] = pp_state
-    port["exit_defer"] = exit_defer
     if not do_rebalance:
-        print("ORDERS:")
-        if len(orders)==0:
-            print("none (not a rebalance day)")
-        else:
-            for o_ in orders:
-                print(o_)
-        if orders:
-            append_trades(orders)
+        print("ORDERS: none (not a rebalance day)")
         save_portfolio(port)
 
         msg_lines = [
@@ -800,12 +695,7 @@ def main():
             msg_lines.append(f"INVESTABLE_EQUITY: {investable_eq_dbg:.2f}")
 
         msg_lines.append("")
-        if len(orders)==0:
-            msg_lines.append("ORDERS: none (not a rebalance day)")
-        else:
-            msg_lines.append("ORDERS:")
-            for o_ in orders:
-                msg_lines.append(f"{o_['Side']} {o_['Ticker']} sh={o_['Shares']:.4f} @ {o_['Price']:.4f} ({o_['Reason']})")
+        msg_lines.append("ORDERS: none (not a rebalance day)")
         send_telegram("\n".join(msg_lines))
         return
 
@@ -835,75 +725,97 @@ def main():
         port_val_open += sh * float(px_open[t])
 
     w = invvol_weights(vol20.loc[last_date], desired)
-
-    # Leader Overweight (A022)
-    if LEADER_OVW_ENABLE and desired:
-        leader = desired[0]
-        if leader in w:
-            for _t in list(w.keys()):
-                w[_t] = (1.0 - LEADER_ALPHA) * w[_t] + (LEADER_ALPHA if _t == leader else 0.0)
-            # cap leader
-            if w.get(leader, 0.0) > LEADER_W_CAP:
-                excess = w[leader] - LEADER_W_CAP
-                w[leader] = LEADER_W_CAP
-                others = [k for k in w.keys() if k != leader]
-                s_oth = sum(w[k] for k in others)
-                if s_oth > 0:
-                    for k in others:
-                        w[k] += excess * (w[k] / s_oth)
-            # renorm
-            ssum = float(sum(w.values()))
-            if ssum > 0:
-                for k in w:
-                    w[k] /= ssum
-
     targets_val = {t: w[t] * port_val_open for t in w}
 
-    # (orders list may already contain PP/MIE exits earlier in the day)
+    orders: List[dict] = []
 
-    
+    # MIE (Momentum Invalidation Exit): force exit if R63 below threshold and min-hold satisfied
+    if MIE_ENABLE and positions:
+        for t in list(positions.keys()):
+            rs = safe_float(r63.loc[last_date].get(t, np.nan))
+            if not np.isfinite(rs) or rs >= MIE_RS63_TH:
+                continue
 
-    # Sell names not in target
-    for t in list(positions.keys()):
-        if t not in targets_val:
-            sh = extract_shares(positions.get(t))
+            ent = entry_date.get(t)
+            hold_ok = True
+            if ent:
+                try:
+                    ent_dt = pd.Timestamp(ent)
+                    ent_idx = idx_map.get(ent_dt, None)
+                    if ent_idx is not None:
+                        hold_days = max(0, last_idx - ent_idx)
+                        hold_ok = (hold_days >= MIE_MIN_HOLD_DAYS)
+                except Exception:
+                    pass
+            if not hold_ok:
+                continue
+
+            sh = extract_shares(positions.pop(t, None))
             if sh <= 0:
                 continue
-
-            # EXITSMOOTH3: defer selling losers that still pass trend (Close>SMA220), max 2 defers
-            if EXIT_SMOOTH_ENABLE:
-                entry_px = safe_float(pp_state.get(t, {}).get("entry_px", np.nan))
-                cl_px = safe_float(ohlcv.close_ffill.loc[last_date].get(t, np.nan))
-                upnl = (cl_px / entry_px - 1.0) if (np.isfinite(entry_px) and entry_px > 0 and np.isfinite(cl_px)) else 0.0
-                ok = (upnl < 0.0)
-                if EXIT_SMOOTH_REQUIRE_TREND:
-                    ok = ok and (cl_px > safe_float(sma220.loc[last_date].get(t, -np.inf)))
-                if ok and int(exit_defer.get(t, 0)) < EXIT_SMOOTH_MAX_DEFERS:
-                    exit_defer[t] = int(exit_defer.get(t, 0)) + 1
-                    continue
-
-            price = safe_float(px_open.get(t, np.nan))
-            if not np.isfinite(price) or price <= 0:
-                continue
-            sh = extract_shares(positions.pop(t))
-            cash += sh * float(price) - FEE_PER_ORDER
-            pp_state.pop(t, None)
-            exit_defer.pop(t, None)
+            exit_stage.pop(t, None)
+            entry_date.pop(t, None)
+            cash += sh * float(px_open[t]) - FEE_PER_ORDER
             orders.append({
                 "Date": str(exec_date.date()),
                 "Side": "SELL",
                 "Ticker": t,
                 "Shares": sh,
-                "Price": float(price),
+                "Price": float(px_open[t]),
                 "Fee": FEE_PER_ORDER,
-                "Reason": "EXIT_NOT_TARGET",
+                "Reason": "MOM_INV_RS63",
             })
+
+    # Sell names not in target (ExitSmooth3)
+    for t in list(positions.keys()):
+        if t in targets_val:
+            exit_stage.pop(t, None)
+            continue
+
+        cur_sh = extract_shares(positions.get(t, 0.0))
+        if cur_sh <= 0:
+            positions.pop(t, None)
+            exit_stage.pop(t, None)
+            entry_date.pop(t, None)
+            continue
+
+        if EXITSMOOTH_ENABLE:
+            st = int(exit_stage.get(t, 0)) + 1
+            st = min(st, EXITSMOOTH_STEPS)
+            exit_stage[t] = st
+            frac = 1.0 / EXITSMOOTH_STEPS if st < EXITSMOOTH_STEPS else 1.0
+            sell_sh = cur_sh * frac
+            reason = f"EXITSMOOTH_{st}"
+        else:
+            sell_sh = cur_sh
+            reason = "EXIT_NOT_TARGET"
+
+        cash += sell_sh * float(px_open[t]) - FEE_PER_ORDER
+        new_sh = cur_sh - sell_sh
+        if new_sh <= 1e-10:
+            positions.pop(t, None)
+            exit_stage.pop(t, None)
+            entry_date.pop(t, None)
+        else:
+            positions[t] = new_sh
+
+        orders.append({
+            "Date": str(exec_date.date()),
+            "Side": "SELL",
+            "Ticker": t,
+            "Shares": sell_sh,
+            "Price": float(px_open[t]),
+            "Fee": FEE_PER_ORDER,
+            "Reason": reason,
+        })
+
+    # Recompute portfolio value at open after exits (used for delta-rebalance threshold)
     port_val_open = cash
-    for t, pos_val in positions.items():
+    for t_pos, pos_val in positions.items():
         sh = extract_shares(pos_val)
         if sh <= 0:
             continue
-        port_val_open += sh * float(px_open[t])
+        port_val_open += sh * float(px_open[t_pos])
 
     # Delta rebalance
     for t, tgt_val in targets_val.items():
@@ -921,8 +833,6 @@ def main():
             new_sh = cur_sh - sell_sh
             if new_sh <= 1e-10:
                 positions.pop(t, None)
-                pp_state.pop(t, None)
-                exit_defer.pop(t, None)
             else:
                 positions[t] = new_sh
             orders.append({
@@ -934,16 +844,17 @@ def main():
                 "Fee": FEE_PER_ORDER,
                 "Reason": "DELTA_REBAL_SELL",
             })
+
         elif diff > 0:
             max_buy_val = max(cash - FEE_PER_ORDER, 0.0)
             buy_val = min(diff, max_buy_val)
             if buy_val > 1e-8:
                 buy_sh = buy_val / price
                 cash -= buy_val + FEE_PER_ORDER
-                positions[t] = cur_sh + buy_sh
-
-                if t not in pp_state:
-                    pp_state[t] = {"entry_px": price, "entry_idx": int(last_idx)+1, "peak": price, "armed": False, "arm_idx": None}
+                new_total = cur_sh + buy_sh
+                positions[t] = new_total
+                if cur_sh <= 1e-12 and new_total > 1e-12:
+                    entry_date[t] = str(exec_date.date())
                 orders.append({
                     "Date": str(exec_date.date()),
                     "Side": "BUY",
@@ -954,10 +865,12 @@ def main():
                     "Reason": "DELTA_REBAL_BUY",
                 })
 
+
+
     port["cash"] = cash
     port["positions"] = positions
-    port["pp_state"] = pp_state
-    port["exit_defer"] = exit_defer
+    port["entry_date"] = entry_date
+    port["exit_stage"] = exit_stage
     port["last_rebalance_idx"] = int(last_idx)
     save_portfolio(port)
 
