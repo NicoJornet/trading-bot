@@ -2,7 +2,7 @@
   "currency": "EUR",
   "initial_capital": 2000,
   "monthly_dca": 100,
-  "cash": -3.0,
+  "cash": 97.0,
   "start_date": "2025-12-29",
   "last_dca_date": "2026-02-02",
   "positions": {
@@ -26,7 +26,7 @@
     }
   },
   "last_updated": "2026-02-13 12:00",
-  "last_dca_month": "2026-02",
+  "last_dca_month": "2026-03",
   "confirm_state": {},
   "cooldown_until": {},
   "last_updated_note": "User correction applied: KO/GILD/WMT not bought. Manual buys executed 2026-02-11: MU, LRCX, PAAS. Cash reflects 1€ fee/order (3€ total); small negative cash may occur due to rounding/amounts provided.",
