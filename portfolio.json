@@ -57,5 +57,6 @@
   },
   "exit_defer": {},
   "entry_date": {},
-  "exit_stage": {}
+  "exit_stage": {},
+  "last_rebalance_idx": null
 }
