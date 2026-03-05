@@ -63,6 +63,10 @@ YF_TICKER_MAP: Dict[str, str] = {
 HISTORY_START = "2014-01-01"
 YF_END: Optional[str] = None
 
+# If True: on exec_date, replace missing Open with close_ffill (proxy) so all tickers are tradable.
+# WARNING: This relaxes strict 'T+1 open' for tickers with missing open data from yfinance.
+FORCE_TRADABLE_OPEN_FALLBACK = True
+
 W_R63, W_R126, W_R252 = 0.20, 0.40, 0.40
 # =============================================================================
 # CHAMPION ENGINE2 FEATURES (ported from zip, yfinance-compatible)
@@ -718,22 +722,58 @@ def main():
     exec_date = ohlcv.open.index[loc_full + 1]
     px_open = ohlcv.open.loc[exec_date]
 
+    def _px_for_valuation(t: str) -> float:
+        """Use exec_date open if available, else fallback to last_date close_ffill for valuation only."""
+        op = safe_float(px_open.get(t, np.nan))
+        if np.isfinite(op):
+            return float(op)
+        cl = safe_float(ohlcv.close_ffill.loc[last_date].get(t, np.nan))
+        return float(cl) if np.isfinite(cl) else float("nan")
+
     needed = set(current) | set(desired)
-    for t in needed:
-        if not np.isfinite(safe_float(px_open.get(t, np.nan))):
-            print(f"ORDERS: none (missing next open for {t} on {exec_date.date()})")
-            save_portfolio(port)
-            return
+
+    # yfinance can have missing "Open" on exec_date for some tickers (holes/late refresh/market specifics).
+    # If FORCE_TRADABLE_OPEN_FALLBACK is True, we force tradability by substituting missing Open with a proxy:
+    #  - primary: close_ffill on exec_date (same-day close proxy)
+    #  - fallback: close_ffill on last_date (previous close proxy)
+    # This keeps the engine operational on day J, but relaxes strict "T+1 open" for those tickers only.
+    fallback_used = []
+    if FORCE_TRADABLE_OPEN_FALLBACK:
+        px_exec = px_open.copy()
+        # First proxy: close_ffill at exec_date
+        if exec_date in ohlcv.close_ffill.index:
+            px_exec = px_exec.fillna(ohlcv.close_ffill.loc[exec_date])
+        # Second proxy: previous close_ffill (last_date)
+        px_exec = px_exec.fillna(ohlcv.close_ffill.loc[last_date])
+
+        for t in needed:
+            if not np.isfinite(safe_float(px_open.get(t, np.nan))) and np.isfinite(safe_float(px_exec.get(t, np.nan))):
+                fallback_used.append(t)
+
+        if fallback_used:
+            print(f"⚠️ Missing next open for {fallback_used} on {exec_date.date()} — using CLOSE proxy for execution price (forced tradable).")
+
+        # overwrite execution prices used downstream
+        px_open = px_exec
+
+    # Hard check: all needed tickers must have an execution price
+    missing_price = [t for t in needed if not np.isfinite(safe_float(px_open.get(t, np.nan)))]
+    if missing_price:
+        print(f"ORDERS: none (missing execution price for {missing_price} on {exec_date.date()})")
+        save_portfolio(port)
+        return
 
     port_val_open = cash
     for t, pos_val in positions.items():
         sh = extract_shares(pos_val)
         if sh <= 0:
             continue
-        port_val_open += sh * float(px_open[t])
+        pxv = _px_for_valuation(t)
+        if np.isfinite(pxv):
+            port_val_open += sh * float(pxv)
 
     w = invvol_weights(vol20.loc[last_date], desired)
-    targets_val = {t: w[t] * port_val_open for t in w}
+    targets_val = {t: w[t] * port_val_open for t in w if t in needed}
 
     orders: List[dict] = []
 
@@ -757,6 +797,9 @@ def main():
                     pass
             if not hold_ok:
                 continue
+
+            if t not in needed:
+                continue  # cannot trade today (missing next open)
 
             sh = extract_shares(positions.pop(t, None))
             if sh <= 0:
@@ -798,6 +841,9 @@ def main():
             sell_sh = cur_sh
             reason = "EXIT_NOT_TARGET"
 
+        if t not in needed:
+            continue  # cannot trade today (missing next open)
+
         cash += sell_sh * float(px_open[t]) - FEE_PER_ORDER
         new_sh = cur_sh - sell_sh
         if new_sh <= 1e-10:
@@ -823,10 +869,14 @@ def main():
         sh = extract_shares(pos_val)
         if sh <= 0:
             continue
-        port_val_open += sh * float(px_open[t_pos])
+        pxv = _px_for_valuation(t_pos)
+        if np.isfinite(pxv):
+            port_val_open += sh * float(pxv)
 
     # Delta rebalance
     for t, tgt_val in targets_val.items():
+        if t not in needed:
+            continue  # cannot trade today (missing next open)
         cur_sh = extract_shares(positions.get(t, 0.0))
         price = float(px_open[t])
         cur_val = cur_sh * price
