@@ -685,12 +685,12 @@ def main():
             header,
             f"Cash {cash:.2f} | Pos {total_pos:.2f} | Total {total:.2f}",
             "",
-            "TOP 5 MOMENTUM:",
+            "TOP 15 MOMENTUM:",
         ]
         if len(ranked) == 0:
             msg_lines.append("(none)")
         else:
-            for i, t in enumerate(ranked[:5], 1):
+            for i, t in enumerate(ranked[:15], 1):
                 msg_lines.append(f"{i}. {t} score {float(srow.loc[t]):.4f}")
 
         msg_lines.append("")
