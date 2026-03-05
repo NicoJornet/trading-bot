@@ -615,11 +615,11 @@ def main():
             filt.append(t)
         ranked = filt
 
-    print("TOP 5 MOMENTUM:")
+    print("TOP 15 MOMENTUM:")
     if len(ranked) == 0:
         print("(none)")
     else:
-        for i, t in enumerate(ranked[:5], 1):
+        for i, t in enumerate(ranked[:15], 1):
             print(f"{i}. {t} score {float(srow.loc[t]):.4f}")
     print("")
 
