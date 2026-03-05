@@ -460,6 +460,10 @@ def load_portfolio() -> dict:
     p["positions"] = p.get("positions", {}) or {}
     p["entry_date"] = p.get("entry_date", {}) or {}
     p["exit_stage"] = p.get("exit_stage", {}) or {}
+    if "last_rebalance_idx" not in p:
+        p["last_rebalance_idx"] = None
+    if "last_dca_month" not in p:
+        p["last_dca_month"] = None
     return p
 
 
@@ -549,7 +553,11 @@ def main():
     if last_idx is None:
         raise RuntimeError("last_date not in calendar index map (unexpected).")
 
-    do_rebalance = (last_idx % REB_EVERY_N_DAYS == 0)
+    last_reb = port.get("last_rebalance_idx")
+    if last_reb is None:
+        do_rebalance = True
+    else:
+        do_rebalance = (last_idx - int(last_reb)) >= REB_EVERY_N_DAYS
 
     positions = port.get("positions", {}) or {}
     entry_date = port.get("entry_date", {}) or {}
