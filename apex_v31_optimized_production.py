@@ -49,8 +49,8 @@ UNIVERSE: List[str] = [
     "LMT","LRCX","LULU","MA","MCD","MELI","META","MC.PA","MMM","MO","MRK","MSTR","MSFT","MU",
     "NEE","NET","NKE","NOC","NVO","NVDA","O","ORCL","PAAS","PANW","PEP","PFE","PG","PLTR","PM",
     "PNC","QCOM","QQQ","RACE","RHM.DE","RIO","RMS.PA","ROK","RTX","SAAB-B.ST","SAF.PA","SBUX",
-    "SCHW","SHOP","SLV","SMCI","SO","SPY","SU.PA","T","TGT","TM","TMO","TSLA","TSM","TXN",
-    "UNH","UPS","V","VRTX","VZ","WFC","WM","WMT","XOM","ZS","SNDK","HOOD","BE","WDC",
+    "SCHW","SHOP","SLV","SMCI","SO","SPY","SU.PA","T","TGT","TM","TMO","TSLA","TSM","TTE.PA","TXN",
+    "UNH","UPS","V","VRTX","VZ","WFC","WM","WMT","XOM","ZS","SNDK","HOOD","BE","WDC","URNM",
 ]
 
 YF_TICKER_MAP: Dict[str, str] = {
