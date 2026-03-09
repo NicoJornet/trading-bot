@@ -731,6 +731,12 @@ def main():
             msg_lines.append(f"INVESTABLE_EQUITY: {investable_eq_dbg:.2f}")
 
         msg_lines.append("")
+        msg_lines.append(f"LAST_REBALANCE_DATE: {last_rebalance_date.date() if last_rebalance_date is not None else 'None'}")
+        msg_lines.append(f"CURRENT_DATE: {last_date.date()}")
+        msg_lines.append(f"NEXT_REBALANCE_DATE: {next_rebalance_date.date() if next_rebalance_date is not None else 'None'}")
+        msg_lines.append(f"TRADING_DAYS_TO_REBALANCE: {trading_days_to_rebalance}")
+
+        msg_lines.append("")
         msg_lines.append("ORDERS: none (not a rebalance day)")
         send_telegram("\n".join(msg_lines))
         return
@@ -989,6 +995,12 @@ def main():
         msg_lines.append("")
         msg_lines.append("WEIGHTS (inv-vol20): " + str({t: round(w.get(t, 0.0), 4) for t in desired}))
         msg_lines.append("TARGET € (open-based): " + str({t: round(targets_val.get(t, 0.0), 2) for t in desired}))
+
+    msg_lines.append("")
+    msg_lines.append(f"LAST_REBALANCE_DATE: {last_rebalance_date.date() if last_rebalance_date is not None else 'None'}")
+    msg_lines.append(f"CURRENT_DATE: {last_date.date()}")
+    msg_lines.append(f"NEXT_REBALANCE_DATE: {next_rebalance_date.date() if next_rebalance_date is not None else 'None'}")
+    msg_lines.append(f"TRADING_DAYS_TO_REBALANCE: {trading_days_to_rebalance}")
 
     msg_lines.append("")
     if not orders:
