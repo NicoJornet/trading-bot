@@ -211,7 +211,8 @@
     "win_rate_sells_pct": 42.86,
     "sell_records_with_pnl": 7,
     "portfolio_resets": 1,
-    "notes": "Summary counts refer to BUY/SELL records; RESET_PORTFOLIO is excluded."
+    "notes": "Summary counts refer to BUY/SELL records; RESET_PORTFOLIO is excluded.",
+    "last_buy_date": "2026-02-11"
   },
-  "notes": "Updated per user correction: KO/GILD/WMT buys removed (never executed). Added real manual buys on 2026-02-11: MU, LRCX, PAAS with provided shares/prices/amounts."
+  "notes": "Updated per user correction: KO/GILD/WMT buys removed (never executed). Added real manual buys on 2026-02-11: MU, LRCX, PAAS with provided shares/prices/amounts. Last buy date confirmed: 2026-02-11."
 }
