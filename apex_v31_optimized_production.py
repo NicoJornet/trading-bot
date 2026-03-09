@@ -563,6 +563,30 @@ def main():
     else:
         do_rebalance = (last_idx - int(last_reb)) >= REB_EVERY_N_DAYS
 
+    # --- Rebalance calendar diagnostics ---
+    if last_reb is None:
+        next_rebalance_date = last_date
+        trading_days_to_rebalance = 0
+        last_rebalance_date = None
+    else:
+        last_reb = int(last_reb)
+        last_rebalance_date = cal[last_reb]
+        next_reb_idx = last_reb + REB_EVERY_N_DAYS
+        if next_reb_idx < len(cal):
+            next_rebalance_date = cal[next_reb_idx]
+            trading_days_to_rebalance = max(0, next_reb_idx - last_idx)
+        else:
+            next_rebalance_date = None
+            trading_days_to_rebalance = None
+
+    print(f"LAST_REBALANCE_IDX: {last_reb}")
+    print(f"LAST_REBALANCE_DATE: {last_rebalance_date.date() if last_rebalance_date is not None else 'None'}")
+    print(f"CURRENT_IDX: {last_idx}")
+    print(f"CURRENT_DATE: {last_date.date()}")
+    print(f"REB_EVERY_N_DAYS: {REB_EVERY_N_DAYS}")
+    print(f"NEXT_REBALANCE_DATE: {next_rebalance_date.date() if next_rebalance_date is not None else 'None'}")
+    print(f"TRADING_DAYS_TO_REBALANCE: {trading_days_to_rebalance}")
+
     positions = port.get("positions", {}) or {}
     entry_date = port.get("entry_date", {}) or {}
     exit_stage = port.get("exit_stage", {}) or {}
