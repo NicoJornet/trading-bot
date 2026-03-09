@@ -101,24 +101,6 @@ LEADER_ALPHA = 0.22
 SMA_WIN = 220
 VOL_WIN = 20
 
-# =============================================================================
-# CHAMPION D ADDITIONS
-# =============================================================================
-SLOT3_GATE_ENABLE = 1
-SLOT3_MAX_RANK = 5
-SLOT3_LEADER_EXEMPT_TOPN = 12
-
-QUALITY_FILTER_ENABLE = 1
-Q_SLOT2_ENABLE = 1
-Q_SLOT3_ENABLE = 1
-Q_PERSIST_WIN = 5
-Q_SLOT2_RANK_TH = 3
-Q_SLOT3_RANK_TH = 6
-Q_MIN_COUNT = 5
-Q_LEADER_EXEMPT_TOPN = 12
-Q_REQUIRE_POS_RS63 = 1
-
-
 TOPK = 3
 RANK_POOL = 15
 KEEP_RANK = 5
@@ -342,15 +324,9 @@ def compute_signals(ohlcv: OHLCV) -> dict:
     rsi14 = c.apply(lambda s: _rsi(s, 14))
 
     enough_history = (c.notna().sum() >= MIN_BARS_REQUIRED)
-    ranks = score.rank(axis=1, ascending=False, method="min")
-    rank126 = r126.rank(axis=1, ascending=False, method="min")
-    rank252 = r252.rank(axis=1, ascending=False, method="min")
 
     return dict(
         score=score,
-        ranks=ranks,
-        rank126=rank126,
-        rank252=rank252,
         sma220=sma220,
         sma20=sma20,
         vol20=vol20,
@@ -437,53 +413,13 @@ def apply_keep_rank(current: List[str], ranked: List[str], topk: int, keep_rank:
     return out[:topk]
 
 
-def invvol_weights(vol_row: pd.Series, tickers: List[str], leader_ticker: Optional[str] = None, leader_alpha: float = 0.0) -> Dict[str, float]:
+def invvol_weights(vol_row: pd.Series, tickers: List[str]) -> Dict[str, float]:
     v = vol_row.reindex(tickers).replace(0, np.nan)
     inv = (1.0 / v).replace([np.inf, -np.inf], np.nan).dropna()
     if inv.empty:
         return {}
     inv = inv / inv.sum()
-    w = {t: float(inv.loc[t]) for t in inv.index}
-    if leader_ticker and leader_ticker in w and leader_alpha > 0:
-        w[leader_ticker] *= (1.0 + leader_alpha)
-        s = sum(w.values())
-        if s > 0:
-            w = {k: v / s for k, v in w.items()}
-    return w
-
-
-def _candidate_quality_ok(ranks: pd.DataFrame, rank126: pd.DataFrame, rank252: pd.DataFrame, rs63: pd.DataFrame, d: pd.Timestamp, cand: str, slot_num: int) -> bool:
-    if not QUALITY_FILTER_ENABLE:
-        return True
-    if slot_num == 2 and not Q_SLOT2_ENABLE:
-        return True
-    if slot_num == 3 and not Q_SLOT3_ENABLE:
-        return True
-    try:
-        r126 = rank126.loc[d, cand]
-        r252 = rank252.loc[d, cand]
-        if pd.notna(r126) and pd.notna(r252) and int(r126) <= Q_LEADER_EXEMPT_TOPN and int(r252) <= Q_LEADER_EXEMPT_TOPN:
-            return True
-    except Exception:
-        pass
-    try:
-        end_loc = ranks.index.get_loc(d)
-    except KeyError:
-        return True
-    start_loc = max(0, end_loc - Q_PERSIST_WIN + 1)
-    wdates = ranks.index[start_loc:end_loc + 1]
-    rank_th = Q_SLOT2_RANK_TH if slot_num == 2 else Q_SLOT3_RANK_TH
-    rr = ranks.loc[wdates, cand]
-    count = int((rr <= rank_th).sum())
-    if count < Q_MIN_COUNT:
-        return False
-    if Q_REQUIRE_POS_RS63:
-        try:
-            if float(rs63.loc[d, cand]) <= 0.0:
-                return False
-        except Exception:
-            return False
-    return True
+    return {t: float(inv.loc[t]) for t in inv.index}
 
 
 def pretty_weights_and_targets(
@@ -504,7 +440,7 @@ def pretty_weights_and_targets(
       - fee reservation assumes 1 BUY per missing desired name (desired - held).
       - This is an "approx allocation view" (uses CLOSE-date vol, not next open).
     """
-    w = invvol_weights(vol_row, desired, leader_ticker=leader_ticker if LEADER_OVW_ENABLE else None, leader_alpha=LEADER_ALPHA if LEADER_OVW_ENABLE else 0.0)
+    w = invvol_weights(vol_row, desired)
     if not w:
         return {}, {}, 0.0, 0.0
 
@@ -595,9 +531,6 @@ def main():
 
     sig = compute_signals(ohlcv)
     score = sig["score"]
-    ranks = sig["ranks"]
-    rank126 = sig["rank126"]
-    rank252 = sig["rank252"]
     sma220 = sig["sma220"]
     sma20 = sig["sma20"]
     vol20 = sig["vol20"]
@@ -717,36 +650,6 @@ def main():
     current = list(positions.keys())
     desired = apply_keep_rank(current=current, ranked=desired_ranked, topk=TOPK, keep_rank=KEEP_RANK)
 
-    if QUALITY_FILTER_ENABLE:
-        kept = [t for t in list(positions.keys()) if t in desired]
-        desired_q = list(kept)
-        for cand in desired_ranked:
-            if cand in desired_q:
-                continue
-            slot_num = len(desired_q) + 1
-            if slot_num > TOPK:
-                break
-            if slot_num in (2, 3) and (cand not in positions):
-                if not _candidate_quality_ok(ranks, rank126, rank252, r63, last_date, cand, slot_num):
-                    continue
-            desired_q.append(cand)
-            if len(desired_q) >= TOPK:
-                break
-        desired = desired_q[:TOPK]
-
-    if SLOT3_GATE_ENABLE and len(desired) >= 3:
-        t3 = desired[2]
-        try:
-            rank3 = int(ranks.loc[last_date, t3]) if pd.notna(ranks.loc[last_date, t3]) else 10**9
-        except Exception:
-            rank3 = 10**9
-        try:
-            is_lt_leader = bool((rank126.loc[last_date, t3] <= SLOT3_LEADER_EXEMPT_TOPN) and (rank252.loc[last_date, t3] <= SLOT3_LEADER_EXEMPT_TOPN))
-        except Exception:
-            is_lt_leader = False
-        if (rank3 > SLOT3_MAX_RANK) and (not is_lt_leader):
-            desired = desired[:2]
-
     held = sorted(list(positions.keys()))
     print(f"HELD: {held if held else '(none)'}")
     print(f"Desired: {desired if desired else '(none)'}")
@@ -761,8 +664,7 @@ def main():
         desired=desired,
         held=held,
         vol_row=vol20.loc[last_date],
-        fee_per_order=FEE_PER_ORDER,
-        leader_ticker=(desired[0] if len(desired) > 0 else None),
+        fee_per_order=FEE_PER_ORDER
     )
 
     if desired and w_dbg:
@@ -870,7 +772,7 @@ def main():
         if np.isfinite(pxv):
             port_val_open += sh * float(pxv)
 
-    w = invvol_weights(vol20.loc[last_date], desired, leader_ticker=(desired[0] if len(desired) > 0 else None), leader_alpha=LEADER_ALPHA if LEADER_OVW_ENABLE else 0.0)
+    w = invvol_weights(vol20.loc[last_date], desired)
     targets_val = {t: w[t] * port_val_open for t in w if t in needed}
 
     orders: List[dict] = []
