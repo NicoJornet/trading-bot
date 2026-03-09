@@ -564,6 +564,10 @@ def main():
         do_rebalance = (last_idx - int(last_reb)) >= REB_EVERY_N_DAYS
 
     # --- Rebalance calendar diagnostics ---
+    # Exact next date if it is already inside the downloaded market calendar.
+    # Fallback: project from CURRENT_DATE using business days when the target date
+    # is beyond the available OHLCV index. This gives the correct answer for the
+    # usual case where the remaining window contains no market holiday.
     if last_reb is None:
         next_rebalance_date = last_date
         trading_days_to_rebalance = 0
@@ -571,13 +575,16 @@ def main():
     else:
         last_reb = int(last_reb)
         last_rebalance_date = cal[last_reb]
+        elapsed_trading_days = max(0, last_idx - last_reb)
+        trading_days_to_rebalance = max(0, REB_EVERY_N_DAYS - elapsed_trading_days)
         next_reb_idx = last_reb + REB_EVERY_N_DAYS
-        if next_reb_idx < len(cal):
+
+        if trading_days_to_rebalance == 0:
+            next_rebalance_date = last_date
+        elif next_reb_idx < len(cal):
             next_rebalance_date = cal[next_reb_idx]
-            trading_days_to_rebalance = max(0, next_reb_idx - last_idx)
         else:
-            next_rebalance_date = None
-            trading_days_to_rebalance = None
+            next_rebalance_date = pd.Timestamp(last_date) + pd.offsets.BDay(trading_days_to_rebalance)
 
     print(f"LAST_REBALANCE_IDX: {last_reb}")
     print(f"LAST_REBALANCE_DATE: {last_rebalance_date.date() if last_rebalance_date is not None else 'None'}")
