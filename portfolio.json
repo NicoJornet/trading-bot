@@ -29,7 +29,7 @@
   "last_dca_month": "2026-03",
   "confirm_state": {},
   "cooldown_until": {},
-  "last_updated_note": "User correction applied: KO/GILD/WMT not bought. Manual buys executed 2026-02-11: MU, LRCX, PAAS. Cash reflects 1€ fee/order (3€ total); small negative cash may occur due to rounding/amounts provided.",
+  "last_updated_note": "User correction applied: KO/GILD/WMT not bought. Manual buys executed 2026-02-11: MU, LRCX, PAAS. Cash reflects 1€ fee/order (3€ total); small negative cash may occur due to rounding/amounts provided. Last buy date confirmed: 2026-02-11.",
   "next_dca_date": "2026-03-10",
   "reset_date": "2026-02-10",
   "pp_state": {
@@ -58,5 +58,6 @@
   "exit_defer": {},
   "entry_date": {},
   "exit_stage": {},
-  "last_rebalance_idx": 3059
+  "last_rebalance_idx": 3059,
+  "last_buy_date": "2026-02-11"
 }
