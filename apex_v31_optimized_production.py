@@ -56,7 +56,7 @@ UNIVERSE: List[str] = [
     "SPGI","SPY","SQM","STMPA.PA","SU.PA","SYK","TDG","TDY","TECK","TJX","TMO","TMUS","TSLA","TSM",
     "TT","TTE","TTE.PA","TXN","UBER","UEC","UNH","URA","V","VALE","VIE.PA","VLO","VRT","VRTX",
     "WDAY","WELL","WLN.PA","WM","WMB","WMT","WPM","XAR","XLE","XLP","XLU","XLV","XME","XOM",
-    "ZS","ZTS","SNDK","BE","WDC",
+    "ZS","ZTS","SDNK","BE","WDC",
 ]
 
 YF_TICKER_MAP: Dict[str, str] = {
@@ -719,6 +719,126 @@ def pretty_weights_and_targets(
     return w, targets, investable_equity, fees_reserved
 
 
+def fmt_eur(x: float) -> str:
+    try:
+        return f"{float(x):,.2f} EUR".replace(",", " ")
+    except Exception:
+        return "n/a"
+
+
+def fmt_name_list(names: List[str]) -> str:
+    return ", ".join(names) if names else "(none)"
+
+
+def build_rank_lines(ranked: List[str], srow: pd.Series, limit: int) -> List[str]:
+    if not ranked:
+        return ["- (none)"]
+    lines = []
+    for i, t in enumerate(ranked[:limit], 1):
+        try:
+            score_txt = f"{float(srow.loc[t]):.4f}"
+        except Exception:
+            score_txt = "n/a"
+        lines.append(f"- {i}. {t} | score {score_txt}")
+    return lines
+
+
+def build_target_lines(desired: List[str], weights: Dict[str, float], targets: Dict[str, float]) -> List[str]:
+    if not desired:
+        return ["- (none)"]
+    lines = []
+    for i, t in enumerate(desired, 1):
+        w = 100.0 * float(weights.get(t, 0.0))
+        tgt = float(targets.get(t, 0.0))
+        lines.append(f"- {i}. {t} | {w:.1f}% | target {fmt_eur(tgt)}")
+    return lines
+
+
+def build_order_lines(orders: List[dict]) -> List[str]:
+    if not orders:
+        return ["- none"]
+    lines = []
+    for o in orders:
+        side = str(o.get("Side", "?")).upper()
+        ticker = str(o.get("Ticker", "?"))
+        shares = safe_float(o.get("Shares", np.nan))
+        price = safe_float(o.get("Price", np.nan))
+        reason = str(o.get("Reason", ""))
+        parts = [f"- {side} {ticker} {shares:.6f} @ {price:.2f}"]
+        if reason:
+            parts.append(reason)
+        pnl = safe_float(o.get("RealizedPnL", np.nan))
+        pnl_pct = safe_float(o.get("RealizedPnLPct", np.nan))
+        if np.isfinite(pnl):
+            pnl_txt = f"PnL {pnl:+,.2f} EUR".replace(",", " ")
+            if np.isfinite(pnl_pct):
+                pnl_txt += f" ({pnl_pct:+.1f}%)"
+            parts.append(pnl_txt)
+        amount = safe_float(o.get("Amount", np.nan))
+        if side == "BUY" and np.isfinite(amount):
+            parts.append(f"amount {fmt_eur(amount)}")
+        lines.append(" | ".join(parts))
+    return lines
+
+
+def build_telegram_snapshot(
+    *,
+    header: str,
+    cash: float,
+    pos_value: float,
+    held_before: List[str],
+    desired: List[str],
+    ranked: List[str],
+    srow: pd.Series,
+    corr_gate_hit: bool,
+    weights: Dict[str, float],
+    targets: Dict[str, float],
+    fees_reserved: float,
+    investable_equity: float,
+    do_rebalance: bool,
+    orders: List[dict],
+    exec_date: Optional[pd.Timestamp] = None,
+    held_after: Optional[List[str]] = None,
+    fallback_used: Optional[List[str]] = None,
+) -> str:
+    total = cash + pos_value
+    lines = [
+        header,
+        "",
+        "STATE",
+        f"- Cash: {fmt_eur(cash)}",
+        f"- Positions: {fmt_eur(pos_value)}",
+        f"- Total: {fmt_eur(total)}",
+        f"- Rebalance day: {'yes' if do_rebalance else 'no'}",
+        f"- Corr gate: {'yes' if corr_gate_hit else 'no'}",
+        "",
+        "PORTFOLIO",
+        f"- Held now: {fmt_name_list(held_before)}",
+        f"- Target basket: {fmt_name_list(desired)}",
+    ]
+    if held_after is not None and do_rebalance:
+        lines.append(f"- Held after orders: {fmt_name_list(held_after)}")
+    if exec_date is not None and do_rebalance:
+        lines.append(f"- Exec date: {exec_date.date()}")
+    if fallback_used:
+        lines.append(f"- Open fallback used: {fmt_name_list(sorted(fallback_used))}")
+
+    lines.extend([
+        "",
+        "TARGETS",
+        *build_target_lines(desired, weights, targets),
+        f"- Fees reserved: {fmt_eur(fees_reserved)}",
+        f"- Investable equity: {fmt_eur(investable_equity)}",
+        "",
+        "TOP MOMENTUM",
+        *build_rank_lines(ranked, srow, limit=5 if do_rebalance else 10),
+        "",
+        "ORDERS",
+        *build_order_lines(orders),
+    ])
+    return "\n".join(lines)
+
+
 # =============================================================================
 # Portfolio IO
 # =============================================================================
@@ -1130,6 +1250,25 @@ def main():
     if not do_rebalance:
         print("ORDERS: none (not a rebalance day)")
         save_portfolio(port)
+        send_telegram(
+            build_telegram_snapshot(
+                header=header,
+                cash=cash,
+                pos_value=total_pos,
+                held_before=held,
+                desired=desired,
+                ranked=ranked,
+                srow=srow,
+                corr_gate_hit=corr_gate_hit,
+                weights=w_dbg,
+                targets=targets_dbg,
+                fees_reserved=fees_reserved_dbg,
+                investable_equity=investable_eq_dbg,
+                do_rebalance=False,
+                orders=[],
+            )
+        )
+        return
 
         msg_lines = [
             header,
@@ -1481,6 +1620,30 @@ def main():
         print("ORDERS:")
         for o in orders:
             print(f" - {o['Side']} {o['Ticker']} sh={o['Shares']:.6f} @ {o['Price']:.2f} fee={o['Fee']:.2f} ({o['Reason']})")
+
+    held_after = sorted(list(positions.keys()))
+    send_telegram(
+        build_telegram_snapshot(
+            header=header,
+            cash=cash,
+            pos_value=pos_value_at_close(last_date),
+            held_before=held,
+            desired=desired,
+            ranked=ranked,
+            srow=srow,
+            corr_gate_hit=corr_gate_hit,
+            weights=w,
+            targets=targets_val,
+            fees_reserved=0.0,
+            investable_equity=sum(targets_val.values()) if targets_val else 0.0,
+            do_rebalance=True,
+            orders=orders,
+            exec_date=exec_date,
+            held_after=held_after,
+            fallback_used=fallback_used,
+        )
+    )
+    return
 
     # Telegram message on rebalance days
     msg_lines = [
