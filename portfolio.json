@@ -56,8 +56,13 @@
     }
   },
   "exit_defer": {},
-  "entry_date": {},
+  "entry_date": {
+    "MU": "2026-02-11",
+    "LRCX": "2026-02-11",
+    "PAAS": "2026-02-11"
+  },
   "exit_stage": {},
   "last_rebalance_idx": 3059,
-  "last_buy_date": "2026-02-11"
+  "last_buy_date": "2026-02-11",
+  "loss_last_exit_idx": {}
 }
