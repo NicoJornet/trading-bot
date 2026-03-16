@@ -797,6 +797,9 @@ def build_telegram_snapshot(
     investable_equity: float,
     do_rebalance: bool,
     orders: List[dict],
+    rebalance_days_since: Optional[int] = None,
+    rebalance_interval: int = REB_EVERY_N_DAYS,
+    last_rebalance_label: Optional[str] = None,
     exec_date: Optional[pd.Timestamp] = None,
     held_after: Optional[List[str]] = None,
     fallback_used: Optional[List[str]] = None,
@@ -816,6 +819,16 @@ def build_telegram_snapshot(
         f"- Held now: {fmt_name_list(held_before)}",
         f"- Target basket: {fmt_name_list(desired)}",
     ]
+    if rebalance_days_since is None:
+        lines.append("- Rebalance counter: first run")
+    else:
+        lines.append(f"- Trading days since last rebalance: {rebalance_days_since}/{rebalance_interval}")
+        if last_rebalance_label:
+            lines.append(f"- Last rebalance seen: {last_rebalance_label}")
+        if rebalance_days_since >= rebalance_interval:
+            lines.append("- Rebalance status: due now")
+        else:
+            lines.append(f"- Rebalance status: in {rebalance_interval - rebalance_days_since} trading day(s)")
     if held_after is not None and do_rebalance:
         lines.append(f"- Held after orders: {fmt_name_list(held_after)}")
     if exec_date is not None and do_rebalance:
@@ -854,6 +867,7 @@ def load_portfolio() -> dict:
             "exit_defer": {},
             "loss_last_exit_idx": {},
             "last_rebalance_idx": None,
+            "last_rebalance_date": None,
             "last_dca_month": None,
         }
     p["cash"] = safe_float(p.get("cash", INITIAL_CASH), INITIAL_CASH)
@@ -870,6 +884,8 @@ def load_portfolio() -> dict:
             p["entry_date"][ticker] = nested_entry
     if "last_rebalance_idx" not in p:
         p["last_rebalance_idx"] = None
+    if "last_rebalance_date" not in p:
+        p["last_rebalance_date"] = None
     if "last_dca_month" not in p:
         p["last_dca_month"] = None
     return p
@@ -1042,6 +1058,26 @@ def main():
         do_rebalance = True
     else:
         do_rebalance = (last_idx - int(last_reb)) >= REB_EVERY_N_DAYS
+    if last_reb is None:
+        rebalance_days_since = None
+        last_rebalance_label = port.get("last_rebalance_date") or None
+    else:
+        last_reb_idx = int(last_reb)
+        rebalance_days_since = max(0, last_idx - last_reb_idx)
+        if 0 <= last_reb_idx < len(cal):
+            last_rebalance_label = f"{cal[last_reb_idx].date()} (idx {last_reb_idx})"
+        elif port.get("last_rebalance_date"):
+            last_rebalance_label = f"{port.get('last_rebalance_date')} (idx {last_reb_idx})"
+        else:
+            last_rebalance_label = f"idx {last_reb_idx} (outside current calendar)"
+    print(
+        "REBALANCE_STATUS:",
+        "due" if do_rebalance else "not due",
+        "|",
+        f"trading_days_since={rebalance_days_since if rebalance_days_since is not None else 'first run'}",
+        "|",
+        f"last_rebalance={last_rebalance_label or 'n/a'}",
+    )
 
     positions = port.get("positions", {}) or {}
     entry_date = port.get("entry_date", {}) or {}
@@ -1266,6 +1302,9 @@ def main():
                 investable_equity=investable_eq_dbg,
                 do_rebalance=False,
                 orders=[],
+                rebalance_days_since=rebalance_days_since,
+                rebalance_interval=REB_EVERY_N_DAYS,
+                last_rebalance_label=last_rebalance_label,
             )
         )
         return
@@ -1609,6 +1648,7 @@ def main():
     port["loss_last_exit_idx"] = loss_last_exit_idx
     if do_rebalance:
         port["last_rebalance_idx"] = int(last_idx)
+        port["last_rebalance_date"] = str(last_date.date())
     save_portfolio(port)
 
     if orders:
@@ -1638,6 +1678,9 @@ def main():
             investable_equity=sum(targets_val.values()) if targets_val else 0.0,
             do_rebalance=True,
             orders=orders,
+            rebalance_days_since=rebalance_days_since,
+            rebalance_interval=REB_EVERY_N_DAYS,
+            last_rebalance_label=last_rebalance_label,
             exec_date=exec_date,
             held_after=held_after,
             fallback_used=fallback_used,
