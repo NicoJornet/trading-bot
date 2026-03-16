@@ -56,7 +56,7 @@ UNIVERSE: List[str] = [
     "SPGI","SPY","SQM","STMPA.PA","SU.PA","SYK","TDG","TDY","TECK","TJX","TMO","TMUS","TSLA","TSM",
     "TT","TTE","TTE.PA","TXN","UBER","UEC","UNH","URA","V","VALE","VIE.PA","VLO","VRT","VRTX",
     "WDAY","WELL","WLN.PA","WM","WMB","WMT","WPM","XAR","XLE","XLP","XLU","XLV","XME","XOM",
-    "ZS","ZTS","SDNK","BE","WDC",
+    "ZS","ZTS","SNDK","BE","WDC",
 ]
 
 YF_TICKER_MAP: Dict[str, str] = {
