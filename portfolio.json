@@ -64,5 +64,6 @@
   "exit_stage": {},
   "last_rebalance_idx": 3059,
   "last_buy_date": "2026-02-11",
-  "loss_last_exit_idx": {}
+  "loss_last_exit_idx": {},
+  "last_rebalance_date": null
 }
