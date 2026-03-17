@@ -40,24 +40,36 @@ import yfinance as yf
 # SETTINGS
 # =============================================================================
 
-UNIVERSE: List[str] = [
+# Live master universe excludes the 2 hard exclusions (MRNA, FTNT) on purpose.
+MASTER_UNIVERSE: List[str] = [
     "AAPL","ABBV","ABNB","ABT","ADBE","ADI","AEM","AIR.PA","ALB","AMAT","AMD","AMGN","AMZN","ANET",
     "AON","APD","APH","APP","ASML","ATO.PA","AVAV","AVGO","AXON","BA","BA.L","BHP","BKNG","BLK",
-    "BMY","BN.PA","BNP.PA","BP","BRK-B","BSX","BWXT","BX","CA.PA","CAP.PA","CARR","CAT","CCJ","CDNS",
+    "BE","BMY","BN.PA","BNP.PA","BP","BRK-B","BSX","BWXT","BX","CA.PA","CAP.PA","CARR","CAT","CCJ","CDNS",
     "CEG","CMG","CMI","COP","COST","CRM","CRWD","CS.PA","CVX","DASH","DBC","DDOG","DE","DG.PA",
     "DHR","DNN","DSY.PA","DVN","EL.PA","EMR","ENGI.PA","ENI.MI","EOG","EQNR","ETN","FAST","FCX","FER",
     "FNV","GD","GE","GILD","GLD","GOLD","GOOGL","HAG.DE","HAL","HD","HEI","HII","HO.PA","HON",
     "HWM","INTU","ISRG","ITA","JNJ","JPM","KER.PA","KKR","KLAC","KMI","KO","KTOS","LDO.MI","LEU",
-    "LHX","LIN","LLY","LMT","LNG","LOW","LRCX","LULU","MA","MARA","MC.PA","MCK","MDT","MELI",
+    "LHX","LIN","LITE","LLY","LMT","LNG","LOW","LRCX","LULU","MA","MARA","MC.PA","MCK","MDT","MELI",
     "META","MMC","MPC","MRK","MRVL","MS","MSFT","MSTR","MTD","MU","NEM","NET","NFLX","NKE",
     "NOC","NOW","NVDA","NVO","NXE","NXPI","ORA.PA","ORCL","OXY","PAAS","PANW","PFE","PG","PH",
     "PLTR","PM","PWR","QCOM","QQQ","RACE","REGN","REMX","RHM.DE","RI.PA","RIO","RIOT","RKLB","RMS.PA",
     "ROP","RTX","SAAB-B.ST","SAF.PA","SAN.PA","SBUX","SCCO","SCHW","SGO.PA","SHEL","SHOP","SLB","SLV","SMCI",
-    "SPGI","SPY","SQM","STMPA.PA","SU.PA","SYK","TDG","TDY","TECK","TJX","TMO","TMUS","TSLA","TSM",
+    "SNDK","SPGI","SPOT","SPY","SQM","STMPA.PA","SU.PA","SYK","TDG","TDY","TECK","TJX","TMO","TMUS","TSLA","TSM",
     "TT","TTE","TTE.PA","TXN","UBER","UEC","UNH","URA","V","VALE","VIE.PA","VLO","VRT","VRTX",
-    "WDAY","WELL","WLN.PA","WM","WMB","WMT","WPM","XAR","XLE","XLP","XLU","XLV","XME","XOM",
-    "ZS","ZTS","SNDK","BE","WDC",
+    "WDC","WDAY","WELL","WLN.PA","WM","WMB","WMT","WPM","XAR","XLE","XLP","XLU","XLV","XME","XOM",
+    "ZS","ZTS",
 ]
+
+# Current reserve list: names kept in the data/master universe but not traded in
+# the active live basket because they have shown no top-15 trend relevance in the
+# research window and do not change the baseline when removed.
+RESERVE_UNIVERSE: Tuple[str, ...] = (
+    "BN.PA","CA.PA","MDT","AMGN","V","ROP","MMC","UNH","ABNB","ORA.PA","SYK","BMY","LIN","JNJ",
+    "GD","EL.PA","SU.PA","LMT","BRK-B","HD","ADI","TXN","CS.PA","TTE","HON","KMI","BLK","ENGI.PA",
+    "JPM","SHEL","EMR","RIO","CMI",
+)
+
+UNIVERSE: List[str] = [ticker for ticker in MASTER_UNIVERSE if ticker not in RESERVE_UNIVERSE]
 
 YF_TICKER_MAP: Dict[str, str] = {
     "CAC40": "^FCHI",
@@ -150,7 +162,7 @@ CORR_HELD_ENABLE = 1
 
 # Soft guard from negative-PnL correlation analysis: avoid stacking multiple
 # names from the same fragile cluster in a 3-slot portfolio.
-# Enabled in BEST_ALGO_212: avoid stacking fragile correlated losers in 3 slots.
+# Enabled in BEST_ALGO_183: avoid stacking fragile correlated losers in 3 slots.
 LOSS_CLUSTER_GUARD_ENABLE = 1
 LOSS_CLUSTER_MAX_PER_CLUSTER = 1
 LOSS_CLUSTERS: Tuple[Tuple[str, ...], ...] = (
