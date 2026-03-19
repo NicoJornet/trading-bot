@@ -198,21 +198,33 @@
       "fee_eur": 1.0,
       "reason": "MANUAL_BUY_REAL",
       "ts": "2026-02-13 12:00"
+    },
+    {
+      "id": 18,
+      "date": "2026-03-19",
+      "action": "BUY",
+      "ticker": "PAAS",
+      "shares": 1.8536396660154895,
+      "price_eur": 51.790000915527344,
+      "amount_eur": 96.0,
+      "fee_eur": 1.0,
+      "reason": "DELTA_BUY",
+      "ts": "2026-03-19 10:00"
     }
   ],
   "summary": {
-    "total_records": 14,
-    "buys": 6,
+    "total_records": 15,
+    "buys": 7,
     "sells": 7,
     "winning_sells": 3,
     "losing_sells": 4,
     "net_pnl_eur": 305.06,
-    "total_fees_eur": 8.0,
+    "total_fees_eur": 9.0,
     "win_rate_sells_pct": 42.86,
     "sell_records_with_pnl": 7,
     "portfolio_resets": 1,
     "notes": "Summary counts refer to BUY/SELL records; RESET_PORTFOLIO is excluded.",
-    "last_buy_date": "2026-02-11"
+    "last_buy_date": "2026-03-19"
   },
   "notes": "Updated per user correction: KO/GILD/WMT buys removed (never executed). Added real manual buys on 2026-02-11: MU, LRCX, PAAS with provided shares/prices/amounts. Last buy date confirmed: 2026-02-11."
 }

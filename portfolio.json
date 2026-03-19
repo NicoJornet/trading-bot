@@ -2,7 +2,7 @@
   "currency": "EUR",
   "initial_capital": 2000,
   "monthly_dca": 100,
-  "cash": 97.0,
+  "cash": 0.0,
   "start_date": "2025-12-29",
   "last_dca_date": "2026-02-02",
   "positions": {
@@ -19,9 +19,9 @@
       "entry_date": "2026-02-11"
     },
     "PAAS": {
-      "shares": 7.599855,
-      "avg_price_eur": 51.58,
-      "cost_eur": 393.0,
+      "shares": 9.453494666015489,
+      "avg_price_eur": 51.726902830750355,
+      "cost_eur": 489.0,
       "entry_date": "2026-02-11"
     }
   },
@@ -36,7 +36,7 @@
     "MU": {
       "entry_px": 418.010009765625,
       "entry_idx": 3053,
-      "peak": 418.010009765625,
+      "peak": 461.7300109863281,
       "armed": false,
       "arm_idx": null
     },
@@ -62,8 +62,8 @@
     "PAAS": "2026-02-11"
   },
   "exit_stage": {},
-  "last_rebalance_idx": 3059,
-  "last_buy_date": "2026-02-11",
+  "last_rebalance_idx": 3069,
+  "last_buy_date": "2026-03-19",
   "loss_last_exit_idx": {},
-  "last_rebalance_date": null
+  "last_rebalance_date": "2026-03-18"
 }
