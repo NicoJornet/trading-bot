@@ -1085,8 +1085,10 @@ def main():
     print(f"🕒 {_now_str()}")
 
     port = load_portfolio()
+    held_tickers = [str(t).strip() for t in port.get("positions", {}).keys() if str(t).strip()]
+    data_tickers = dedupe_keep_order(UNIVERSE + held_tickers)
 
-    ohlcv = load_data_yfinance(UNIVERSE)
+    ohlcv = load_data_yfinance(data_tickers)
 
     # ✅ FIX: last_date = dernier jour réellement tradé (anchor SPY si dispo)
     if "SPY" in ohlcv.close.columns and ohlcv.close["SPY"].notna().sum() > 0:
