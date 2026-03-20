@@ -29,6 +29,7 @@ import os
 import json
 import datetime as dt
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
@@ -49,9 +50,9 @@ MASTER_UNIVERSE: List[str] = [
     "DHR","DNN","DSY.PA","DVN","EL.PA","EMR","ENGI.PA","ENI.MI","EOG","EQNR","ETN","FAST","FCX","FER",
     "FNV","GD","GE","GILD","GLD","GOLD","GOOGL","HAG.DE","HAL","HD","HEI","HII","HO.PA","HON",
     "HWM","INTU","ISRG","ITA","JNJ","JPM","KER.PA","KKR","KLAC","KMI","KO","KTOS","LDO.MI","LEU",
-    "LHX","LIN","LITE","LLY","LMT","LNG","LOW","LRCX","LULU","MA","MARA","MC.PA","MCK","MDT","UI",
+    "LHX","LIN","LITE","LLY","LMT","LNG","LOW","LRCX","LULU","MA","MARA","MC.PA","MCK","MDT","MELI",
     "META","MMC","MPC","MRK","MRVL","MS","MSFT","MSTR","MTD","MU","NEM","NET","NFLX","NKE",
-    "NOC","NOW","NVDA","NVO","NXE","NXPI","ORA.PA","ORCL","OXY","FIEE","PANW","PFE","PG","PH",
+    "NOC","NOW","NVDA","NVO","NXE","NXPI","ORA.PA","ORCL","OXY","PAAS","PANW","PFE","PG","PH",
     "PLTR","PM","PWR","QCOM","QQQ","RACE","REGN","REMX","RHM.DE","RI.PA","RIO","RIOT","RKLB","RMS.PA",
     "ROP","RTX","SAAB-B.ST","SAF.PA","SAN.PA","SBUX","SCCO","SCHW","SGO.PA","SHEL","SHOP","SLB","SLV","SMCI",
     "SNDK","SPGI","SPOT","SPY","SQM","STMPA.PA","SU.PA","SYK","TDG","TDY","TECK","TJX","TMO","TMUS","TSLA","TSM",
@@ -69,7 +70,48 @@ RESERVE_UNIVERSE: Tuple[str, ...] = (
     "JPM","SHEL","EMR","RIO","CMI",
 )
 
-UNIVERSE: List[str] = [ticker for ticker in MASTER_UNIVERSE if ticker not in RESERVE_UNIVERSE]
+ROOT_DIR = Path(__file__).resolve().parent
+ACTIVE_UNIVERSE_CSV = ROOT_DIR / "data" / "extracts" / "apex_tickers_active.csv"
+DYNAMIC_APPROVED_CSV = ROOT_DIR / "data" / "dynamic_universe" / "dynamic_universe_approved_additions.csv"
+DYNAMIC_SELECTED_ADDS_CSV = ROOT_DIR / "data" / "dynamic_universe" / "dynamic_universe_selected_additions.csv"
+DYNAMIC_SELECTED_DEMS_CSV = ROOT_DIR / "data" / "dynamic_universe" / "dynamic_universe_selected_demotions.csv"
+
+
+def load_ticker_csv(path: Path) -> List[str]:
+    if not path.exists():
+        return []
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        return []
+    if "ticker" not in df.columns:
+        return []
+    return [str(x).strip() for x in df["ticker"].dropna().astype(str) if str(x).strip()]
+
+
+def dedupe_keep_order(values: List[str]) -> List[str]:
+    out: List[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            out.append(value)
+    return out
+
+
+def build_live_universe() -> List[str]:
+    fallback_active = [ticker for ticker in MASTER_UNIVERSE if ticker not in RESERVE_UNIVERSE]
+    active_from_csv = load_ticker_csv(ACTIVE_UNIVERSE_CSV)
+    dynamic_selected_adds = load_ticker_csv(DYNAMIC_SELECTED_ADDS_CSV)
+    dynamic_selected_dems = set(load_ticker_csv(DYNAMIC_SELECTED_DEMS_CSV))
+    dynamic_approved = load_ticker_csv(DYNAMIC_APPROVED_CSV)
+    base = active_from_csv or fallback_active
+    overlay_adds = dynamic_selected_adds or dynamic_approved
+    out = dedupe_keep_order(base + overlay_adds)
+    return [ticker for ticker in out if ticker not in dynamic_selected_dems]
+
+
+UNIVERSE: List[str] = build_live_universe()
 
 YF_TICKER_MAP: Dict[str, str] = {
     "CAC40": "^FCHI",
@@ -175,7 +217,12 @@ LOSS_CLUSTERS: Tuple[Tuple[str, ...], ...] = (
 LOSS_ENTRY_GUARD_ENABLE = 1
 LOSS_ENTRY_DIST_TH = 0.90
 LOSS_ENTRY_DD60_TH = 0.05
-LOSS_REENTRY_COOLDOWN_DAYS = 42
+LOSS_REENTRY_COOLDOWN_DAYS = 29
+HELD_RELEASE_ENABLE = 1
+HELD_RELEASE_LOSS_CLUSTER_ONLY = 1
+HELD_RELEASE_WEAK_RANK_TH = 10
+HELD_RELEASE_NEW_TOPM = 3
+HELD_RELEASE_MIN_NEW = 1
 
 FEE_PER_ORDER = 1.0
 
@@ -608,6 +655,32 @@ def flatten_clusters(clusters: Tuple[Tuple[str, ...], ...]) -> set[str]:
     return names
 
 
+def apply_held_release_rule(
+    held: List[str],
+    ranked: List[str],
+    loss_names: set[str],
+    weak_rank_th: int,
+    newcomer_topm: int,
+    min_new: int,
+    loss_only: bool = True,
+) -> Tuple[List[str], List[str]]:
+    if not held or not ranked or weak_rank_th <= 0 or newcomer_topm <= 0 or min_new <= 0:
+        return list(held), []
+
+    rankpos = {t: i + 1 for i, t in enumerate(ranked)}
+    weakest = max(held, key=lambda h: rankpos.get(h, 10**9))
+    if loss_only and weakest not in loss_names:
+        return list(held), []
+    if rankpos.get(weakest, 10**9) <= weak_rank_th:
+        return list(held), []
+
+    newcomers = [t for t in ranked[:newcomer_topm] if t not in held]
+    if len(newcomers) < min_new:
+        return list(held), []
+
+    return [h for h in held if h != weakest], [weakest]
+
+
 def apply_cluster_limit(
     primary: List[str],
     fallback: List[str],
@@ -815,6 +888,7 @@ def build_telegram_snapshot(
     exec_date: Optional[pd.Timestamp] = None,
     held_after: Optional[List[str]] = None,
     fallback_used: Optional[List[str]] = None,
+    held_released: Optional[List[str]] = None,
 ) -> str:
     total = cash + pos_value
     lines = [
@@ -843,6 +917,8 @@ def build_telegram_snapshot(
             lines.append(f"- Rebalance status: in {rebalance_interval - rebalance_days_since} trading day(s)")
     if held_after is not None and do_rebalance:
         lines.append(f"- Held after orders: {fmt_name_list(held_after)}")
+    if held_released:
+        lines.append(f"- Held release: {fmt_name_list(held_released)}")
     if exec_date is not None and do_rebalance:
         lines.append(f"- Exec date: {exec_date.date()}")
     if fallback_used:
@@ -1194,14 +1270,27 @@ def main():
     cluster_candidates = list(desired_ranked)
 
     current = list(positions.keys())
+    loss_names = flatten_clusters(LOSS_CLUSTERS)
+    released_held: List[str] = []
 
     corr_gate_hit = 0
     if len(ranked) >= 2:
         loc_full = ohlcv.close.index.get_loc(last_date)
         w0 = max(0, loc_full - CORR_WIN + 1)
         held = [t for t in positions.keys() if t in ret1.columns]
+        held_for_corr = list(held)
+        if HELD_RELEASE_ENABLE:
+            held_for_corr, released_held = apply_held_release_rule(
+                held=held,
+                ranked=ranked,
+                loss_names=loss_names,
+                weak_rank_th=HELD_RELEASE_WEAK_RANK_TH,
+                newcomer_topm=HELD_RELEASE_NEW_TOPM,
+                min_new=HELD_RELEASE_MIN_NEW,
+                loss_only=bool(HELD_RELEASE_LOSS_CLUSTER_ONLY),
+            )
         if CORR_HELD_ENABLE:
-            corr_names = list(dict.fromkeys(held + ranked))
+            corr_names = list(dict.fromkeys(held_for_corr + ranked))
         else:
             corr_names = list(ranked)
         win_slice = ret1.iloc[w0:loc_full + 1][corr_names].to_numpy()
@@ -1216,7 +1305,7 @@ def main():
                     topk=TOPK,
                     thr=CORR_PICK,
                     max_scan=CORR_SCAN,
-                    held=held if CORR_HELD_ENABLE else None,
+                    held=held_for_corr if CORR_HELD_ENABLE else None,
                     tickers=corr_names,
                 )
 
@@ -1271,6 +1360,8 @@ def main():
     print(f"HELD: {held if held else '(none)'}")
     print(f"Desired: {desired if desired else '(none)'}")
     print(f"CorrGate: {corr_gate_hit}\n")
+    if released_held:
+        print(f"HeldRelease: {released_held}\n")
 
     # show weights and target € based on TOTAL equity (cash + positions),
     # and reserve fees only for missing BUYs (desired - held).
@@ -1317,6 +1408,7 @@ def main():
                 rebalance_days_since=rebalance_days_since,
                 rebalance_interval=REB_EVERY_N_DAYS,
                 last_rebalance_label=last_rebalance_label,
+                held_released=released_held,
             )
         )
         return
@@ -1696,6 +1788,7 @@ def main():
             exec_date=exec_date,
             held_after=held_after,
             fallback_used=fallback_used,
+            held_released=released_held,
         )
     )
     return
