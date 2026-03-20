@@ -50,9 +50,9 @@ MASTER_UNIVERSE: List[str] = [
     "DHR","DNN","DSY.PA","DVN","EL.PA","EMR","ENGI.PA","ENI.MI","EOG","EQNR","ETN","FAST","FCX","FER",
     "FNV","GD","GE","GILD","GLD","GOLD","GOOGL","HAG.DE","HAL","HD","HEI","HII","HO.PA","HON",
     "HWM","INTU","ISRG","ITA","JNJ","JPM","KER.PA","KKR","KLAC","KMI","KO","KTOS","LDO.MI","LEU",
-    "LHX","LIN","LITE","LLY","LMT","LNG","LOW","LRCX","LULU","MA","MARA","MC.PA","MCK","MDT","MELI",
+    "LHX","LIN","LITE","LLY","LMT","LNG","LOW","LRCX","LULU","MA","MARA","MC.PA","MCK","MDT","UI",
     "META","MMC","MPC","MRK","MRVL","MS","MSFT","MSTR","MTD","MU","NEM","NET","NFLX","NKE",
-    "NOC","NOW","NVDA","NVO","NXE","NXPI","ORA.PA","ORCL","OXY","PAAS","PANW","PFE","PG","PH",
+    "NOC","NOW","NVDA","NVO","NXE","NXPI","ORA.PA","ORCL","OXY","FIEE","PANW","PFE","PG","PH",
     "PLTR","PM","PWR","QCOM","QQQ","RACE","REGN","REMX","RHM.DE","RI.PA","RIO","RIOT","RKLB","RMS.PA",
     "ROP","RTX","SAAB-B.ST","SAF.PA","SAN.PA","SBUX","SCCO","SCHW","SGO.PA","SHEL","SHOP","SLB","SLV","SMCI",
     "SNDK","SPGI","SPOT","SPY","SQM","STMPA.PA","SU.PA","SYK","TDG","TDY","TECK","TJX","TMO","TMUS","TSLA","TSM",
@@ -1085,6 +1085,22 @@ def main():
     print(f"🕒 {_now_str()}")
 
     port = load_portfolio()
+    active_from_csv = load_ticker_csv(ACTIVE_UNIVERSE_CSV)
+    dynamic_selected_adds = load_ticker_csv(DYNAMIC_SELECTED_ADDS_CSV)
+    dynamic_selected_dems = load_ticker_csv(DYNAMIC_SELECTED_DEMS_CSV)
+    dynamic_approved = load_ticker_csv(DYNAMIC_APPROVED_CSV)
+    print(
+        "UNIVERSE_LAYER:"
+        f" active_csv={'yes' if active_from_csv else 'no'}({len(active_from_csv)})"
+        f" selected_adds={dynamic_selected_adds if dynamic_selected_adds else '[]'}"
+        f" selected_dems={dynamic_selected_dems if dynamic_selected_dems else '[]'}"
+        f" approved_adds={dynamic_approved if dynamic_approved else '[]'}"
+    )
+    print(
+        "UNIVERSE_CHECK:"
+        f" FIEE={('FIEE' in UNIVERSE)} UI={('UI' in UNIVERSE)}"
+        f" PAAS={('PAAS' in UNIVERSE)} MELI={('MELI' in UNIVERSE)}"
+    )
     held_tickers = [str(t).strip() for t in port.get("positions", {}).keys() if str(t).strip()]
     data_tickers = dedupe_keep_order(UNIVERSE + held_tickers)
 
