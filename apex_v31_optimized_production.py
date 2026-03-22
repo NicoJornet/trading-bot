@@ -192,6 +192,14 @@ Q_REQUIRE_POS_RS63 = 1
 TOPK = 3
 RANK_POOL = 15
 KEEP_RANK = 5
+REGIME_ENABLE = 1
+REGIME_MKTVOL_ENABLE = 1
+REGIME_MKTVOL_WIN = 20
+REGIME_MKTVOL_TH = 0.40
+REGIME_BREADTH_TH = 0.40
+REGIME_CONFIRM_ALL = 1
+REGIME_WEAK_TOPK = 2
+REGIME_SPY_SMA_FILTER = 0
 
 REB_EVERY_N_DAYS = 10
 DELTA_REBAL = 0.10  # 10%
@@ -1284,7 +1292,30 @@ def main():
             print(f"{i}. {t} score {float(srow.loc[t]):.4f}")
     print("")
 
-    desired_ranked = ranked[:TOPK]
+    active_topk = TOPK
+    regime_flags: List[bool] = []
+    if REGIME_ENABLE:
+        if REGIME_SPY_SMA_FILTER and ("SPY" in ohlcv.close.columns):
+            spy_close = float(ohlcv.close_ffill.loc[last_date, "SPY"]) if pd.notna(ohlcv.close_ffill.loc[last_date, "SPY"]) else np.nan
+            spy_sma = float(sma220.loc[last_date, "SPY"]) if pd.notna(sma220.loc[last_date, "SPY"]) else np.nan
+            if np.isfinite(spy_close) and np.isfinite(spy_sma):
+                regime_flags.append(spy_close <= spy_sma)
+        if REGIME_MKTVOL_ENABLE and ("SPY" in ret1.columns):
+            spy_vol = ret1["SPY"].rolling(REGIME_MKTVOL_WIN, min_periods=REGIME_MKTVOL_WIN).std() * np.sqrt(252.0)
+            spy_vol_now = float(spy_vol.loc[last_date]) if pd.notna(spy_vol.loc[last_date]) else np.nan
+            if np.isfinite(spy_vol_now):
+                regime_flags.append(spy_vol_now >= REGIME_MKTVOL_TH)
+        if REGIME_BREADTH_TH > 0.0:
+            valid = enough_history.reindex(ohlcv.close.columns, fill_value=False) & ohlcv.close_ffill.loc[last_date].notna() & sma220.loc[last_date].notna()
+            if bool(valid.any()):
+                breadth = float((ohlcv.close_ffill.loc[last_date, valid] > sma220.loc[last_date, valid]).mean())
+                regime_flags.append(breadth < REGIME_BREADTH_TH)
+        if regime_flags:
+            regime_weak = all(regime_flags) if REGIME_CONFIRM_ALL else any(regime_flags)
+            if regime_weak:
+                active_topk = max(1, min(REGIME_WEAK_TOPK, TOPK))
+
+    desired_ranked = ranked[:active_topk]
     cluster_candidates = list(desired_ranked)
 
     current = list(positions.keys())
@@ -1328,7 +1359,7 @@ def main():
                 )
 
     current = list(positions.keys())
-    desired = apply_keep_rank(current=current, ranked=desired_ranked, topk=TOPK, keep_rank=KEEP_RANK)
+    desired = apply_keep_rank(current=current, ranked=desired_ranked, topk=active_topk, keep_rank=KEEP_RANK)
 
     if QUALITY_FILTER_ENABLE:
         kept = [t for t in list(positions.keys()) if t in desired]
@@ -1337,17 +1368,17 @@ def main():
         for cand in desired_ranked:
             if cand in quality_candidates:
                 continue
-            slot_num = min(len(quality_candidates) + 1, TOPK)
+            slot_num = min(len(quality_candidates) + 1, active_topk)
             if slot_num in (2, 3) and (cand not in positions):
                 if not _candidate_quality_ok(ranks, rank126, rank252, r63, last_date, cand, slot_num):
                     continue
             quality_candidates.append(cand)
-            if len(desired_q) >= TOPK:
+            if len(desired_q) >= active_topk:
                 continue
             desired_q.append(cand)
-            if len(desired_q) >= TOPK:
+            if len(desired_q) >= active_topk:
                 break
-        desired = desired_q[:TOPK]
+        desired = desired_q[:active_topk]
         cluster_candidates = quality_candidates
 
     if SLOT3_GATE_ENABLE and len(desired) >= 3:
@@ -1369,7 +1400,7 @@ def main():
             desired = apply_cluster_limit(
                 primary=desired,
                 fallback=cluster_candidates,
-                topk=TOPK,
+                topk=active_topk,
                 cluster_map=cluster_map,
                 max_per_cluster=LOSS_CLUSTER_MAX_PER_CLUSTER,
             )
