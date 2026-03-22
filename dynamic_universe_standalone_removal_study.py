@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import pandas as pd
 
@@ -61,7 +62,9 @@ def removal_score(row: pd.Series) -> float:
 
 
 def main() -> None:
+    t0 = time.time()
     engine, _, cfg, pp, prices = dud.load_setup()
+    print("[remove-study] setup loaded")
     active = pd.read_csv(ACTIVE_PATH)["ticker"].dropna().astype(str).tolist()
     active_cols = [col for col in prices.close.columns if col in active]
     prices = engine.Prices(open=prices.open[active_cols], close=prices.close[active_cols])
@@ -71,13 +74,19 @@ def main() -> None:
 
     _, trades_full, baseline_full = dud.run_metrics(engine, prices, cfg, pp, full_start, full_end)
     _, _, baseline_oos = dud.run_metrics(engine, prices, cfg, pp, oos_start, full_end)
+    print("[remove-study] baseline full/oos computed")
 
     diag = swap_study.baseline_diagnostics(prices, cfg, trades_full)
     demotions = swap_study.select_demotion_shortlist(diag, limit=8).copy()
+    print(f"[remove-study] demotion shortlist ready count={len(demotions)}")
 
     rows: list[dict] = []
+    total_removals = int(len(demotions))
+    rem_idx = 0
     for rem in demotions.itertuples(index=False):
+        rem_idx += 1
         ticker = str(rem.ticker)
+        print(f"[remove-study] evaluate removal={rem_idx}/{total_removals} ticker={ticker}")
         variant = engine.Prices(
             open=prices.open.drop(columns=[ticker], errors="ignore"),
             close=prices.close.drop(columns=[ticker], errors="ignore"),
@@ -118,13 +127,22 @@ def main() -> None:
         ["oos_delta_roi_pct", "oos_delta_sharpe", "full_delta_roi_pct"],
         ascending=[False, False, False],
     ).head(6)
+    print(f"[remove-study] walkforward shortlist count={len(top_walk)}")
+    base_window_metrics = {
+        label: dud.run_metrics(engine, prices, cfg, pp, win_start, win_end)[2]
+        for label, win_start, win_end in yearly_windows(full_end)
+    }
+    total_walk = int(len(top_walk) * len(base_window_metrics))
+    walk_idx = 0
     for row in top_walk.itertuples(index=False):
         variant = engine.Prices(
             open=prices.open.drop(columns=[str(row.ticker)], errors="ignore"),
             close=prices.close.drop(columns=[str(row.ticker)], errors="ignore"),
         )
         for label, win_start, win_end in yearly_windows(full_end):
-            _, _, base_out = dud.run_metrics(engine, prices, cfg, pp, win_start, win_end)
+            walk_idx += 1
+            print(f"[remove-study] walkforward {walk_idx}/{total_walk} ticker={row.ticker} window={label}")
+            base_out = base_window_metrics[label]
             _, _, var_out = dud.run_metrics(engine, variant, cfg, pp, win_start, win_end)
             walk_rows.append(
                 {
@@ -229,6 +247,7 @@ def main() -> None:
     print(f"Saved: {WALK_EXPORT}")
     print(f"Saved: {WALK_SUMMARY_EXPORT}")
     print(f"Saved: {REPORT_PATH}")
+    print(f"[remove-study] completed elapsed_sec={time.time() - t0:.1f}")
 
 
 if __name__ == "__main__":
