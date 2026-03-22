@@ -18,12 +18,18 @@ ROOT = Path(__file__).resolve().parent
 RESEARCH_DIR = ROOT / "research"
 EXPORTS_DIR = RESEARCH_DIR / "exports"
 REPORTS_DIR = RESEARCH_DIR / "reports"
-ENGINE_PATH = ROOT / "engine_bundle" / "run_v11_slot_quality" / "v11_slot_quality" / "apex_engine_slot_quality.py"
+ENGINE_PATH_CANDIDATES = [
+    ROOT / "engine_bundle" / "run_v11_slot_quality" / "v11_slot_quality" / "apex_engine_slot_quality.py",
+    ROOT / "engine_bundle" / "run_v11_slot_quality" / "apex_engine_slot_quality.py",
+    ROOT / "engine_bundle" / "apex_engine_slot_quality.py",
+]
 CFG_PATH = ROOT / "BEST_ALGO_184.json"
 CSV_PATH = ROOT / "apex_ohlcv_full_2015_2026.csv"
 ACTIVE_PATH = ROOT / "data" / "extracts" / "apex_tickers_active.csv"
 RESERVE_PATH = ROOT / "data" / "extracts" / "apex_tickers_reserve.csv"
 HARD_EXCLUSIONS_PATH = ROOT / "data" / "extracts" / "apex_tickers_hard_exclusions.csv"
+SELECTED_ADDS_PATH = ROOT / "data" / "dynamic_universe" / "dynamic_universe_selected_additions.csv"
+SELECTED_DEMS_PATH = ROOT / "data" / "dynamic_universe" / "dynamic_universe_selected_demotions.csv"
 
 EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -87,12 +93,78 @@ def normalize_downloaded_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=lambda c: str(c).lower().replace(" ", "_"))
 
 
+def read_tickers_csv(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    df = pd.read_csv(path)
+    if "ticker" not in df.columns:
+        return []
+    return df["ticker"].dropna().astype(str).tolist()
+
+
+def resolve_engine_path() -> Path:
+    for candidate in ENGINE_PATH_CANDIDATES:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        "Could not find apex_engine_slot_quality.py in engine_bundle. "
+        f"Tried: {[str(p) for p in ENGINE_PATH_CANDIDATES]}"
+    )
+
+
 def load_engine():
-    spec = importlib.util.spec_from_file_location("apex_engine_slot_quality", ENGINE_PATH)
+    engine_path = resolve_engine_path()
+    spec = importlib.util.spec_from_file_location("apex_engine_slot_quality", engine_path)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
     return mod
+
+
+def build_fallback_universe(exclusions: Sequence[str]) -> list[str]:
+    active = read_tickers_csv(ACTIVE_PATH)
+    adds = read_tickers_csv(SELECTED_ADDS_PATH)
+    dems = set(read_tickers_csv(SELECTED_DEMS_PATH))
+    base = active or []
+    universe = []
+    seen: set[str] = set()
+    for ticker in list(base) + list(adds) + ["SPY"]:
+        if ticker in dems or ticker in exclusions or ticker in seen:
+            continue
+        seen.add(ticker)
+        universe.append(ticker)
+    return universe
+
+
+def load_prices_from_yfinance(engine, tickers: Sequence[str]):
+    data = yf.download(
+        tickers=list(tickers),
+        group_by="column",
+        auto_adjust=False,
+        threads=True,
+        progress=False,
+        interval="1d",
+        start="2014-01-01",
+    )
+    if data is None or len(data) == 0 or not isinstance(data.columns, pd.MultiIndex):
+        raise RuntimeError("yfinance fallback returned empty or unexpected dataset.")
+    lvl0 = list(data.columns.get_level_values(0).unique())
+    if "Open" not in lvl0 and "Close" not in lvl0:
+        data = data.swaplevel(axis=1).sort_index(axis=1)
+
+    def _get_field(field: str) -> pd.DataFrame:
+        if field not in data.columns.get_level_values(0):
+            return pd.DataFrame(index=data.index)
+        df_f = data[field].copy()
+        df_f.columns = [str(c) for c in df_f.columns]
+        return df_f
+
+    o = _get_field("Open")
+    c = _get_field("Close")
+    cols = sorted(list(set(o.columns) | set(c.columns)))
+    o = o.reindex(columns=cols)
+    c = c.reindex(columns=cols)
+    return engine.Prices(open=o, close=c)
 
 
 def load_setup():
@@ -100,8 +172,11 @@ def load_setup():
     cfg_doc = json.loads(CFG_PATH.read_text(encoding="utf-8"))
     cfg = dict(cfg_doc["cfg"])
     pp = dict(cfg_doc["pp"])
-    prices = engine.load_prices_from_csv(str(CSV_PATH))
     exclusions = cfg_doc.get("exclusions", [])
+    if CSV_PATH.exists():
+        prices = engine.load_prices_from_csv(str(CSV_PATH))
+    else:
+        prices = load_prices_from_yfinance(engine, build_fallback_universe(exclusions))
     prices = engine.Prices(
         open=prices.open.drop(columns=exclusions, errors="ignore"),
         close=prices.close.drop(columns=exclusions, errors="ignore"),
