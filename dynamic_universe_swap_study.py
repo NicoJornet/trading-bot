@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import numpy as np
 import pandas as pd
@@ -297,8 +298,10 @@ def yearly_windows(end_date: str) -> list[tuple[str, str, str]]:
 
 
 def main() -> None:
+    t0 = time.time()
     dud.setup_yf_cache(ROOT / ".yf_cache")
     engine, cfg_doc, cfg, pp, base_prices = dud.load_setup()
+    print("[swap-study] setup loaded")
 
     full_start = cfg_doc["metrics"]["full_period"]["start"]
     full_end = cfg_doc["metrics"]["full_period"]["end"]
@@ -307,10 +310,12 @@ def main() -> None:
 
     _, trades_full, baseline_full = dud.run_metrics(engine, base_prices, cfg, pp, full_start, full_end)
     _, _, baseline_oos = dud.run_metrics(engine, base_prices, cfg, pp, oos_start, oos_end)
+    print("[swap-study] baseline full/oos computed")
 
     diag = baseline_diagnostics(base_prices, cfg, trades_full)
     demotions = select_demotion_shortlist(diag, limit=6)
     demotions.to_csv(DEMOTION_EXPORT, index=False)
+    print(f"[swap-study] demotion shortlist ready count={len(demotions)}")
 
     candidates = aggregate_candidate_sources(base_prices)
     candidates = candidates.loc[
@@ -327,24 +332,32 @@ def main() -> None:
     ].copy()
     candidates = candidates.head(4).copy()
     candidates.to_csv(CANDIDATE_EXPORT, index=False)
+    print(f"[swap-study] candidate shortlist ready count={len(candidates)}")
 
     download_start = str(pd.to_datetime(base_prices.close.index.min()).date())
     download_end = str((pd.to_datetime(base_prices.close.index.max()) + pd.Timedelta(days=1)).date())
     candidate_map = dud.download_candidate_data(candidates["ticker"].tolist(), download_start, download_end)
     min_bars_required = int(cfg["min_bars_required"])
+    print(f"[swap-study] candidate data downloaded symbols={len(candidate_map)}")
 
     swap_rows: list[dict] = []
+    total_pairs = int(len(candidates) * len(demotions))
+    pair_idx = 0
     for cand in candidates.itertuples(index=False):
         ticker = str(cand.ticker)
         cand_data = candidate_map.get(ticker)
         if cand_data is None:
+            print(f"[swap-study] skip candidate={ticker} reason=no_data")
             continue
         cand_bars = int(cand_data.close.notna().sum())
         if cand_bars < min_bars_required:
+            print(f"[swap-study] skip candidate={ticker} reason=bars<{min_bars_required}")
             continue
 
         for rem in demotions.itertuples(index=False):
+            pair_idx += 1
             removed = str(rem.ticker)
+            print(f"[swap-study] evaluate pair={pair_idx}/{total_pairs} add={ticker} remove={removed}")
             variant_prices = swap_prices(engine, base_prices, removed, ticker, candidate_map)
             _, _, full = dud.run_metrics(engine, variant_prices, cfg, pp, full_start, full_end)
             _, _, oos = dud.run_metrics(engine, variant_prices, cfg, pp, oos_start, oos_end)
@@ -391,11 +404,20 @@ def main() -> None:
     swap_df.to_csv(SWAP_EXPORT, index=False)
 
     top_walk = swap_df.loc[swap_df["recommendation"].isin(["promote", "watch"])].head(6).copy()
+    print(f"[swap-study] walkforward shortlist count={len(top_walk)}")
     walk_rows: list[dict] = []
+    base_window_metrics = {
+        label: dud.run_metrics(engine, base_prices, cfg, pp, win_start, win_end)[2]
+        for label, win_start, win_end in yearly_windows(full_end)
+    }
+    total_walk = int(len(top_walk) * len(base_window_metrics))
+    walk_idx = 0
     for row in top_walk.itertuples(index=False):
         variant_prices = swap_prices(engine, base_prices, str(row.removed), str(row.candidate), candidate_map)
         for label, win_start, win_end in yearly_windows(full_end):
-            _, _, base_out = dud.run_metrics(engine, base_prices, cfg, pp, win_start, win_end)
+            walk_idx += 1
+            print(f"[swap-study] walkforward {walk_idx}/{total_walk} swap={row.name} window={label}")
+            base_out = base_window_metrics[label]
             _, _, var_out = dud.run_metrics(engine, variant_prices, cfg, pp, win_start, win_end)
             walk_rows.append(
                 {
@@ -507,6 +529,7 @@ def main() -> None:
     print(f"Saved: {WALK_EXPORT}")
     print(f"Saved: {WALK_SUMMARY_EXPORT}")
     print(f"Saved: {REPORT_PATH}")
+    print(f"[swap-study] completed elapsed_sec={time.time() - t0:.1f}")
     print(swap_df.head(10).to_string(index=False))
     if not walk_summary.empty:
         print("\nWalk-forward summary:")
