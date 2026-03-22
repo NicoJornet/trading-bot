@@ -4,6 +4,7 @@ import argparse
 from datetime import date
 from pathlib import Path
 from typing import Iterable
+import time
 
 import pandas as pd
 
@@ -52,7 +53,11 @@ def profile_paths(profile_name: str) -> dict[str, Path]:
 def run_profiles(profile_names: Iterable[str], keywords: list[str]) -> dict[str, dict[str, Path]]:
     outputs: dict[str, dict[str, Path]] = {}
     for profile_name in profile_names:
+        t0 = time.time()
+        print(f"[dynamic-db] start profile={profile_name}")
         outputs[profile_name] = cycle.run_profile(cycle.PROFILES[profile_name], keywords)
+        dt = time.time() - t0
+        print(f"[dynamic-db] done profile={profile_name} elapsed_sec={dt:.1f}")
     return {k: {kk: Path(vv) for kk, vv in v.items()} for k, v in outputs.items()}
 
 
