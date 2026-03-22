@@ -28,7 +28,7 @@ jobs:
 
     - name: Refresh dynamic universe database
       run: |
-        python refresh_dynamic_universe_database.py --profiles targeted_current,broad_diversified
+        python refresh_dynamic_universe_database.py --profiles targeted_current
 
     - name: Run APEX v31
       env:
