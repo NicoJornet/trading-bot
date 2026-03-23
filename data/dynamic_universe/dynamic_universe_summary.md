@@ -1,12 +1,12 @@
 # Dynamic Universe Summary
 
-- as_of: `2026-03-22`
-- total rows: `116`
+- as_of: `2026-03-23`
+- total rows: `124`
 - approved: `0`
 - prime_watch: `0`
 - watch: `4`
 - review: `7`
-- reject: `6`
+- reject: `8`
 - selected additions live: `0`
 - selected demotions live: `1`
 
@@ -36,10 +36,10 @@ ticker dynamic_status  source_profiles  profile_count scan_algo_fit  scan_algo_c
    STX          watch targeted_current              1          high                   9.722504      1.905189                   19.5554          watch        35613.100654        1476.087529
    FIX          watch targeted_current              1          high                   9.910034      1.503846                   18.2268          watch        36182.582432        1391.692487
   COHR          watch targeted_current              1          high                   9.504122      1.690646                   18.0173          watch        35624.668861        1416.122493
-   GEV         review targeted_current              1        medium                   8.521583      0.848083                   12.6613            NaN                 NaN                NaN
-   GLW         review targeted_current              1        medium                   7.355139      0.939546                   10.9263            NaN                 NaN                NaN
-  KEYS         review targeted_current              1        medium                   7.048788      0.620069                   10.2786            NaN                 NaN                NaN
-  DELL         review targeted_current              1           low                   5.804871      0.362819                    8.3226            NaN                 NaN                NaN
-  MPWR         review targeted_current              1           low                   5.429383      0.378981                    7.3994            NaN                 NaN                NaN
-   FDX         review targeted_current              1          weak                   4.774358      0.468896                    6.3542            NaN                 NaN                NaN
-  INTC         review targeted_current              1          weak                   4.877696      0.544940                    6.2740            NaN                 NaN                NaN
+   GEV         review targeted_current              1        medium                   8.584083      0.848083                   12.7082            NaN                 NaN                NaN
+   GLW         review targeted_current              1        medium                   7.417639      0.939546                   10.9732            NaN                 NaN                NaN
+  KEYS         review targeted_current              1        medium                   7.111288      0.620069                   10.6755            NaN                 NaN                NaN
+  DELL         review targeted_current              1           low                   5.887371      0.362819                    8.3845            NaN                 NaN                NaN
+  MPWR         review targeted_current              1           low                   5.511883      0.378981                    7.4612            NaN                 NaN                NaN
+   FDX         review targeted_current              1          weak                   4.836858      0.468896                    6.4011            NaN                 NaN                NaN
+  INTC         review targeted_current              1          weak                   4.960196      0.544940                    6.3359            NaN                 NaN                NaN
