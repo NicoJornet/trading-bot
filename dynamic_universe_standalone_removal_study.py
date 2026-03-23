@@ -33,23 +33,33 @@ def yearly_windows(full_end: str) -> list[tuple[str, str, str]]:
 
 
 def classify_removal(row: pd.Series) -> str:
+    full_delta_roi = float(row.get("full_delta_roi_pct", 0.0) or 0.0)
+    oos_delta_roi = float(row.get("oos_delta_roi_pct", 0.0) or 0.0)
+    full_delta_sharpe = float(row.get("full_delta_sharpe", 0.0) or 0.0)
+    oos_delta_sharpe = float(row.get("oos_delta_sharpe", 0.0) or 0.0)
+    full_delta_maxdd = float(row.get("full_delta_maxdd_pct", 0.0) or 0.0)
+    oos_delta_maxdd = float(row.get("oos_delta_maxdd_pct", 0.0) or 0.0)
+    mean_delta_roi = float(row.get("mean_delta_roi_2017_2025", 0.0) or 0.0)
+    mean_delta_sharpe = float(row.get("mean_delta_sharpe_2017_2025", 0.0) or 0.0)
+    roi_wins = int(float(row.get("roi_wins_2017_2025", 0) or 0))
+    sharpe_wins = int(float(row.get("sharpe_wins_2017_2025", 0) or 0))
     if (
-        row["full_delta_roi_pct"] > 0
-        and row["oos_delta_roi_pct"] >= 0
-        and row["full_delta_sharpe"] >= 0
-        and row["oos_delta_sharpe"] >= -0.01
-        and row["full_delta_maxdd_pct"] > -1.0
-        and row["oos_delta_maxdd_pct"] > -0.5
-        and row["mean_delta_roi_2017_2025"] >= 0
-        and row["mean_delta_sharpe_2017_2025"] >= 0
-        and row["roi_wins_2017_2025"] >= 2
-        and row["sharpe_wins_2017_2025"] >= 2
+        full_delta_roi > 0
+        and oos_delta_roi >= 0
+        and full_delta_sharpe >= 0
+        and oos_delta_sharpe >= -0.01
+        and full_delta_maxdd > -1.0
+        and oos_delta_maxdd > -0.5
+        and mean_delta_roi >= 0
+        and mean_delta_sharpe >= 0
+        and roi_wins >= 2
+        and sharpe_wins >= 2
     ):
         return "approved_remove"
     if (
-        row["full_delta_roi_pct"] > 0
-        or row["oos_delta_roi_pct"] > 0
-        or row["mean_delta_roi_2017_2025"] > 0
+        full_delta_roi > 0
+        or oos_delta_roi > 0
+        or mean_delta_roi > 0
     ):
         return "watch_remove"
     return "reject_remove"
@@ -57,12 +67,12 @@ def classify_removal(row: pd.Series) -> str:
 
 def removal_score(row: pd.Series) -> float:
     return (
-        1000.0 * float(row["mean_delta_sharpe_2017_2025"])
-        + 10.0 * float(row["mean_delta_roi_2017_2025"])
-        + 0.05 * float(row["oos_delta_roi_pct"])
-        + 20.0 * float(row["oos_delta_sharpe"])
-        + 5.0 * float(row["mean_delta_maxdd_2017_2025"])
-        + 10.0 * float(row["dead_score"])
+        1000.0 * float(row.get("mean_delta_sharpe_2017_2025", 0.0) or 0.0)
+        + 10.0 * float(row.get("mean_delta_roi_2017_2025", 0.0) or 0.0)
+        + 0.05 * float(row.get("oos_delta_roi_pct", 0.0) or 0.0)
+        + 20.0 * float(row.get("oos_delta_sharpe", 0.0) or 0.0)
+        + 5.0 * float(row.get("mean_delta_maxdd_2017_2025", 0.0) or 0.0)
+        + 10.0 * float(row.get("dead_score", 0.0) or 0.0)
     )
 
 
@@ -250,6 +260,19 @@ def main() -> None:
             ]
         ).to_csv(WALK_SUMMARY_EXPORT, index=False)
         write_cached_state(state_payload)
+        for col in (
+            "mean_delta_roi_2017_2025",
+            "mean_delta_sharpe_2017_2025",
+            "mean_delta_maxdd_2017_2025",
+            "roi_wins_2017_2025",
+            "sharpe_wins_2017_2025",
+            "maxdd_wins_2017_2025",
+            "delta_roi_2026_ytd",
+            "delta_sharpe_2026_ytd",
+            "delta_maxdd_2026_ytd",
+        ):
+            if col not in remove_df.columns:
+                remove_df[col] = 0.0
         remove_df["selection_status"] = remove_df.apply(classify_removal, axis=1)
         remove_df["selection_score"] = remove_df.apply(removal_score, axis=1)
         remove_df = remove_df.sort_values(
