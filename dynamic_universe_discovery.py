@@ -5,6 +5,7 @@ import importlib.util
 import json
 from collections import defaultdict
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -18,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 RESEARCH_DIR = ROOT / "research"
 EXPORTS_DIR = RESEARCH_DIR / "exports"
 REPORTS_DIR = RESEARCH_DIR / "reports"
+CONTEXT_CACHE_PATH = ROOT / "data" / "dynamic_universe" / "ticker_context_cache.json"
 ENGINE_PATH_CANDIDATES = [
     ROOT / "engine_bundle" / "run_v11_slot_quality" / "v11_slot_quality" / "apex_engine_slot_quality.py",
     ROOT / "engine_bundle" / "run_v11_slot_quality" / "apex_engine_slot_quality.py",
@@ -71,6 +73,13 @@ SECTOR_NAME_TO_KEY = {
 DEFAULT_MIN_MARKET_CAP = 2_000_000_000
 DEFAULT_MIN_PRICE = 5.0
 DEFAULT_MIN_ADV = 1_000_000
+CONTEXT_CACHE_SAVE_EVERY = 20
+RETEST_RECENT_ABS_DELTA = 0.75
+RETEST_RECENT_REL_DELTA = 0.25
+RETEST_COMPAT_DELTA = 0.75
+RETEST_RANK_DELTA = 5.0
+RETEST_TOP5_SHARE_DELTA = 0.08
+RETEST_RELATIVE_SCORE_DELTA = 0.25
 
 
 @dataclass
@@ -78,6 +87,10 @@ class CandidateData:
     open: pd.Series
     close: pd.Series
     info: dict[str, object]
+
+
+_TICKER_CONTEXT_CACHE: dict[str, dict[str, object]] | None = None
+_TICKER_CONTEXT_CACHE_DIRTY = 0
 
 
 def setup_yf_cache(cache_dir: Path) -> None:
@@ -93,6 +106,43 @@ def normalize_downloaded_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=lambda c: str(c).lower().replace(" ", "_"))
 
 
+def _load_ticker_context_cache() -> dict[str, dict[str, object]]:
+    global _TICKER_CONTEXT_CACHE
+    if _TICKER_CONTEXT_CACHE is not None:
+        return _TICKER_CONTEXT_CACHE
+    if CONTEXT_CACHE_PATH.exists():
+        try:
+            raw = json.loads(CONTEXT_CACHE_PATH.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                _TICKER_CONTEXT_CACHE = {
+                    str(k): dict(v) for k, v in raw.items() if isinstance(v, dict)
+                }
+                return _TICKER_CONTEXT_CACHE
+        except json.JSONDecodeError:
+            pass
+    _TICKER_CONTEXT_CACHE = {}
+    return _TICKER_CONTEXT_CACHE
+
+
+def _save_ticker_context_cache(force: bool = False) -> None:
+    global _TICKER_CONTEXT_CACHE_DIRTY
+    cache = _load_ticker_context_cache()
+    if not force and _TICKER_CONTEXT_CACHE_DIRTY < CONTEXT_CACHE_SAVE_EVERY:
+        return
+    CONTEXT_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONTEXT_CACHE_PATH.write_text(json.dumps(cache, indent=2, sort_keys=True), encoding="utf-8")
+    _TICKER_CONTEXT_CACHE_DIRTY = 0
+
+
+def _store_ticker_context(ticker: str, ctx: dict[str, object]) -> dict[str, object]:
+    global _TICKER_CONTEXT_CACHE_DIRTY
+    cache = _load_ticker_context_cache()
+    cache[str(ticker)] = dict(ctx)
+    _TICKER_CONTEXT_CACHE_DIRTY += 1
+    _save_ticker_context_cache()
+    return cache[str(ticker)]
+
+
 def read_tickers_csv(path: Path) -> list[str]:
     if not path.exists():
         return []
@@ -100,6 +150,18 @@ def read_tickers_csv(path: Path) -> list[str]:
     if "ticker" not in df.columns:
         return []
     return df["ticker"].dropna().astype(str).tolist()
+
+
+def dedupe_keep_order(values: Sequence[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
 
 
 def resolve_engine_path() -> Path:
@@ -165,6 +227,44 @@ def load_prices_from_yfinance(engine, tickers: Sequence[str]):
     o = o.reindex(columns=cols)
     c = c.reindex(columns=cols)
     return engine.Prices(open=o, close=c)
+
+
+def download_history_batch(tickers: Sequence[str], start: str, end: str) -> dict[str, pd.DataFrame]:
+    symbols = dedupe_keep_order(tickers)
+    if not symbols:
+        return {}
+    try:
+        data = yf.download(
+            tickers=symbols,
+            start=start,
+            end=end,
+            auto_adjust=False,
+            progress=False,
+            threads=True,
+            group_by="ticker",
+        )
+    except Exception:
+        return {}
+    if data is None or len(data) == 0:
+        return {}
+    if not isinstance(data.columns, pd.MultiIndex):
+        if len(symbols) == 1:
+            return {symbols[0]: normalize_downloaded_columns(data.copy())}
+        return {}
+
+    out: dict[str, pd.DataFrame] = {}
+    lvl0 = set(data.columns.get_level_values(0))
+    lvl1 = set(data.columns.get_level_values(1))
+    if any(symbol in lvl0 for symbol in symbols):
+        for symbol in symbols:
+            if symbol in lvl0:
+                out[symbol] = normalize_downloaded_columns(data[symbol].copy())
+    elif any(symbol in lvl1 for symbol in symbols):
+        swapped = data.swaplevel(axis=1).sort_index(axis=1)
+        for symbol in symbols:
+            if symbol in swapped.columns.get_level_values(0):
+                out[symbol] = normalize_downloaded_columns(swapped[symbol].copy())
+    return out
 
 
 def load_setup():
@@ -483,11 +583,14 @@ def discover_sector_expansion(records: dict[str, dict], sector_keys: Sequence[st
 
 
 def ticker_context(ticker: str) -> dict[str, object]:
+    cache = _load_ticker_context_cache()
+    if ticker in cache:
+        return dict(cache[ticker])
     try:
         info = yf.Ticker(ticker).get_info() or {}
     except Exception:
         return {}
-    return {
+    ctx = {
         "ticker": ticker,
         "sector": info.get("sector"),
         "sectorKey": info.get("sectorKey"),
@@ -496,6 +599,13 @@ def ticker_context(ticker: str) -> dict[str, object]:
         "exchange": info.get("exchange"),
         "marketCap": info.get("marketCap"),
     }
+    return dict(_store_ticker_context(ticker, ctx))
+
+
+def bulk_ticker_context(tickers: Sequence[str]) -> dict[str, dict[str, object]]:
+    out = {ticker: ticker_context(ticker) for ticker in dedupe_keep_order(tickers)}
+    _save_ticker_context_cache(force=True)
+    return out
 
 
 def discover_seed_expansion(records: dict[str, dict], seeds: Sequence[str], etf_holding_count: int, top_etfs_per_sector: int) -> pd.DataFrame:
@@ -639,11 +749,30 @@ def safe_columns(df: pd.DataFrame, columns: Sequence[str]) -> pd.DataFrame:
 
 def download_candidate_data(tickers: Iterable[str], start: str, end: str) -> dict[str, CandidateData]:
     data: dict[str, CandidateData] = {}
-    for ticker in tickers:
-        try:
-            df = yf.download(ticker, start=start, end=end, auto_adjust=False, progress=False)
-        except Exception:
+    symbols = dedupe_keep_order(list(tickers))
+    batch = download_history_batch(symbols, start, end)
+    missing: list[str] = []
+    for ticker in symbols:
+        df = normalize_downloaded_columns(batch.get(ticker, pd.DataFrame()))
+        if df.empty or "open" not in df.columns or "close" not in df.columns:
+            missing.append(ticker)
             continue
+        df = df.reset_index()
+        if "date" not in df.columns:
+            df = df.rename(columns={df.columns[0]: "date"})
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date")
+        data[ticker] = CandidateData(
+            open=df.set_index("date")["open"].astype(float),
+            close=df.set_index("date")["close"].astype(float),
+            info={},
+        )
+
+    for ticker in missing:
+        try:
+            df = yf.Ticker(ticker).history(start=start, end=end, auto_adjust=False)
+        except Exception:
+            df = pd.DataFrame()
         df = normalize_downloaded_columns(df)
         if df.empty or "open" not in df.columns or "close" not in df.columns:
             continue
@@ -652,41 +781,38 @@ def download_candidate_data(tickers: Iterable[str], start: str, end: str) -> dic
             df = df.rename(columns={df.columns[0]: "date"})
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date")
-        try:
-            info = yf.Ticker(ticker).get_info() or {}
-        except Exception:
-            info = {}
         data[ticker] = CandidateData(
             open=df.set_index("date")["open"].astype(float),
             close=df.set_index("date")["close"].astype(float),
-            info=info,
+            info={},
         )
     return data
+
+
+def _recent_momentum_metrics(close: pd.Series) -> tuple[int, dict[str, float], float]:
+    close = pd.to_numeric(close, errors="coerce").dropna()
+    bars = int(close.shape[0])
+    metrics: dict[str, float] = {}
+    for lookback, name in ((63, "recent_r63"), (126, "recent_r126"), (252, "recent_r252")):
+        metrics[name] = float(close.iloc[-1] / close.iloc[-1 - lookback] - 1.0) if bars > lookback else np.nan
+    weights = {"recent_r63": 0.20, "recent_r126": 0.40, "recent_r252": 0.40}
+    valid = {k: v for k, v in metrics.items() if pd.notna(v)}
+    if not valid:
+        return bars, metrics, np.nan
+    weight_sum = sum(weights[k] for k in valid)
+    score = sum(weights[k] * valid[k] for k in valid) / weight_sum
+    return bars, metrics, float(score)
 
 
 def compute_recent_momentum_from_candidate_map(candidate_map: dict[str, CandidateData]) -> pd.DataFrame:
     rows = []
     for ticker, cand in candidate_map.items():
-        close = cand.close.dropna()
-        bars = int(close.shape[0])
-        metrics = {}
-        for lookback, name in ((63, "recent_r63"), (126, "recent_r126"), (252, "recent_r252")):
-            if bars > lookback:
-                metrics[name] = float(close.iloc[-1] / close.iloc[-1 - lookback] - 1.0)
-            else:
-                metrics[name] = np.nan
-        weights = {"recent_r63": 0.20, "recent_r126": 0.40, "recent_r252": 0.40}
-        valid = {k: v for k, v in metrics.items() if pd.notna(v)}
-        if valid:
-            weight_sum = sum(weights[k] for k in valid)
-            score = sum(weights[k] * valid[k] for k in valid) / weight_sum
-        else:
-            score = np.nan
+        bars, metrics, score = _recent_momentum_metrics(cand.close)
         rows.append(
             {
                 "ticker": ticker,
                 "recent_bars": bars,
-                "recent_score": float(score) if pd.notna(score) else np.nan,
+                "recent_score": score,
                 **metrics,
             }
         )
@@ -749,6 +875,11 @@ def compute_algo_fit_for_candidates(base_prices, cfg: dict, candidate_map: dict[
             rr_score = float(recent_score / vol63_now)
         breakout_252 = np.nan
         trend200 = np.nan
+        dist_sma220 = np.nan
+        dd60_now = np.nan
+        r21_now = np.nan
+        entry_heat_flag = 0
+        pullback_quality = 0.0
         if bars_recent >= 252:
             high252 = float(close.iloc[-252:].max())
             if high252 > 0:
@@ -758,6 +889,16 @@ def compute_algo_fit_for_candidates(base_prices, cfg: dict, candidate_map: dict[
             sma200 = float(close.iloc[-200:].mean())
             if sma200 > 0:
                 trend200 = float(np.clip((close.iloc[-1] / sma200 - 1.0) / 1.5, 0.0, 1.0))
+        if bars_recent >= 220:
+            sma220_now = float(close.iloc[-220:].mean())
+            if sma220_now > 0:
+                dist_sma220 = float(close.iloc[-1] / sma220_now - 1.0)
+        if bars_recent >= 60:
+            high60 = float(close.iloc[-60:].max())
+            if high60 > 0:
+                dd60_now = float(close.iloc[-1] / high60 - 1.0)
+        if bars_recent > 21:
+            r21_now = float(close.iloc[-1] / close.iloc[-22] - 1.0)
         aug_prices = merge_candidates(base_prices, [ticker], candidate_map)
         feat_df = compute_universe_features(aug_prices.close, cfg)
         feat = feat_df.loc[feat_df["ticker"] == ticker]
@@ -779,6 +920,11 @@ def compute_algo_fit_for_candidates(base_prices, cfg: dict, candidate_map: dict[
         bars_component = min(bars / max(min_bars_required, 1), 1.0)
         top5_share = float(days_top5 / max(days_top15, 1.0)) if days_top15 > 0 else 0.0
         latest_score = float(feat_row.get("latest_score", np.nan)) if pd.notna(feat_row.get("latest_score", np.nan)) else np.nan
+        if pd.notna(dist_sma220) and pd.notna(dd60_now) and pd.notna(r21_now):
+            if (dist_sma220 >= 0.70) and (dd60_now >= -0.05) and (r21_now >= 0.10):
+                entry_heat_flag = 1
+            if (dd60_now <= -0.05) and (dd60_now >= -0.20) and (r21_now <= 0.05):
+                pullback_quality = 1.0
         rows.append(
             {
                 "ticker": ticker,
@@ -798,6 +944,11 @@ def compute_algo_fit_for_candidates(base_prices, cfg: dict, candidate_map: dict[
                 "scan_rr_score": float(rr_score) if pd.notna(rr_score) else np.nan,
                 "scan_breakout252_component": float(breakout_252) if pd.notna(breakout_252) else np.nan,
                 "scan_trend200_component": float(trend200) if pd.notna(trend200) else np.nan,
+                "scan_dist_sma220": float(dist_sma220) if pd.notna(dist_sma220) else np.nan,
+                "scan_dd60": float(dd60_now) if pd.notna(dd60_now) else np.nan,
+                "scan_r21": float(r21_now) if pd.notna(r21_now) else np.nan,
+                "scan_entry_heat_flag": int(entry_heat_flag),
+                "scan_pullback_quality": float(pullback_quality),
                 **rel_metrics,
             }
         )
@@ -810,6 +961,8 @@ def compute_algo_fit_for_candidates(base_prices, cfg: dict, candidate_map: dict[
     rr_score_pct = rank_within_series(df["scan_rr_score"].fillna(df["scan_rr_score"].median(skipna=True)))
     breakout_pct = df["scan_breakout252_component"].fillna(0.5)
     trend200_pct = df["scan_trend200_component"].fillna(0.5)
+    heat_penalty = df["scan_entry_heat_flag"].fillna(0).astype(float)
+    pullback_bonus = df["scan_pullback_quality"].fillna(0.0)
     df["scan_algo_compat_score"] = (
         5.0 * df["scan_rank_component"]
         + 3.0 * df["scan_persistence_component"]
@@ -826,6 +979,8 @@ def compute_algo_fit_for_candidates(base_prices, cfg: dict, candidate_map: dict[
         + 0.8 * rr_score_pct
         + 0.6 * breakout_pct
         + 0.6 * trend200_pct
+        + 0.3 * pullback_bonus
+        - 0.8 * heat_penalty
     )
     df["scan_recent_score_pct"] = recent_score_pct
     df["scan_emerging_score"] = (
@@ -842,6 +997,8 @@ def compute_algo_fit_for_candidates(base_prices, cfg: dict, candidate_map: dict[
         + 1.0 * breakout_pct
         + 1.0 * latest_score_pct
         + 0.5 * df["scan_bars_component"]
+        + 0.3 * pullback_bonus
+        - 0.8 * heat_penalty
     )
     df["scan_algo_fit"] = np.select(
         [
@@ -879,37 +1036,17 @@ def compute_recent_momentum_snapshot(tickers: Sequence[str], end_date: pd.Timest
         end_date = pd.Timestamp.today().normalize()
     start_date = end_date - pd.Timedelta(days=500)
     rows = []
-    for ticker in tickers:
-        try:
-            df = yf.download(ticker, start=str(start_date.date()), end=str((end_date + pd.Timedelta(days=1)).date()), auto_adjust=False, progress=False)
-        except Exception:
-            continue
-        df = normalize_downloaded_columns(df)
+    batch = download_history_batch(
+        tickers,
+        str(start_date.date()),
+        str((end_date + pd.Timedelta(days=1)).date()),
+    )
+    for ticker in dedupe_keep_order(tickers):
+        df = normalize_downloaded_columns(batch.get(ticker, pd.DataFrame()))
         if df.empty or "close" not in df.columns:
             continue
-        close = pd.to_numeric(df["close"], errors="coerce").dropna()
-        bars = int(close.shape[0])
-        metrics = {}
-        for lookback, name in ((63, "recent_r63"), (126, "recent_r126"), (252, "recent_r252")):
-            if bars > lookback:
-                metrics[name] = float(close.iloc[-1] / close.iloc[-1 - lookback] - 1.0)
-            else:
-                metrics[name] = np.nan
-        weights = {"recent_r63": 0.20, "recent_r126": 0.40, "recent_r252": 0.40}
-        valid = {k: v for k, v in metrics.items() if pd.notna(v)}
-        if valid:
-            weight_sum = sum(weights[k] for k in valid)
-            score = sum(weights[k] * valid[k] for k in valid) / weight_sum
-        else:
-            score = np.nan
-        rows.append(
-            {
-                "ticker": ticker,
-                "recent_bars": bars,
-                "recent_score": float(score) if pd.notna(score) else np.nan,
-                **metrics,
-            }
-        )
+        bars, metrics, score = _recent_momentum_metrics(df["close"])
+        rows.append({"ticker": ticker, "recent_bars": bars, "recent_score": score, **metrics})
     return pd.DataFrame(rows)
 
 
@@ -928,6 +1065,124 @@ def merge_candidates(base_prices, picked: list[str], candidate_map: dict[str, Ca
     return type(base_prices)(open=open_df, close=close_df)
 
 
+def safe_float_value(value: object, default: float = np.nan) -> float:
+    if pd.isna(value):
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_int_value(value: object, default: int = 0) -> int:
+    if pd.isna(value):
+        return default
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def load_cached_rows(path: Path | None, key_col: str = "name") -> dict[str, dict]:
+    if path is None or not path.exists():
+        return {}
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        return {}
+    if df.empty or key_col not in df.columns:
+        return {}
+    df[key_col] = df[key_col].astype(str)
+    df = df.drop_duplicates(key_col, keep="last")
+    return {str(row[key_col]): row.to_dict() for _, row in df.iterrows()}
+
+
+def should_retest_single(row, cached: dict | None) -> tuple[bool, str]:
+    if not cached:
+        return True, "new_candidate"
+    if str(cached.get("candidate_status") or "") in {"download_failed", "baseline"}:
+        return True, "retry_after_failure"
+    prev_recent = safe_float_value(cached.get("recent_score"), 0.0)
+    curr_recent = safe_float_value(getattr(row, "recent_score", np.nan), 0.0)
+    recent_jump = curr_recent - prev_recent
+    recent_needed = max(RETEST_RECENT_ABS_DELTA, abs(prev_recent) * RETEST_RECENT_REL_DELTA)
+    if recent_jump >= recent_needed:
+        return True, "recent_score_jump"
+    prev_compat = safe_float_value(
+        cached.get("scan_algo_compat_score_v2"),
+        safe_float_value(cached.get("scan_algo_compat_score"), 0.0),
+    )
+    curr_compat = safe_float_value(
+        getattr(row, "scan_algo_compat_score_v2", np.nan),
+        safe_float_value(getattr(row, "scan_algo_compat_score", np.nan), 0.0),
+    )
+    if curr_compat - prev_compat >= RETEST_COMPAT_DELTA:
+        return True, "compat_score_jump"
+    prev_rank = safe_float_value(cached.get("scan_latest_rank_if_added"), np.nan)
+    curr_rank = safe_float_value(getattr(row, "scan_latest_rank_if_added", np.nan), np.nan)
+    if pd.notna(prev_rank) and pd.notna(curr_rank) and curr_rank <= (prev_rank - RETEST_RANK_DELTA):
+        return True, "rank_jump"
+    prev_top5 = safe_float_value(cached.get("scan_top5_share"), 0.0)
+    curr_top5 = safe_float_value(getattr(row, "scan_top5_share", np.nan), 0.0)
+    if curr_top5 - prev_top5 >= RETEST_TOP5_SHARE_DELTA:
+        return True, "top5_share_jump"
+    prev_rel = safe_float_value(cached.get("scan_rel_recent_score"), 0.0)
+    curr_rel = safe_float_value(getattr(row, "scan_rel_recent_score", np.nan), 0.0)
+    if curr_rel - prev_rel >= RETEST_RELATIVE_SCORE_DELTA:
+        return True, "relative_score_jump"
+    prev_track = str(cached.get("scan_candidate_track") or "")
+    curr_track = str(getattr(row, "scan_candidate_track", "") or "")
+    if curr_track == "persistent_leader" and prev_track != "persistent_leader":
+        return True, "track_upgrade"
+    return False, "cached_no_positive_variation"
+
+
+def current_scan_payload(row, feat: dict, backtestable: int) -> dict[str, object]:
+    return {
+        "priority_score": float(getattr(row, "priority_score", 0.0) or 0.0),
+        "source_count": int(getattr(row, "source_count", 0) or 0),
+        "source_types": getattr(row, "source_types", ""),
+        "sector": getattr(row, "sector", ""),
+        "industry": getattr(row, "industry", ""),
+        "recent_score": getattr(row, "recent_score", np.nan),
+        "recent_r63": getattr(row, "recent_r63", np.nan),
+        "recent_r126": getattr(row, "recent_r126", np.nan),
+        "recent_r252": getattr(row, "recent_r252", np.nan),
+        "scan_algo_compat_score": getattr(row, "scan_algo_compat_score", np.nan),
+        "scan_algo_compat_score_v2": getattr(row, "scan_algo_compat_score_v2", np.nan),
+        "scan_algo_fit": getattr(row, "scan_algo_fit", ""),
+        "scan_latest_rank_if_added": getattr(row, "scan_latest_rank_if_added", np.nan),
+        "scan_days_top15_if_added": getattr(row, "scan_days_top15_if_added", np.nan),
+        "scan_days_top5_if_added": getattr(row, "scan_days_top5_if_added", np.nan),
+        "scan_top5_share": getattr(row, "scan_top5_share", np.nan),
+        "scan_rel_recent_score": getattr(row, "scan_rel_recent_score", np.nan),
+        "scan_rr_score": getattr(row, "scan_rr_score", np.nan),
+        "scan_breakout252_component": getattr(row, "scan_breakout252_component", np.nan),
+        "scan_trend200_component": getattr(row, "scan_trend200_component", np.nan),
+        "scan_dist_sma220": getattr(row, "scan_dist_sma220", np.nan),
+        "scan_dd60": getattr(row, "scan_dd60", np.nan),
+        "scan_r21": getattr(row, "scan_r21", np.nan),
+        "scan_entry_heat_flag": int(getattr(row, "scan_entry_heat_flag", 0) or 0),
+        "scan_pullback_quality": getattr(row, "scan_pullback_quality", np.nan),
+        "scan_candidate_track": getattr(row, "scan_candidate_track", ""),
+        "backtestable_now": int(backtestable),
+        "bars": int(feat["bars"]),
+        "latest_rank_if_added": float(feat["latest_rank"]) if pd.notna(feat["latest_rank"]) else np.nan,
+        "days_top15_trend_if_added": int(feat["days_top15_trend"]),
+        "days_top5_trend_if_added": int(feat["days_top5_trend"]),
+    }
+
+
+def build_reused_single_row(ticker: str, cached: dict, row, feat: dict, backtestable: int, reason: str) -> dict[str, object]:
+    out = dict(cached)
+    out["name"] = ticker
+    out.update(current_scan_payload(row, feat, backtestable))
+    out["test_reused"] = 1
+    out["retest_reason"] = reason
+    out["tested_as_of"] = str(cached.get("tested_as_of") or "")
+    return out
+
+
 def evaluate_candidates(
     engine,
     cfg_doc: dict,
@@ -937,6 +1192,8 @@ def evaluate_candidates(
     discovery_df: pd.DataFrame,
     max_single_backtests: int,
     max_combo_backtests: int,
+    single_cache_path: Path | None = None,
+    combo_cache_path: Path | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if discovery_df.empty:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
@@ -949,6 +1206,9 @@ def evaluate_candidates(
     _, _, baseline_full = run_metrics(engine, base_prices, cfg, pp, full_start, full_end)
     _, _, baseline_oos = run_metrics(engine, base_prices, cfg, pp, oos_start, oos_end)
     baseline_row = row_from_run("baseline_184", baseline_full, baseline_oos, {"candidate_status": "baseline"})
+    baseline_row["tested_as_of"] = date.today().isoformat()
+    baseline_row["test_reused"] = 0
+    baseline_row["retest_reason"] = "baseline"
 
     shortlist = discovery_df.loc[
         (discovery_df["candidate_status"] == "new")
@@ -986,14 +1246,35 @@ def evaluate_candidates(
             ["scan_algo_compat_score_v2", "scan_emerging_score_v2", "scan_algo_compat_score", "recent_score", "priority_score", "marketCap"],
             ascending=[False, False, False, False, False, False],
         )
-        .head(max_single_backtests)
+        .head(max(max_single_backtests * 3, 12))
     )
     if shortlist.empty:
         return pd.DataFrame([baseline_row]), pd.DataFrame(), preselect
 
+    single_cache = load_cached_rows(single_cache_path, key_col="name")
     single_rows = [baseline_row]
+    today_str = date.today().isoformat()
+    eval_queue: list[tuple[object, str, dict | None]] = []
+    reuse_queue: list[tuple[object, str, dict]] = []
+    retested_names: set[str] = set()
 
     for row in shortlist.itertuples(index=False):
+        ticker = str(row.ticker)
+        cached = single_cache.get(ticker)
+        retest, reason = should_retest_single(row, cached)
+        if retest and len(eval_queue) < max_single_backtests:
+            eval_queue.append((row, reason, cached))
+            retested_names.add(ticker)
+        elif cached:
+            reuse_queue.append((row, reason, cached))
+
+    featured_reuse_names = {
+        str(row.ticker)
+        for row in shortlist.head(max_single_backtests).itertuples(index=False)
+        if str(row.ticker) not in retested_names and str(row.ticker) in single_cache
+    }
+
+    for row, retest_reason, _cached in eval_queue:
         ticker = str(row.ticker)
         cand = candidate_data.get(ticker)
         if cand is None:
@@ -1003,6 +1284,9 @@ def evaluate_candidates(
                     "candidate_status": "download_failed",
                     "priority_score": float(row.priority_score),
                     "source_count": int(row.source_count),
+                    "tested_as_of": today_str,
+                    "test_reused": 0,
+                    "retest_reason": "download_failed",
                 }
             )
             continue
@@ -1035,31 +1319,7 @@ def evaluate_candidates(
             full,
             oos,
             {
-                "priority_score": float(row.priority_score),
-                "source_count": int(row.source_count),
-                "source_types": getattr(row, "source_types", ""),
-                "sector": getattr(row, "sector", ""),
-                "industry": getattr(row, "industry", ""),
-                "recent_score": getattr(row, "recent_score", np.nan),
-                "recent_r63": getattr(row, "recent_r63", np.nan),
-                "recent_r126": getattr(row, "recent_r126", np.nan),
-                "recent_r252": getattr(row, "recent_r252", np.nan),
-                "scan_algo_compat_score": getattr(row, "scan_algo_compat_score", np.nan),
-                "scan_algo_compat_score_v2": getattr(row, "scan_algo_compat_score_v2", np.nan),
-                "scan_algo_fit": getattr(row, "scan_algo_fit", ""),
-                "scan_latest_rank_if_added": getattr(row, "scan_latest_rank_if_added", np.nan),
-                "scan_days_top15_if_added": getattr(row, "scan_days_top15_if_added", np.nan),
-                "scan_days_top5_if_added": getattr(row, "scan_days_top5_if_added", np.nan),
-                "scan_top5_share": getattr(row, "scan_top5_share", np.nan),
-                "scan_rel_recent_score": getattr(row, "scan_rel_recent_score", np.nan),
-                "scan_rr_score": getattr(row, "scan_rr_score", np.nan),
-                "scan_breakout252_component": getattr(row, "scan_breakout252_component", np.nan),
-                "scan_trend200_component": getattr(row, "scan_trend200_component", np.nan),
-                "backtestable_now": int(backtestable),
-                "bars": int(feat["bars"]),
-                "latest_rank_if_added": float(feat["latest_rank"]) if pd.notna(feat["latest_rank"]) else np.nan,
-                "days_top15_trend_if_added": int(feat["days_top15_trend"]),
-                "days_top5_trend_if_added": int(feat["days_top5_trend"]),
+                **current_scan_payload(row, feat, backtestable),
                 "full_realized_pnl_if_added": realized_full,
                 "oos_realized_pnl_if_added": realized_oos,
                 "full_buy_count_if_added": buys_full,
@@ -1070,6 +1330,9 @@ def evaluate_candidates(
                 "oos_delta_roi_pct": float(oos["ROI_%"] - baseline_oos["ROI_%"]),
                 "oos_delta_sharpe": float(oos["Sharpe"] - baseline_oos["Sharpe"]),
                 "oos_delta_maxdd_pct": float(oos["MaxDD_%"] - baseline_oos["MaxDD_%"]),
+                "tested_as_of": today_str,
+                "test_reused": 0,
+                "retest_reason": retest_reason,
             },
         )
         add_row["recommendation"] = (
@@ -1085,10 +1348,31 @@ def evaluate_candidates(
         )
         single_rows.append(add_row)
 
+    for row, reuse_reason, cached in reuse_queue:
+        ticker = str(row.ticker)
+        if ticker not in featured_reuse_names:
+            continue
+        cand = candidate_data.get(ticker)
+        if cand is not None:
+            aug_prices = merge_candidates(base_prices, [ticker], candidate_data)
+            aug_features = compute_universe_features(aug_prices.close, cfg)
+            feat = aug_features.loc[aug_features["ticker"] == ticker].iloc[0].to_dict()
+            backtestable = int(feat["bars"]) >= min_bars_required
+        else:
+            feat = {
+                "bars": safe_int_value(cached.get("bars")),
+                "latest_rank": safe_float_value(cached.get("latest_rank_if_added")),
+                "days_top15_trend": safe_int_value(cached.get("days_top15_trend_if_added")),
+                "days_top5_trend": safe_int_value(cached.get("days_top5_trend_if_added")),
+            }
+            backtestable = safe_int_value(cached.get("backtestable_now"))
+        single_rows.append(build_reused_single_row(ticker, cached, row, feat, backtestable, reuse_reason))
+
     single_df = pd.DataFrame(single_rows)
     if single_df.empty:
         return single_df, pd.DataFrame(), preselect
 
+    combo_cache = load_cached_rows(combo_cache_path, key_col="name")
     combo_rows = []
     combo_candidates = (
         single_df.loc[
@@ -1105,6 +1389,20 @@ def evaluate_candidates(
     for i, left in enumerate(combo_candidates):
         for right in combo_candidates[i + 1 :]:
             combo = tuple(sorted((left, right)))
+            combo_name = "+".join(combo)
+            cached_combo = combo_cache.get(combo_name)
+            if cached_combo and not any(name in retested_names for name in combo):
+                reused_combo = dict(cached_combo)
+                reused_combo["name"] = combo_name
+                reused_combo["members"] = ",".join(combo)
+                reused_combo["tested_as_of"] = str(cached_combo.get("tested_as_of") or "")
+                reused_combo["test_reused"] = 1
+                reused_combo["retest_reason"] = "cached_no_member_retest"
+                combo_rows.append(reused_combo)
+                tested += 1
+                if tested >= max_combo_backtests:
+                    break
+                continue
             if any(name not in candidate_data for name in combo):
                 continue
             aug_prices = merge_candidates(base_prices, list(combo), candidate_data)
@@ -1112,7 +1410,7 @@ def evaluate_candidates(
             _, _, oos = run_metrics(engine, aug_prices, cfg, pp, oos_start, oos_end)
             combo_rows.append(
                 row_from_run(
-                    "+".join(combo),
+                    combo_name,
                     full,
                     oos,
                     {
@@ -1123,6 +1421,9 @@ def evaluate_candidates(
                         "oos_delta_roi_pct": float(oos["ROI_%"] - baseline_oos["ROI_%"]),
                         "oos_delta_sharpe": float(oos["Sharpe"] - baseline_oos["Sharpe"]),
                         "oos_delta_maxdd_pct": float(oos["MaxDD_%"] - baseline_oos["MaxDD_%"]),
+                        "tested_as_of": today_str,
+                        "test_reused": 0,
+                        "retest_reason": "member_retested_or_new",
                     },
                 )
             )
@@ -1364,6 +1665,8 @@ def run_discovery(
             discovery_df,
             max_single_backtests=max_single_backtests,
             max_combo_backtests=max_combo_backtests,
+            single_cache_path=single_path,
+            combo_cache_path=combo_path,
         )
     if not compat_df.empty:
         compat_df.to_csv(compat_path, index=False)

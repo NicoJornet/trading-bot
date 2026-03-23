@@ -217,8 +217,18 @@ def build_dynamic_add_actions() -> pd.DataFrame:
             db[col] = 0.0
         db[col] = pd.to_numeric(db[col], errors="coerce").fillna(0.0)
     out = db.copy()
-    out["selection_status"] = out["dynamic_status"].map({"approved": "approved_add", "prime_watch": "watch_add", "watch": "watch_add"}).fillna("reject_add")
-    out["selection_score"] = out["dynamic_conviction_score"]
+    if "promotion_stage" in out.columns:
+        out["selection_status"] = out["promotion_stage"].map(
+            {
+                "approved_live": "approved_add",
+                "probation_live": "watch_add",
+                "targeted_integration": "watch_add",
+                "watch_queue": "watch_add",
+            }
+        ).fillna("reject_add")
+    else:
+        out["selection_status"] = out["dynamic_status"].map({"approved": "approved_add", "prime_watch": "watch_add", "watch": "watch_add"}).fillna("reject_add")
+    out["selection_score"] = pd.to_numeric(out.get("promotion_score", out["dynamic_conviction_score"]), errors="coerce").fillna(out["dynamic_conviction_score"])
     return out.sort_values(
         ["selection_status", "selection_score", "scan_algo_compat_score_v2", "recent_score", "scan_algo_compat_score"],
         ascending=[False, False, False, False, False],
@@ -404,6 +414,7 @@ def write_outputs(single_df: pd.DataFrame, combo_df: pd.DataFrame, add_df: pd.Da
             [
                 "ticker",
                 "selection_score",
+                "promotion_stage",
                 "dynamic_status",
                 "profile_count",
                 "scan_algo_fit",
@@ -498,6 +509,7 @@ def write_outputs(single_df: pd.DataFrame, combo_df: pd.DataFrame, add_df: pd.Da
             [
                 "ticker",
                 "selection_score",
+                "promotion_stage",
                 "dynamic_status",
                 "profile_count",
                 "scan_algo_fit",

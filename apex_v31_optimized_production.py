@@ -143,7 +143,7 @@ OEG2_SMA20_WIN = 20
 
 # TailVeto spike (risk_set): veto entry if ATR% high AND vol spike high
 TAILVETO_ENABLE = 1
-TAIL_ATR_TH = 0.05         # 5%
+TAIL_ATR_TH = 0.055        # 5.5%
 TAIL_SPIKE_TH = 1.10       # vol20/vol60
 
 # MIE: Momentum Invalidation Exit (risk_set & non-risk), position-based
@@ -168,6 +168,7 @@ EXITSMOOTH_REQUIRE_POS_RS63 = 0
 # Leader Overweight (A022): boost top name weight, renormalize
 LEADER_OVW_ENABLE = 1
 LEADER_ALPHA = 0.22
+LEADER_W_CAP = 0.55
 SMA_WIN = 220
 VOL_WIN = 20
 
@@ -732,7 +733,13 @@ def apply_cluster_limit(
     return chosen[:topk]
 
 
-def invvol_weights(vol_row: pd.Series, tickers: List[str], leader_ticker: Optional[str] = None, leader_alpha: float = 0.0) -> Dict[str, float]:
+def invvol_weights(
+    vol_row: pd.Series,
+    tickers: List[str],
+    leader_ticker: Optional[str] = None,
+    leader_alpha: float = 0.0,
+    leader_w_cap: float = 1.0,
+) -> Dict[str, float]:
     v = vol_row.reindex(tickers).replace(0, np.nan)
     inv = (1.0 / v).replace([np.inf, -np.inf], np.nan).dropna()
     if inv.empty:
@@ -744,6 +751,20 @@ def invvol_weights(vol_row: pd.Series, tickers: List[str], leader_ticker: Option
         s = sum(w.values())
         if s > 0:
             w = {k: v / s for k, v in w.items()}
+        if leader_w_cap < 1.0:
+            capped = min(float(w[leader_ticker]), float(leader_w_cap))
+            excess = float(w[leader_ticker]) - capped
+            if excess > 0:
+                w[leader_ticker] = capped
+                others = [k for k in w if k != leader_ticker]
+                other_sum = sum(w[k] for k in others)
+                if other_sum > 0:
+                    for k in others:
+                        w[k] += excess * (w[k] / other_sum)
+                else:
+                    s = sum(w.values())
+                    if s > 0:
+                        w = {k: v / s for k, v in w.items()}
     return w
 
 
@@ -800,7 +821,13 @@ def pretty_weights_and_targets(
       - fee reservation assumes 1 BUY per missing desired name (desired - held).
       - This is an "approx allocation view" (uses CLOSE-date vol, not next open).
     """
-    w = invvol_weights(vol_row, desired, leader_ticker=leader_ticker if LEADER_OVW_ENABLE else None, leader_alpha=LEADER_ALPHA if LEADER_OVW_ENABLE else 0.0)
+    w = invvol_weights(
+        vol_row,
+        desired,
+        leader_ticker=leader_ticker if LEADER_OVW_ENABLE else None,
+        leader_alpha=LEADER_ALPHA if LEADER_OVW_ENABLE else 0.0,
+        leader_w_cap=LEADER_W_CAP if LEADER_OVW_ENABLE else 1.0,
+    )
     if not w:
         return {}, {}, 0.0, 0.0
 
@@ -1553,7 +1580,13 @@ def main():
         if np.isfinite(pxv):
             port_val_open += sh * float(pxv)
 
-    w = invvol_weights(vol20.loc[last_date], desired, leader_ticker=(desired[0] if len(desired) > 0 else None), leader_alpha=LEADER_ALPHA if LEADER_OVW_ENABLE else 0.0)
+    w = invvol_weights(
+        vol20.loc[last_date],
+        desired,
+        leader_ticker=(desired[0] if len(desired) > 0 else None),
+        leader_alpha=LEADER_ALPHA if LEADER_OVW_ENABLE else 0.0,
+        leader_w_cap=LEADER_W_CAP if LEADER_OVW_ENABLE else 1.0,
+    )
     targets_val = {t: w[t] * port_val_open for t in w if t in needed}
 
     orders: List[dict] = []

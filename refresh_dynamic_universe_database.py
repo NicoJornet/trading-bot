@@ -4,7 +4,6 @@ import argparse
 from datetime import date
 from pathlib import Path
 from typing import Iterable
-import time
 
 import pandas as pd
 
@@ -22,6 +21,10 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_DIR.mkdir(parents=True, exist_ok=True)
 
 BROKER_MIN_MARKET_CAP = 1_000_000_000
+PROMOTION_ADD_WF_PATHS = [
+    EXPORTS_DIR / "dynamic_universe_targeted_watch_adds_walkforward.csv",
+    EXPORTS_DIR / "dynamic_universe_integration_adds_walkforward_184.csv",
+]
 
 
 def read_optional_csv(path: Path) -> pd.DataFrame:
@@ -53,11 +56,7 @@ def profile_paths(profile_name: str) -> dict[str, Path]:
 def run_profiles(profile_names: Iterable[str], keywords: list[str]) -> dict[str, dict[str, Path]]:
     outputs: dict[str, dict[str, Path]] = {}
     for profile_name in profile_names:
-        t0 = time.time()
-        print(f"[dynamic-db] start profile={profile_name}")
         outputs[profile_name] = cycle.run_profile(cycle.PROFILES[profile_name], keywords)
-        dt = time.time() - t0
-        print(f"[dynamic-db] done profile={profile_name} elapsed_sec={dt:.1f}")
     return {k: {kk: Path(vv) for kk, vv in v.items()} for k, v in outputs.items()}
 
 
@@ -95,6 +94,11 @@ def merge_profile_data(profile_name: str, paths: dict[str, Path]) -> pd.DataFram
                 "scan_rr_score",
                 "scan_breakout252_component",
                 "scan_trend200_component",
+                "scan_dist_sma220",
+                "scan_dd60",
+                "scan_r21",
+                "scan_entry_heat_flag",
+                "scan_pullback_quality",
                 "scan_candidate_track",
             ],
         )
@@ -176,6 +180,8 @@ def conviction_score(row: pd.Series) -> float:
     top5_share = max(0.0, safe_float(row.get("scan_top5_share")))
     breakout252 = max(0.0, safe_float(row.get("scan_breakout252_component"), 0.5))
     trend200 = max(0.0, safe_float(row.get("scan_trend200_component"), 0.5))
+    entry_heat_flag = safe_int(row.get("scan_entry_heat_flag"))
+    pullback_quality = max(0.0, safe_float(row.get("scan_pullback_quality")))
     rel_recent = max(0.0, safe_float(row.get("scan_rel_recent_score")))
     rr_score = max(0.0, safe_float(row.get("scan_rr_score")))
     broker_tradeable = bool(row.get("broker_tradeable", True))
@@ -192,6 +198,7 @@ def conviction_score(row: pd.Series) -> float:
         + 1.20 * top5_share
         + 0.35 * breakout252
         + 0.35 * trend200
+        + 0.20 * pullback_quality
         + 0.15 * min(rel_recent, 2.0)
         + 0.12 * min(rr_score, 3.0)
     )
@@ -219,6 +226,8 @@ def conviction_score(row: pd.Series) -> float:
         score += 0.20
     if oos_maxdd <= -1.0:
         score -= 0.40
+    if entry_heat_flag:
+        score -= 0.60
     if not broker_tradeable and str(row.get("candidate_status") or "") == "new":
         score -= 4.00
     return round(score, 4)
@@ -278,6 +287,143 @@ def status_rank(value: str) -> int:
     }.get(str(value or ""), -1)
 
 
+def promotion_stage_rank(value: str) -> int:
+    return {
+        "approved_live": 5,
+        "probation_live": 4,
+        "targeted_integration": 3,
+        "watch_queue": 2,
+        "review_queue": 1,
+        "reject_queue": 0,
+        "blocked_broker": -1,
+    }.get(str(value or ""), -2)
+
+
+def summarize_walkforward(df: pd.DataFrame, key_cols: list[str]) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame()
+    rows: list[dict[str, object]] = []
+    for keys, group in df.groupby(key_cols):
+        if not isinstance(keys, tuple):
+            keys = (keys,)
+        row = {col: value for col, value in zip(key_cols, keys)}
+        yearly = group[group["window"] != "2026_ytd"]
+        ytd = group[group["window"] == "2026_ytd"]
+        row.update(
+            {
+                "add_wf_available": 1,
+                "add_mean_delta_roi_2017_2025": float(yearly["delta_roi_pct"].mean()) if not yearly.empty else 0.0,
+                "add_mean_delta_sharpe_2017_2025": float(yearly["delta_sharpe"].mean()) if not yearly.empty else 0.0,
+                "add_mean_delta_maxdd_2017_2025": float(yearly["delta_maxdd_pct"].mean()) if not yearly.empty else 0.0,
+                "add_roi_wins_2017_2025": int((yearly["delta_roi_pct"] > 0).sum()) if not yearly.empty else 0,
+                "add_sharpe_wins_2017_2025": int((yearly["delta_sharpe"] > 0).sum()) if not yearly.empty else 0,
+                "add_maxdd_wins_2017_2025": int((yearly["delta_maxdd_pct"] >= 0).sum()) if not yearly.empty else 0,
+                "add_delta_roi_2026_ytd": float(ytd["delta_roi_pct"].mean()) if not ytd.empty else 0.0,
+                "add_delta_sharpe_2026_ytd": float(ytd["delta_sharpe"].mean()) if not ytd.empty else 0.0,
+                "add_delta_maxdd_2026_ytd": float(ytd["delta_maxdd_pct"].mean()) if not ytd.empty else 0.0,
+            }
+        )
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def load_promotion_add_wf_summary() -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    for path in PROMOTION_ADD_WF_PATHS:
+        df = read_optional_csv(path)
+        if df.empty or "ticker" not in df.columns or "window" not in df.columns:
+            continue
+        frames.append(df)
+    if not frames:
+        return pd.DataFrame()
+    combined = pd.concat(frames, ignore_index=True, sort=False)
+    combined = combined.drop_duplicates(["ticker", "window"], keep="first")
+    return summarize_walkforward(combined, ["ticker"])
+
+
+def promotion_score(row: pd.Series | dict) -> float:
+    score = safe_float(row.get("dynamic_conviction_score"))
+    score += 0.04 * safe_float(row.get("full_delta_roi_pct"))
+    score += 0.10 * safe_float(row.get("oos_delta_roi_pct"))
+    score += 40.0 * safe_float(row.get("full_delta_sharpe"))
+    score += 60.0 * safe_float(row.get("oos_delta_sharpe"))
+    score += 0.04 * safe_float(row.get("add_mean_delta_roi_2017_2025"))
+    score += 10.0 * safe_float(row.get("add_mean_delta_sharpe_2017_2025"))
+    score += 0.5 * safe_int(row.get("add_roi_wins_2017_2025"))
+    score += 0.35 * safe_int(row.get("add_sharpe_wins_2017_2025"))
+    score -= 0.8 * safe_int(row.get("scan_entry_heat_flag"))
+    recent = safe_float(row.get("recent_score"))
+    rel_recent = safe_float(row.get("scan_rel_recent_score"))
+    if recent > 20.0:
+        score -= 6.0
+    if rel_recent > 15.0:
+        score -= 3.0
+    return round(score, 4)
+
+
+def classify_promotion_stage(row: pd.Series | dict) -> str:
+    if not bool(row.get("broker_tradeable", True)):
+        return "blocked_broker"
+
+    rec = str(row.get("recommendation") or "")
+    algo_fit = str(row.get("scan_algo_fit") or "")
+    track = str(row.get("scan_candidate_track") or "")
+    heat = safe_int(row.get("scan_entry_heat_flag")) > 0
+    recent = safe_float(row.get("recent_score"))
+    rel_recent = safe_float(row.get("scan_rel_recent_score"))
+    rr_score = safe_float(row.get("scan_rr_score"))
+    score = safe_float(row.get("dynamic_conviction_score"))
+    support_count = max(safe_int(row.get("profile_count"), 1), safe_int(row.get("source_type_count"), 1))
+    full_roi = safe_float(row.get("full_delta_roi_pct"))
+    oos_roi = safe_float(row.get("oos_delta_roi_pct"))
+    full_sharpe = safe_float(row.get("full_delta_sharpe"))
+    oos_sharpe = safe_float(row.get("oos_delta_sharpe"))
+    wf_available = safe_int(row.get("add_wf_available")) == 1
+    wf_mean_roi = safe_float(row.get("add_mean_delta_roi_2017_2025"))
+    wf_mean_sharpe = safe_float(row.get("add_mean_delta_sharpe_2017_2025"))
+    wf_roi_wins = safe_int(row.get("add_roi_wins_2017_2025"))
+    wf_sharpe_wins = safe_int(row.get("add_sharpe_wins_2017_2025"))
+
+    anomaly_like = recent >= 25.0 or rel_recent >= 15.0 or rr_score >= 10.0
+    leader_like = track in {"persistent_leader", "emerging_leader"}
+    strong_add = (
+        rec == "add"
+        and algo_fit == "high"
+        and leader_like
+        and support_count >= 2
+        and score >= 18.0
+        and full_roi > 0.0
+        and oos_roi > 0.0
+        and full_sharpe >= 0.0
+        and oos_sharpe >= 0.0
+    )
+    wf_good = (
+        wf_available
+        and wf_mean_roi >= 0.0
+        and wf_mean_sharpe >= 0.0
+        and wf_roi_wins >= 2
+        and wf_sharpe_wins >= 2
+    )
+
+    if strong_add and not heat and not anomaly_like and wf_good:
+        return "approved_live"
+    if strong_add and not anomaly_like:
+        return "probation_live"
+    if (
+        not anomaly_like
+        and (
+            (rec in {"add", "watch"} and algo_fit == "high" and score >= 18.0 and leader_like)
+            or (algo_fit == "high" and support_count >= 2 and full_roi > 0.0 and score >= 18.0)
+        )
+    ):
+        return "targeted_integration"
+    if str(row.get("dynamic_status") or "") in {"prime_watch", "watch"} or score >= 12.0:
+        return "watch_queue"
+    if str(row.get("dynamic_status") or "") in {"review", "discovered"} or score >= 8.0:
+        return "review_queue"
+    return "reject_queue"
+
+
 def enrich_broker_tradeability(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
@@ -293,8 +439,10 @@ def enrich_broker_tradeability(df: pd.DataFrame) -> pd.DataFrame:
             | out["scan_algo_fit"].fillna("").isin(["high", "medium"])
         )
     )
+    lookup_tickers = out.loc[needs_lookup, "ticker"].dropna().astype(str).unique().tolist()
+    ctx_map = dud.bulk_ticker_context(lookup_tickers)
     for idx, row in out.loc[needs_lookup].iterrows():
-        ctx = dud.ticker_context(str(row.get("ticker") or ""))
+        ctx = ctx_map.get(str(row.get("ticker") or ""), {})
         if pd.isna(out.at[idx, "marketCap"]):
             out.at[idx, "marketCap"] = ctx.get("marketCap")
         if pd.isna(out.at[idx, "exchange"]):
@@ -336,22 +484,78 @@ def aggregate_database(profile_frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
         best["profile_count"] = int(grp["profile"].dropna().astype(str).nunique())
         best["high_fit_profile_count"] = int((grp["scan_algo_fit"].fillna("").astype(str) == "high").sum())
         best["positive_profile_count"] = int(grp["recommendation"].fillna("").astype(str).isin(["add", "watch"]).sum())
-        best["dynamic_conviction_score"] = conviction_score(best)
-        best["dynamic_status"] = classify_dynamic_status(best)
-        best["dynamic_status_rank"] = status_rank(best["dynamic_status"])
         rows.append(best)
 
-    out = pd.DataFrame(rows).sort_values(
-        ["dynamic_status_rank", "dynamic_conviction_score", "recommendation_rank", "scan_algo_compat_score_v2", "scan_algo_compat_score", "recent_score", "priority_score"],
-        ascending=[False, False, False, False, False, False, False],
-    )
-    out = enrich_broker_tradeability(out)
-    out["dynamic_conviction_score"] = out.apply(conviction_score, axis=1)
-    out["dynamic_status"] = out.apply(classify_dynamic_status, axis=1)
+    out = pd.DataFrame(rows)
+    pre_records = out.to_dict("records")
+    pre_scores = []
+    pre_statuses = []
+    for row in pre_records:
+        score = conviction_score(row)
+        row["dynamic_conviction_score"] = score
+        pre_scores.append(score)
+        pre_statuses.append(classify_dynamic_status(row))
+    out["dynamic_conviction_score"] = pre_scores
+    out["dynamic_status"] = pre_statuses
     out["dynamic_status_rank"] = out["dynamic_status"].map(status_rank).fillna(-1)
     out = out.sort_values(
         ["dynamic_status_rank", "dynamic_conviction_score", "recommendation_rank", "scan_algo_compat_score_v2", "scan_algo_compat_score", "recent_score", "priority_score"],
         ascending=[False, False, False, False, False, False, False],
+    )
+    out = enrich_broker_tradeability(out)
+    add_wf_summary = load_promotion_add_wf_summary()
+    if not add_wf_summary.empty:
+        out = out.merge(add_wf_summary, on="ticker", how="left")
+    for col in (
+        "add_wf_available",
+        "add_mean_delta_roi_2017_2025",
+        "add_mean_delta_sharpe_2017_2025",
+        "add_mean_delta_maxdd_2017_2025",
+        "add_roi_wins_2017_2025",
+        "add_sharpe_wins_2017_2025",
+        "add_maxdd_wins_2017_2025",
+        "add_delta_roi_2026_ytd",
+        "add_delta_sharpe_2026_ytd",
+        "add_delta_maxdd_2026_ytd",
+    ):
+        if col not in out.columns:
+            out[col] = 0.0
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
+    records = out.to_dict("records")
+    scores = []
+    statuses = []
+    promotion_scores = []
+    promotion_stages = []
+    for row in records:
+        score = conviction_score(row)
+        row["dynamic_conviction_score"] = score
+        scores.append(score)
+        dynamic_status = classify_dynamic_status(row)
+        row["dynamic_status"] = dynamic_status
+        statuses.append(dynamic_status)
+        pscore = promotion_score(row)
+        row["promotion_score"] = pscore
+        promotion_scores.append(pscore)
+        promotion_stages.append(classify_promotion_stage(row))
+    out["dynamic_conviction_score"] = scores
+    out["dynamic_status"] = statuses
+    out["dynamic_status_rank"] = out["dynamic_status"].map(status_rank).fillna(-1)
+    out["promotion_score"] = promotion_scores
+    out["promotion_stage"] = promotion_stages
+    out["promotion_stage_rank"] = out["promotion_stage"].map(promotion_stage_rank).fillna(-2)
+    out = out.sort_values(
+        [
+            "promotion_stage_rank",
+            "promotion_score",
+            "dynamic_status_rank",
+            "dynamic_conviction_score",
+            "recommendation_rank",
+            "scan_algo_compat_score_v2",
+            "scan_algo_compat_score",
+            "recent_score",
+            "priority_score",
+        ],
+        ascending=[False, False, False, False, False, False, False, False, False],
     )
     out["as_of"] = str(date.today())
     return out
@@ -360,6 +564,7 @@ def aggregate_database(profile_frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
 def write_database_outputs(db: pd.DataFrame) -> dict[str, Path]:
     current_path = DATA_DIR / "dynamic_universe_current.csv"
     approved_path = DATA_DIR / "dynamic_universe_approved_additions.csv"
+    promotion_path = DATA_DIR / "dynamic_universe_promotion_queue.csv"
     summary_path = DATA_DIR / "dynamic_universe_summary.md"
     snapshot_path = HISTORY_DIR / f"dynamic_universe_snapshot_{date.today().isoformat()}.csv"
     selected_adds_path = DATA_DIR / "dynamic_universe_selected_additions.csv"
@@ -368,10 +573,32 @@ def write_database_outputs(db: pd.DataFrame) -> dict[str, Path]:
     db.to_csv(current_path, index=False)
     db.to_csv(snapshot_path, index=False)
 
-    approved = db.loc[db["dynamic_status"] == "approved", ["ticker"]].drop_duplicates().sort_values("ticker")
+    approved = db.loc[db["promotion_stage"] == "approved_live", ["ticker"]].drop_duplicates().sort_values("ticker")
     if approved.empty:
         approved = pd.DataFrame({"ticker": []})
     approved.to_csv(approved_path, index=False)
+    promotion_queue = db.loc[
+        db["promotion_stage"].isin(["approved_live", "probation_live", "targeted_integration"]),
+        [
+            "ticker",
+            "promotion_stage",
+            "promotion_score",
+            "dynamic_status",
+            "recommendation",
+            "scan_algo_fit",
+            "profile_count",
+            "source_type_count",
+            "recent_score",
+            "scan_entry_heat_flag",
+            "full_delta_roi_pct",
+            "oos_delta_roi_pct",
+            "add_mean_delta_roi_2017_2025",
+            "add_mean_delta_sharpe_2017_2025",
+            "add_roi_wins_2017_2025",
+            "add_sharpe_wins_2017_2025",
+        ],
+    ].copy()
+    promotion_queue.to_csv(promotion_path, index=False)
 
     selected_adds = read_optional_csv(selected_adds_path)
     selected_dems = read_optional_csv(selected_dems_path)
@@ -386,12 +613,19 @@ def write_database_outputs(db: pd.DataFrame) -> dict[str, Path]:
         f"- watch: `{int((db['dynamic_status'] == 'watch').sum())}`",
         f"- review: `{int((db['dynamic_status'] == 'review').sum())}`",
         f"- reject: `{int((db['dynamic_status'] == 'reject').sum())}`",
+        f"- approved_live: `{int((db['promotion_stage'] == 'approved_live').sum())}`",
+        f"- probation_live: `{int((db['promotion_stage'] == 'probation_live').sum())}`",
+        f"- targeted_integration: `{int((db['promotion_stage'] == 'targeted_integration').sum())}`",
         f"- selected additions live: `{len(selected_adds) if not selected_adds.empty else 0}`",
         f"- selected demotions live: `{len(selected_dems) if not selected_dems.empty else 0}`",
         "",
-        "## Approved",
+        "## Approved Live",
         "",
         approved.head(50).to_string(index=False) if not approved.empty else "(none)",
+        "",
+        "## Promotion Queue",
+        "",
+        promotion_queue.head(20).to_string(index=False) if not promotion_queue.empty else "(none)",
         "",
         "## Prime watch",
         "",
@@ -421,6 +655,7 @@ def write_database_outputs(db: pd.DataFrame) -> dict[str, Path]:
         db.loc[db["dynamic_status"].isin(["watch", "review"]), [
             "ticker",
             "dynamic_status",
+            "promotion_stage",
             "source_profiles",
             "profile_count",
             "scan_algo_fit",
@@ -436,6 +671,7 @@ def write_database_outputs(db: pd.DataFrame) -> dict[str, Path]:
     return {
         "current": current_path,
         "approved": approved_path,
+        "promotion": promotion_path,
         "summary": summary_path,
         "snapshot": snapshot_path,
     }

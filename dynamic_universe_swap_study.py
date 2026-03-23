@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 import time
 
@@ -18,12 +20,35 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 CANDIDATE_EXPORT = EXPORTS_DIR / "dynamic_universe_swap_candidates.csv"
 DEMOTION_EXPORT = EXPORTS_DIR / "dynamic_universe_swap_demotions.csv"
+PHASE1_EXPORT = EXPORTS_DIR / "dynamic_universe_swap_phase1_summary.csv"
 SWAP_EXPORT = EXPORTS_DIR / "dynamic_universe_swap_single_summary.csv"
 WALK_EXPORT = EXPORTS_DIR / "dynamic_universe_swap_walkforward.csv"
 WALK_SUMMARY_EXPORT = EXPORTS_DIR / "dynamic_universe_swap_walkforward_summary.csv"
 REPORT_PATH = REPORTS_DIR / "DYNAMIC_UNIVERSE_SWAP_STUDY_184.md"
+STATE_PATH = EXPORTS_DIR / "dynamic_universe_swap_state.json"
 SELECTED_ADDS_PATH = ROOT / "data" / "dynamic_universe" / "dynamic_universe_selected_additions.csv"
 SELECTED_DEMS_PATH = ROOT / "data" / "dynamic_universe" / "dynamic_universe_selected_demotions.csv"
+WALK_SHORTLIST_MAX = 4
+PAIR_EVAL_MAX = 16
+HIST_MERGE_FIELDS = (
+    "source_file",
+    "recent_score",
+    "recent_r63",
+    "recent_r126",
+    "recent_r252",
+    "scan_algo_fit",
+    "scan_algo_compat_score",
+    "scan_latest_rank_if_added",
+    "scan_days_top15_if_added",
+    "scan_days_top5_if_added",
+    "recommendation",
+    "full_delta_roi_pct",
+    "oos_delta_roi_pct",
+    "full_delta_sharpe",
+    "oos_delta_sharpe",
+    "full_delta_maxdd_pct",
+    "oos_delta_maxdd_pct",
+)
 
 
 def safe_rank_pct(series: pd.Series, ascending: bool = True) -> pd.Series:
@@ -69,62 +94,22 @@ def aggregate_candidate_sources(base_prices) -> pd.DataFrame:
             .rename(columns={"name": "backtest_name"})
         )
 
-    merged = dyn.merge(
-        hist[
-            [
-                "ticker",
-                "source_file",
-                "recent_score",
-                "recent_r63",
-                "recent_r126",
-                "recent_r252",
-                "scan_algo_fit",
-                "scan_algo_compat_score",
-                "scan_latest_rank_if_added",
-                "scan_days_top15_if_added",
-                "scan_days_top5_if_added",
-                "recommendation",
-                "full_delta_roi_pct",
-                "oos_delta_roi_pct",
-                "full_delta_sharpe",
-                "oos_delta_sharpe",
-                "full_delta_maxdd_pct",
-                "oos_delta_maxdd_pct",
-            ]
-        ]
+    hist_subset = (
+        hist[["ticker", *HIST_MERGE_FIELDS]].rename(columns={name: f"hist_{name}" for name in HIST_MERGE_FIELDS})
         if not hist.empty
-        else pd.DataFrame(columns=["ticker"]),
-        on="ticker",
-        how="outer",
+        else pd.DataFrame(columns=["ticker"])
     )
-
-    for name in (
-        "source_file",
-        "recent_score",
-        "recent_r63",
-        "recent_r126",
-        "recent_r252",
-        "scan_algo_fit",
-        "scan_algo_compat_score",
-        "scan_latest_rank_if_added",
-        "scan_days_top15_if_added",
-        "scan_days_top5_if_added",
-        "recommendation",
-        "full_delta_roi_pct",
-        "oos_delta_roi_pct",
-        "full_delta_sharpe",
-        "oos_delta_sharpe",
-        "full_delta_maxdd_pct",
-        "oos_delta_maxdd_pct",
-    ):
-        left = f"{name}_x"
-        right = f"{name}_y"
-        if left in merged.columns or right in merged.columns:
-            merged[name] = merged.get(left)
-            if name not in merged.columns or merged[name] is None:
-                merged[name] = merged.get(right)
-            else:
-                merged[name] = merged[name].where(merged[name].notna(), merged.get(right))
+    merged = dyn.merge(hist_subset, on="ticker", how="outer")
+    fill_map: dict[str, pd.Series] = {}
+    for name in HIST_MERGE_FIELDS:
+        hist_name = f"hist_{name}"
+        if name in merged.columns and hist_name in merged.columns:
+            fill_map[name] = merged[name].combine_first(merged[hist_name])
+        elif hist_name in merged.columns:
+            fill_map[name] = merged[hist_name]
+    if fill_map:
+        merged = merged.assign(**fill_map)
+    merged = merged.drop(columns=[f"hist_{name}" for name in HIST_MERGE_FIELDS if f"hist_{name}" in merged.columns])
 
     for col in ("is_active", "is_reserve", "is_hard_exclusion"):
         if col not in merged.columns:
@@ -297,6 +282,86 @@ def yearly_windows(end_date: str) -> list[tuple[str, str, str]]:
     return windows
 
 
+def dataframe_signature(df: pd.DataFrame, columns: list[str]) -> str:
+    available = [col for col in columns if col in df.columns]
+    if not available or df.empty:
+        payload = ""
+    else:
+        payload = (
+            df[available]
+            .copy()
+            .fillna("")
+            .astype(str)
+            .sort_values(available)
+            .reset_index(drop=True)
+            .to_csv(index=False)
+        )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def load_cached_state() -> dict:
+    if not STATE_PATH.exists():
+        return {}
+    try:
+        return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def write_cached_state(payload: dict) -> None:
+    STATE_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def phase1_swap_score(row: pd.Series) -> float:
+    return (
+        0.08 * float(row["oos_delta_roi_pct"])
+        + 25.0 * float(row["oos_delta_sharpe"])
+        + 0.02 * float(row["full_delta_roi_pct"])
+        + 10.0 * float(row["full_delta_sharpe"])
+        + 4.0 * float(row["full_delta_maxdd_pct"])
+        + 2.0 * float(row["oos_delta_maxdd_pct"])
+    )
+
+
+def add_phase1_swap_columns(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.copy()
+    out = df.copy()
+    out["phase1_score"] = (
+        0.08 * out["oos_delta_roi_pct"].astype(float)
+        + 25.0 * out["oos_delta_sharpe"].astype(float)
+        + 0.02 * out["full_delta_roi_pct"].astype(float)
+        + 10.0 * out["full_delta_sharpe"].astype(float)
+        + 4.0 * out["full_delta_maxdd_pct"].astype(float)
+        + 2.0 * out["oos_delta_maxdd_pct"].astype(float)
+    )
+    out["phase1_pass"] = (
+        out["recommendation"].isin(["promote", "watch"])
+        & (out["oos_delta_sharpe"] >= -0.02)
+        & (out["oos_delta_maxdd_pct"] > -1.5)
+        & (
+            (out["oos_delta_roi_pct"] > 0)
+            | (
+                (out["full_delta_roi_pct"] > 0)
+                & (out["full_delta_sharpe"] >= 0)
+                & (out["full_delta_maxdd_pct"] > -1.5)
+            )
+        )
+    )
+    return out
+
+
+def select_walkforward_swaps(swap_df: pd.DataFrame, limit: int = WALK_SHORTLIST_MAX) -> pd.DataFrame:
+    if swap_df.empty:
+        return swap_df.copy()
+    phase1 = add_phase1_swap_columns(swap_df)
+    shortlist = phase1.loc[phase1["phase1_pass"]].sort_values(
+        ["phase1_score", "oos_delta_roi_pct", "oos_delta_sharpe", "full_delta_roi_pct"],
+        ascending=[False, False, False, False],
+    )
+    return shortlist.head(limit).copy()
+
+
 def main() -> None:
     t0 = time.time()
     dud.setup_yf_cache(ROOT / ".yf_cache")
@@ -334,16 +399,53 @@ def main() -> None:
     candidates.to_csv(CANDIDATE_EXPORT, index=False)
     print(f"[swap-study] candidate shortlist ready count={len(candidates)}")
 
+    state_payload = {
+        "version": 2,
+        "full_end": full_end,
+        "oos_end": oos_end,
+        "candidate_sig": dataframe_signature(
+            candidates,
+            ["ticker", "dynamic_status", "recommendation", "scan_algo_fit", "recent_score", "oos_delta_roi_pct"],
+        ),
+        "demotion_sig": dataframe_signature(
+            demotions,
+            ["ticker", "dead_score", "retain_score", "latest_rank", "latest_score", "days_top15_trend"],
+        ),
+    }
+    cached_state = load_cached_state()
+    if (
+        cached_state == state_payload
+        and SWAP_EXPORT.exists()
+        and PHASE1_EXPORT.exists()
+        and WALK_EXPORT.exists()
+        and WALK_SUMMARY_EXPORT.exists()
+    ):
+        print("[swap-study] inputs unchanged; reusing cached exports")
+        print(f"[swap-study] completed elapsed_sec={time.time() - t0:.1f}")
+        return
+
     download_start = str(pd.to_datetime(base_prices.close.index.min()).date())
     download_end = str((pd.to_datetime(base_prices.close.index.max()) + pd.Timedelta(days=1)).date())
     candidate_map = dud.download_candidate_data(candidates["ticker"].tolist(), download_start, download_end)
     min_bars_required = int(cfg["min_bars_required"])
     print(f"[swap-study] candidate data downloaded symbols={len(candidate_map)}")
 
+    candidate_rows = list(candidates.itertuples(index=False))
+    demotion_rows = list(demotions.itertuples(index=False))
+    pair_queue: list[tuple[float, object, object]] = []
+    for cand in candidate_rows:
+        cand_priority = float(getattr(cand, "scan_algo_compat_score", 0.0) or 0.0) + 2.0 * float(getattr(cand, "recent_score", 0.0) or 0.0)
+        for rem in demotion_rows:
+            rem_priority = 5.0 * float(getattr(rem, "dead_score", 0.0) or 0.0) - 0.5 * float(getattr(rem, "retain_score", 0.0) or 0.0)
+            pair_queue.append((cand_priority + rem_priority, cand, rem))
+    pair_queue.sort(key=lambda item: item[0], reverse=True)
+    pair_queue = pair_queue[: min(PAIR_EVAL_MAX, len(pair_queue))]
+    print(f"[swap-study] pair budget selected={len(pair_queue)} raw_total={len(candidate_rows) * len(demotion_rows)}")
+
     swap_rows: list[dict] = []
-    total_pairs = int(len(candidates) * len(demotions))
+    total_pairs = int(len(pair_queue))
     pair_idx = 0
-    for cand in candidates.itertuples(index=False):
+    for _pair_score, cand, rem in pair_queue:
         ticker = str(cand.ticker)
         cand_data = candidate_map.get(ticker)
         if cand_data is None:
@@ -353,41 +455,39 @@ def main() -> None:
         if cand_bars < min_bars_required:
             print(f"[swap-study] skip candidate={ticker} reason=bars<{min_bars_required}")
             continue
+        pair_idx += 1
+        removed = str(rem.ticker)
+        print(f"[swap-study] evaluate pair={pair_idx}/{total_pairs} add={ticker} remove={removed}")
+        variant_prices = swap_prices(engine, base_prices, removed, ticker, candidate_map)
+        _, _, full = dud.run_metrics(engine, variant_prices, cfg, pp, full_start, full_end)
+        _, _, oos = dud.run_metrics(engine, variant_prices, cfg, pp, oos_start, oos_end)
 
-        for rem in demotions.itertuples(index=False):
-            pair_idx += 1
-            removed = str(rem.ticker)
-            print(f"[swap-study] evaluate pair={pair_idx}/{total_pairs} add={ticker} remove={removed}")
-            variant_prices = swap_prices(engine, base_prices, removed, ticker, candidate_map)
-            _, _, full = dud.run_metrics(engine, variant_prices, cfg, pp, full_start, full_end)
-            _, _, oos = dud.run_metrics(engine, variant_prices, cfg, pp, oos_start, oos_end)
-
-            row = dud.row_from_run(
-                f"{ticker}_for_{removed}",
-                full,
-                oos,
-                {
-                    "candidate": ticker,
-                    "removed": removed,
-                    "candidate_recent_score": getattr(cand, "recent_score", np.nan),
-                    "candidate_scan_fit": getattr(cand, "scan_algo_fit", ""),
-                    "candidate_scan_compat": getattr(cand, "scan_algo_compat_score", np.nan),
-                    "candidate_hist_reco": getattr(cand, "recommendation", ""),
-                    "removed_latest_rank": float(rem.latest_rank) if pd.notna(rem.latest_rank) else np.nan,
-                    "removed_latest_score": float(rem.latest_score) if pd.notna(rem.latest_score) else np.nan,
-                    "removed_days_top15": int(rem.days_top15_trend),
-                    "removed_realized_pnl_eur": float(rem.realized_pnl_eur),
-                    "removed_buy_count": int(rem.buy_count),
-                    "full_delta_roi_pct": float(full["ROI_%"] - baseline_full["ROI_%"]),
-                    "full_delta_sharpe": float(full["Sharpe"] - baseline_full["Sharpe"]),
-                    "full_delta_maxdd_pct": float(full["MaxDD_%"] - baseline_full["MaxDD_%"]),
-                    "oos_delta_roi_pct": float(oos["ROI_%"] - baseline_oos["ROI_%"]),
-                    "oos_delta_sharpe": float(oos["Sharpe"] - baseline_oos["Sharpe"]),
-                    "oos_delta_maxdd_pct": float(oos["MaxDD_%"] - baseline_oos["MaxDD_%"]),
-                },
-            )
-            row["recommendation"] = recommend_swap(pd.Series(row))
-            swap_rows.append(row)
+        row = dud.row_from_run(
+            f"{ticker}_for_{removed}",
+            full,
+            oos,
+            {
+                "candidate": ticker,
+                "removed": removed,
+                "candidate_recent_score": getattr(cand, "recent_score", np.nan),
+                "candidate_scan_fit": getattr(cand, "scan_algo_fit", ""),
+                "candidate_scan_compat": getattr(cand, "scan_algo_compat_score", np.nan),
+                "candidate_hist_reco": getattr(cand, "recommendation", ""),
+                "removed_latest_rank": float(rem.latest_rank) if pd.notna(rem.latest_rank) else np.nan,
+                "removed_latest_score": float(rem.latest_score) if pd.notna(rem.latest_score) else np.nan,
+                "removed_days_top15": int(rem.days_top15_trend),
+                "removed_realized_pnl_eur": float(rem.realized_pnl_eur),
+                "removed_buy_count": int(rem.buy_count),
+                "full_delta_roi_pct": float(full["ROI_%"] - baseline_full["ROI_%"]),
+                "full_delta_sharpe": float(full["Sharpe"] - baseline_full["Sharpe"]),
+                "full_delta_maxdd_pct": float(full["MaxDD_%"] - baseline_full["MaxDD_%"]),
+                "oos_delta_roi_pct": float(oos["ROI_%"] - baseline_oos["ROI_%"]),
+                "oos_delta_sharpe": float(oos["Sharpe"] - baseline_oos["Sharpe"]),
+                "oos_delta_maxdd_pct": float(oos["MaxDD_%"] - baseline_oos["MaxDD_%"]),
+            },
+        )
+        row["recommendation"] = recommend_swap(pd.Series(row))
+        swap_rows.append(row)
 
     swap_df = pd.DataFrame(swap_rows)
     if swap_df.empty:
@@ -401,10 +501,95 @@ def main() -> None:
         ["reco_priority", "oos_delta_roi_pct", "oos_delta_sharpe", "full_delta_roi_pct", "full_delta_sharpe"],
         ascending=[False, False, False, False, False],
     )
+    phase1_df = add_phase1_swap_columns(swap_df)
+    phase1_df.to_csv(PHASE1_EXPORT, index=False)
     swap_df.to_csv(SWAP_EXPORT, index=False)
 
-    top_walk = swap_df.loc[swap_df["recommendation"].isin(["promote", "watch"])].head(6).copy()
+    top_walk = select_walkforward_swaps(swap_df)
     print(f"[swap-study] walkforward shortlist count={len(top_walk)}")
+    if top_walk.empty:
+        pd.DataFrame(columns=["swap", "candidate", "removed", "window", "delta_roi_pct", "delta_sharpe", "delta_maxdd_pct"]).to_csv(WALK_EXPORT, index=False)
+        pd.DataFrame(
+            columns=[
+                "swap",
+                "mean_delta_roi_2017_2025",
+                "mean_delta_sharpe_2017_2025",
+                "mean_delta_maxdd_2017_2025",
+                "roi_wins_2017_2025",
+                "sharpe_wins_2017_2025",
+                "delta_roi_2026_ytd",
+                "delta_sharpe_2026_ytd",
+                "delta_maxdd_2026_ytd",
+            ]
+        ).to_csv(WALK_SUMMARY_EXPORT, index=False)
+        write_cached_state(state_payload)
+        lines = [
+            "# Dynamic Universe Swap Study (184)",
+            "",
+            "## Candidate shortlist",
+            "",
+            candidates[
+                [
+                    "ticker",
+                    "dynamic_status",
+                    "recommendation",
+                    "scan_algo_fit",
+                    "scan_algo_compat_score",
+                    "recent_score",
+                    "full_delta_roi_pct",
+                    "oos_delta_roi_pct",
+                ]
+            ].to_string(index=False),
+            "",
+            "## Demotion shortlist",
+            "",
+            demotions[
+                [
+                    "ticker",
+                    "retain_score",
+                    "latest_rank",
+                    "latest_score",
+                    "days_top15_trend",
+                    "realized_pnl_eur",
+                    "buy_count",
+                ]
+            ].to_string(index=False),
+            "",
+            "## Top single swaps",
+            "",
+            swap_df[
+                [
+                    "candidate",
+                    "removed",
+                    "recommendation",
+                    "full_delta_roi_pct",
+                    "oos_delta_roi_pct",
+                    "full_delta_sharpe",
+                    "oos_delta_sharpe",
+                    "full_delta_maxdd_pct",
+                    "oos_delta_maxdd_pct",
+                ]
+            ].head(20).to_string(index=False),
+            "",
+            "## Phase 2 walk-forward shortlist",
+            "",
+            "(none)",
+            "",
+            "## Walk-forward summary",
+            "",
+            "(none)",
+        ]
+        REPORT_PATH.write_text("\n".join(lines), encoding="utf-8")
+        print(f"Saved: {CANDIDATE_EXPORT}")
+        print(f"Saved: {DEMOTION_EXPORT}")
+        print(f"Saved: {PHASE1_EXPORT}")
+        print(f"Saved: {SWAP_EXPORT}")
+        print(f"Saved: {WALK_EXPORT}")
+        print(f"Saved: {WALK_SUMMARY_EXPORT}")
+        print(f"Saved: {REPORT_PATH}")
+        print(f"[swap-study] completed elapsed_sec={time.time() - t0:.1f}")
+        return
+
     walk_rows: list[dict] = []
     base_window_metrics = {
         label: dud.run_metrics(engine, base_prices, cfg, pp, win_start, win_end)[2]
@@ -473,6 +658,7 @@ def main() -> None:
             ]
         )
     walk_summary.to_csv(WALK_SUMMARY_EXPORT, index=False)
+    write_cached_state(state_payload)
 
     lines = [
         "# Dynamic Universe Swap Study (184)",
@@ -533,6 +719,21 @@ def main() -> None:
         .head(20)
         .to_string(index=False),
         "",
+        "## Phase 2 walk-forward shortlist",
+        "",
+        top_walk[
+            [
+                "candidate",
+                "removed",
+                "recommendation",
+                "phase1_score",
+                "full_delta_roi_pct",
+                "oos_delta_roi_pct",
+                "full_delta_sharpe",
+                "oos_delta_sharpe",
+            ]
+        ].to_string(index=False) if not top_walk.empty else "(none)",
+        "",
         "## Walk-forward summary",
         "",
         walk_summary.to_string(index=False) if not walk_summary.empty else "(none)",
@@ -541,6 +742,7 @@ def main() -> None:
 
     print(f"Saved: {CANDIDATE_EXPORT}")
     print(f"Saved: {DEMOTION_EXPORT}")
+    print(f"Saved: {PHASE1_EXPORT}")
     print(f"Saved: {SWAP_EXPORT}")
     print(f"Saved: {WALK_EXPORT}")
     print(f"Saved: {WALK_SUMMARY_EXPORT}")
