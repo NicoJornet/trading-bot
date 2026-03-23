@@ -41,6 +41,8 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        test -f portfolio.json || printf '{\n  "cash_eur": 2000.0,\n  "positions": {},\n  "last_updated": null,\n  "last_rebalance_idx": null,\n  "last_rebalance_date": null\n}\n' > portfolio.json
+        test -f trades_history.json || printf '{\n  "trades": []\n}\n' > trades_history.json
         git add portfolio.json trades_history.json data/dynamic_universe
         git diff --staged --quiet || git commit -m "Update live state $(date +'%Y-%m-%d %H:%M')"
         git push
