@@ -637,26 +637,29 @@ def main() -> None:
                     "delta_maxdd_2026_ytd": float(ytd["delta_maxdd_pct"].iloc[0]) if not ytd.empty else np.nan,
                 }
             )
+    walk_summary_cols = [
+        "swap",
+        "mean_delta_roi_2017_2025",
+        "mean_delta_sharpe_2017_2025",
+        "mean_delta_maxdd_2017_2025",
+        "roi_wins_2017_2025",
+        "sharpe_wins_2017_2025",
+        "delta_roi_2026_ytd",
+        "delta_sharpe_2026_ytd",
+        "delta_maxdd_2026_ytd",
+    ]
     walk_summary = pd.DataFrame(summary_rows)
-    if not walk_summary.empty:
-        walk_summary = walk_summary.sort_values(
-            ["mean_delta_sharpe_2017_2025", "mean_delta_roi_2017_2025", "delta_roi_2026_ytd"],
-            ascending=[False, False, False],
-        )
-    else:
-        walk_summary = pd.DataFrame(
-            columns=[
-                "swap",
-                "mean_delta_roi_2017_2025",
-                "mean_delta_sharpe_2017_2025",
-                "mean_delta_maxdd_2017_2025",
-                "roi_wins_2017_2025",
-                "sharpe_wins_2017_2025",
-                "delta_roi_2026_ytd",
-                "delta_sharpe_2026_ytd",
-                "delta_maxdd_2026_ytd",
-            ]
-        )
+    for col in walk_summary_cols:
+        if col not in walk_summary.columns:
+            walk_summary[col] = np.nan
+    walk_summary = walk_summary[walk_summary_cols]
+    sort_cols = [
+        "mean_delta_sharpe_2017_2025",
+        "mean_delta_roi_2017_2025",
+        "delta_roi_2026_ytd",
+    ]
+    if not walk_summary.empty and all(col in walk_summary.columns for col in sort_cols):
+        walk_summary = walk_summary.sort_values(sort_cols, ascending=[False, False, False])
     walk_summary.to_csv(WALK_SUMMARY_EXPORT, index=False)
     write_cached_state(state_payload)
 
