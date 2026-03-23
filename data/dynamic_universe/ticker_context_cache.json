@@ -1,0 +1,569 @@
+{
+  "AAOI": {
+    "exchange": "NGM",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 7438170624,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "AAOI"
+  },
+  "ACN": {
+    "exchange": "NYQ",
+    "industry": "Information Technology Services",
+    "industryKey": "information-technology-services",
+    "marketCap": 124095987712,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "ACN"
+  },
+  "ADP": {
+    "exchange": "NMS",
+    "industry": "Software - Application",
+    "industryKey": "software-application",
+    "marketCap": 84816945152,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "ADP"
+  },
+  "ADSK": {
+    "exchange": "NMS",
+    "industry": "Software - Application",
+    "industryKey": "software-application",
+    "marketCap": 52457279488,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "ADSK"
+  },
+  "ADTN": {
+    "exchange": "NMS",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 973561920,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "ADTN"
+  },
+  "AME": {
+    "exchange": "NYQ",
+    "industry": "Specialty Industrial Machinery",
+    "industryKey": "specialty-industrial-machinery",
+    "marketCap": 48731377664,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "AME"
+  },
+  "AMPX": {
+    "exchange": "NYQ",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 2436133376,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "AMPX"
+  },
+  "BE": {
+    "exchange": "NYQ",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 39682146304,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "BE"
+  },
+  "CIEN": {
+    "exchange": "NYQ",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 57758113792,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "CIEN"
+  },
+  "COHR": {
+    "exchange": "NYQ",
+    "industry": "Scientific & Technical Instruments",
+    "industryKey": "scientific-technical-instruments",
+    "marketCap": 47821934592,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "COHR"
+  },
+  "CSCO": {
+    "exchange": "NMS",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 311484547072,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "CSCO"
+  },
+  "CSX": {
+    "exchange": "NMS",
+    "industry": "Railroads",
+    "industryKey": "railroads",
+    "marketCap": 72411136000,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "CSX"
+  },
+  "CTAS": {
+    "exchange": "NMS",
+    "industry": "Specialty Business Services",
+    "industryKey": "specialty-business-services",
+    "marketCap": 72489787392,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "CTAS"
+  },
+  "DAL": {
+    "exchange": "NYQ",
+    "industry": "Airlines",
+    "industryKey": "airlines",
+    "marketCap": 42548195328,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "DAL"
+  },
+  "DELL": {
+    "exchange": "NYQ",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 109105217536,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "DELL"
+  },
+  "EME": {
+    "exchange": "NYQ",
+    "industry": "Engineering & Construction",
+    "industryKey": "engineering-construction",
+    "marketCap": 33344749568,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "EME"
+  },
+  "EOSE": {
+    "exchange": "NCM",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 1812579072,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "EOSE"
+  },
+  "EXTR": {
+    "exchange": "NMS",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 2036868864,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "EXTR"
+  },
+  "FDX": {
+    "exchange": "NYQ",
+    "industry": "Integrated Freight & Logistics",
+    "industryKey": "integrated-freight-logistics",
+    "marketCap": 83945873408,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "FDX"
+  },
+  "FERG": {
+    "exchange": "NYQ",
+    "industry": "Industrial Distribution",
+    "industryKey": "industrial-distribution",
+    "marketCap": 44663779328,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "FERG"
+  },
+  "FIEE": {
+    "exchange": "NCM",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 44480972,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "FIEE"
+  },
+  "FIX": {
+    "exchange": "NYQ",
+    "industry": "Engineering & Construction",
+    "industryKey": "engineering-construction",
+    "marketCap": 49674547200,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "FIX"
+  },
+  "GEV": {
+    "exchange": "NYQ",
+    "industry": "Specialty Industrial Machinery",
+    "industryKey": "specialty-industrial-machinery",
+    "marketCap": 239603073024,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "GEV"
+  },
+  "GLW": {
+    "exchange": "NYQ",
+    "industry": "Electronic Components",
+    "industryKey": "electronic-components",
+    "marketCap": 112481280000,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "GLW"
+  },
+  "GWW": {
+    "exchange": "NYQ",
+    "industry": "Industrial Distribution",
+    "industryKey": "industrial-distribution",
+    "marketCap": 49981333504,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "GWW"
+  },
+  "HEI-A": {
+    "exchange": "NYQ",
+    "industry": "Aerospace & Defense",
+    "industryKey": "aerospace-defense",
+    "marketCap": 33957701632,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "HEI-A"
+  },
+  "HLIT": {
+    "exchange": "NMS",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 1037594816,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "HLIT"
+  },
+  "IBM": {
+    "exchange": "NYQ",
+    "industry": "Information Technology Services",
+    "industryKey": "information-technology-services",
+    "marketCap": 233199353856,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "IBM"
+  },
+  "INTC": {
+    "exchange": "NMS",
+    "industry": "Semiconductors",
+    "industryKey": "semiconductors",
+    "marketCap": 219837792256,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "INTC"
+  },
+  "IR": {
+    "exchange": "NYQ",
+    "industry": "Specialty Industrial Machinery",
+    "industryKey": "specialty-industrial-machinery",
+    "marketCap": 32517586944,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "IR"
+  },
+  "ITW": {
+    "exchange": "NYQ",
+    "industry": "Specialty Industrial Machinery",
+    "industryKey": "specialty-industrial-machinery",
+    "marketCap": 75724546048,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "ITW"
+  },
+  "JCI": {
+    "exchange": "NYQ",
+    "industry": "Building Products & Equipment",
+    "industryKey": "building-products-equipment",
+    "marketCap": 81594540032,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "JCI"
+  },
+  "KEYS": {
+    "exchange": "NYQ",
+    "industry": "Scientific & Technical Instruments",
+    "industryKey": "scientific-technical-instruments",
+    "marketCap": 49589215232,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "KEYS"
+  },
+  "LITE": {
+    "exchange": "NMS",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 52047032320,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "LITE"
+  },
+  "MMM": {
+    "exchange": "NYQ",
+    "industry": "Conglomerates",
+    "industryKey": "conglomerates",
+    "marketCap": 77182615552,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "MMM"
+  },
+  "MPWR": {
+    "exchange": "NMS",
+    "industry": "Semiconductors",
+    "industryKey": "semiconductors",
+    "marketCap": 52868157440,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "MPWR"
+  },
+  "MSI": {
+    "exchange": "NYQ",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 76072329216,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "MSI"
+  },
+  "NDBI": {
+    "exchange": "OID",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": null,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "NDBI"
+  },
+  "NSC": {
+    "exchange": "NYQ",
+    "industry": "Railroads",
+    "industryKey": "railroads",
+    "marketCap": 63989555200,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "NSC"
+  },
+  "NTGR": {
+    "exchange": "NMS",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 626564800,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "NTGR"
+  },
+  "NVT": {
+    "exchange": "NYQ",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 19580588032,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "NVT"
+  },
+  "ODFL": {
+    "exchange": "NMS",
+    "industry": "Trucking",
+    "industryKey": "trucking",
+    "marketCap": 39247773696,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "ODFL"
+  },
+  "OSS": {
+    "exchange": "NCM",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 225787680,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "OSS"
+  },
+  "PCAR": {
+    "exchange": "NMS",
+    "industry": "Farm & Heavy Construction Machinery",
+    "industryKey": "farm-heavy-construction-machinery",
+    "marketCap": 60120252416,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "PCAR"
+  },
+  "POWL": {
+    "exchange": "NMS",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 6588281856,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "POWL"
+  },
+  "PSTG": {
+    "exchange": "NYQ",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 21282863104,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "PSTG"
+  },
+  "RFIL": {
+    "exchange": "NGM",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 113766096,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "RFIL"
+  },
+  "ROK": {
+    "exchange": "NYQ",
+    "industry": "Specialty Industrial Machinery",
+    "industryKey": "specialty-industrial-machinery",
+    "marketCap": 40218472448,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "ROK"
+  },
+  "RSG": {
+    "exchange": "NYQ",
+    "industry": "Waste Management",
+    "industryKey": "waste-management",
+    "marketCap": 67088621568,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "RSG"
+  },
+  "SNDK": {
+    "exchange": "NMS",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 103672709120,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "SNDK"
+  },
+  "SNOW": {
+    "exchange": "NYQ",
+    "industry": "Software - Application",
+    "industryKey": "software-application",
+    "marketCap": 59611238400,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "SNOW"
+  },
+  "SNPS": {
+    "exchange": "NMS",
+    "industry": "Software - Infrastructure",
+    "industryKey": "software-infrastructure",
+    "marketCap": 82846752768,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "SNPS"
+  },
+  "STX": {
+    "exchange": "NMS",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 90510729216,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "STX"
+  },
+  "TEL": {
+    "exchange": "NYQ",
+    "industry": "Electronic Components",
+    "industryKey": "electronic-components",
+    "marketCap": 58955137024,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "TEL"
+  },
+  "ULBI": {
+    "exchange": "NGM",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 109050608,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "ULBI"
+  },
+  "UNP": {
+    "exchange": "NYQ",
+    "industry": "Railroads",
+    "industryKey": "railroads",
+    "marketCap": 141476397056,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "UNP"
+  },
+  "UPS": {
+    "exchange": "NYQ",
+    "industry": "Integrated Freight & Logistics",
+    "industryKey": "integrated-freight-logistics",
+    "marketCap": 82940256256,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "UPS"
+  },
+  "URI": {
+    "exchange": "NYQ",
+    "industry": "Rental & Leasing Services",
+    "industryKey": "rental-leasing-services",
+    "marketCap": 46589358080,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "URI"
+  },
+  "VIAV": {
+    "exchange": "NMS",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 7776995840,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "VIAV"
+  },
+  "WAB": {
+    "exchange": "NYQ",
+    "industry": "Railroads",
+    "industryKey": "railroads",
+    "marketCap": 41332318208,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "WAB"
+  },
+  "WATT": {
+    "exchange": "NCM",
+    "industry": "Communication Equipment",
+    "industryKey": "communication-equipment",
+    "marketCap": 40936248,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "WATT"
+  },
+  "WCN": {
+    "exchange": "NYQ",
+    "industry": "Waste Management",
+    "industryKey": "waste-management",
+    "marketCap": 41494339584,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "WCN"
+  },
+  "WDC": {
+    "exchange": "NMS",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 100788494336,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "WDC"
+  }
+}

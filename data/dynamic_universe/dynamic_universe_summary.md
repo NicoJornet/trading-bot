@@ -1,23 +1,35 @@
 # Dynamic Universe Summary
 
-- as_of: `2026-03-22`
-- total rows: `1031`
+- as_of: `2026-03-23`
+- total rows: `118`
 - approved: `0`
-- prime_watch: `1`
-- watch: `5`
-- review: `36`
-- reject: `10`
+- prime_watch: `0`
+- watch: `4`
+- review: `9`
+- reject: `7`
+- approved_live: `0`
+- probation_live: `0`
+- targeted_integration: `4`
 - selected additions live: `0`
 - selected demotions live: `1`
 
-## Approved
+## Approved Live
 
 (none)
 
+## Promotion Queue
+
+ticker      promotion_stage  promotion_score dynamic_status recommendation scan_algo_fit  profile_count  source_type_count  recent_score  scan_entry_heat_flag  full_delta_roi_pct  oos_delta_roi_pct  add_mean_delta_roi_2017_2025  add_mean_delta_sharpe_2017_2025  add_roi_wins_2017_2025  add_sharpe_wins_2017_2025
+   FIX targeted_integration        1897.5921          watch          watch          high              1                  1      1.591721                   0.0        43235.979822        1496.903713                           0.0                              0.0                     0.0                        0.0
+   STX targeted_integration        1863.1270          watch          watch          high              1                  3      1.835782                   0.0        42114.703362        1587.272168                           0.0                              0.0                     0.0                        0.0
+  COHR targeted_integration        1802.4059          watch          watch          high              1                  1      1.710384                   0.0        40883.901786        1485.702430                           0.0                              0.0                     0.0                        0.0
+  CIEN targeted_integration        1753.6652          watch          watch          high              1                  1      3.056258                   1.0        39586.897047        1496.903713                           0.0                              0.0                     0.0                        0.0
+
 ## Prime watch
 
-ticker                                source_profiles  profile_count scan_algo_fit  scan_algo_compat_score_v2  recent_score  dynamic_conviction_score recommendation  full_delta_roi_pct  oos_delta_roi_pct
-  CIEN broad_diversified|broad_focus|targeted_current              3          high                  12.041176       2.82363                   24.4113          watch         74523.06768                0.0
+Empty DataFrame
+Columns: [ticker, source_profiles, profile_count, scan_algo_fit, scan_algo_compat_score_v2, recent_score, dynamic_conviction_score, recommendation, full_delta_roi_pct, oos_delta_roi_pct]
+Index: []
 
 ## Selected live overlay
 
@@ -30,34 +42,17 @@ ticker
 
 ## Top watch/review
 
-ticker dynamic_status                                source_profiles  profile_count scan_algo_fit  scan_algo_compat_score_v2  recent_score  dynamic_conviction_score recommendation  full_delta_roi_pct  oos_delta_roi_pct
-    PL          watch                              broad_diversified              1          high                  11.606531      2.672605                   21.9067          watch         8412.364203         121.973635
-   FIX          watch broad_diversified|broad_focus|targeted_current              3        medium                   9.482014      1.669678                   16.7445          watch       -58461.873194          13.314048
-  VIAV          watch broad_diversified|broad_focus|targeted_current              3        medium                   8.394594      1.592859                   14.1658            NaN                 NaN                NaN
-  SKYT          watch                  broad_diversified|broad_focus              2        medium                   8.562287      1.584450                   13.8945            NaN                 NaN                NaN
-   GLW          watch broad_diversified|broad_focus|targeted_current              3        medium                   7.532719      1.063287                   12.9528            NaN                 NaN                NaN
-   GEV         review broad_diversified|broad_focus|targeted_current              3        medium                   7.634194      0.842142                   13.3672            NaN                 NaN                NaN
-  KEYS         review broad_diversified|broad_focus|targeted_current              3        medium                   7.158241      0.671178                   12.4765            NaN                 NaN                NaN
-  WATT         review broad_diversified|broad_focus|targeted_current              3        medium                   8.064956      0.686950                   12.1800            NaN                 NaN                NaN
-   WBD         review                              broad_diversified              1        medium                   7.506545      0.827458                   12.0114            NaN                 NaN                NaN
-    PR         review                              broad_diversified              1        medium                   7.147287      0.434747                   11.0893            NaN                 NaN                NaN
-   APA         review                              broad_diversified              1        medium                   7.028828      0.618324                   10.9527            NaN                 NaN                NaN
-    CF         review                              broad_diversified              1           low                   6.649140      0.570666                    9.5250            NaN                 NaN                NaN
-   EME         review broad_diversified|broad_focus|targeted_current              3           low                   5.663282      0.459909                    9.4210            NaN                 NaN                NaN
-  INTC         review broad_diversified|broad_focus|targeted_current              3          weak                   4.923559      0.654007                    9.4069            NaN                 NaN                NaN
-  DELL         review broad_diversified|broad_focus|targeted_current              3           low                   5.654451      0.307247                    9.2735            NaN                 NaN                NaN
-   EQT         review                              broad_diversified              1           low                   6.438177      0.230770                    9.2153            NaN                 NaN                NaN
-    AR         review                              broad_diversified              1           low                   6.199825      0.170534                    9.1018            NaN                 NaN                NaN
-  QUIK         review                  broad_diversified|broad_focus              2           low                   5.860432      0.538381                    8.8591            NaN                 NaN                NaN
-  FANG         review                              broad_diversified              1           low                   5.874247      0.290169                    8.4531            NaN                 NaN                NaN
-    SM         review                              broad_diversified              1           low                   5.312403      0.043535                    8.3993            NaN                 NaN                NaN
-  ULBI         review broad_diversified|broad_focus|targeted_current              3           low                   5.179938      0.098263                    8.3167            NaN                 NaN                NaN
-   FDX         review broad_diversified|broad_focus|targeted_current              3          weak                   4.682831      0.433415                    8.2860            NaN                 NaN                NaN
-  MPWR         review broad_diversified|broad_focus|targeted_current              3          weak                   4.881654      0.399779                    7.7759            NaN                 NaN                NaN
-   JCI         review broad_diversified|broad_focus|targeted_current              3          weak                   4.011281      0.385519                    7.6557            NaN                 NaN                NaN
-   NVT         review broad_diversified|broad_focus|targeted_current              3          weak                   4.252142      0.582970                    7.2995            NaN                 NaN                NaN
-  GOOG         review                              broad_diversified              1          weak                   4.796149      0.420906                    7.2110            NaN                 NaN                NaN
-   CSX         review broad_diversified|broad_focus|targeted_current              3          weak                   4.816702      0.224343                    7.0830            NaN                 NaN                NaN
-   GWW         review broad_diversified|broad_focus|targeted_current              3          weak                   4.470815      0.052161                    6.7840            NaN                 NaN                NaN
-  ODFL         review broad_diversified|broad_focus|targeted_current              3          weak                   4.054709      0.168225                    6.7398            NaN                 NaN                NaN
-  CTRA         review                              broad_diversified              1          weak                   4.924670      0.275578                    6.7130            NaN                 NaN                NaN
+ticker dynamic_status      promotion_stage  source_profiles  profile_count scan_algo_fit  scan_algo_compat_score_v2  recent_score  dynamic_conviction_score recommendation  full_delta_roi_pct  oos_delta_roi_pct
+   FIX          watch targeted_integration targeted_current              1          high                   9.989910      1.591721                   18.4625          watch        43235.979822        1496.903713
+   STX          watch targeted_integration targeted_current              1          high                   9.979108      1.835782                   19.8116          watch        42114.703362        1587.272168
+  COHR          watch targeted_integration targeted_current              1          high                   9.812128      1.710384                   18.4796          watch        40883.901786        1485.702430
+  CIEN          watch targeted_integration targeted_current              1          high                  11.242698      3.056258                   21.2989          watch        39586.897047        1496.903713
+   GEV         review          watch_queue targeted_current              1        medium                   8.605834      0.890869                   12.8388            NaN                 NaN                NaN
+   GLW         review         review_queue targeted_current              1        medium                   7.760347      1.038459                   11.6385            NaN                 NaN                NaN
+  KEYS         review         review_queue targeted_current              1        medium                   7.134175      0.684453                   10.4927            NaN                 NaN                NaN
+  DELL         review         review_queue targeted_current              1           low                   6.017523      0.432724                    8.6453            NaN                 NaN                NaN
+  MPWR         review         review_queue targeted_current              1           low                   5.737102      0.408379                    7.8846            NaN                 NaN                NaN
+   FDX         review         review_queue targeted_current              1          weak                   4.979911      0.439872                    6.6408            NaN                 NaN                NaN
+  INTC         review         review_queue targeted_current              1          weak                   4.581969      0.572469                    6.2956            NaN                 NaN                NaN
+   CSX         review         review_queue targeted_current              1          weak                   4.999233      0.204561                    6.1569            NaN                 NaN                NaN
+   GWW         review         review_queue targeted_current              1          weak                   4.855966      0.067730                    6.1096            NaN                 NaN                NaN
