@@ -1,6 +1,6 @@
 {
-  "chosen_on": "2026-03-19",
-  "label": "best_algo_184_lite_reserve33_cd29",
+  "chosen_on": "2026-03-23",
+  "label": "best_algo_184_engine_champion_r2",
   "master_universe": "219 tickers",
   "base_universe": "184 active tickers = 219 master - 2 hard exclusions - 33 reserve",
   "notes": [
@@ -8,7 +8,8 @@
     "33 structural deadwood names moved to reserve with zero historical impact on the baseline.",
     "Full walk-forward versus BEST_ALGO_183 completed: only 2019 and 2025 change materially, with 2025 and 2026 YTD improving and 2019 showing a small giveback.",
     "Guard ablation found that most protective layers are either essential or inactive; the only clean performance lever was shortening the fragile-cluster reentry cooldown from 42 to 29 trading days.",
-    "A live migration overlay now releases only the weakest held loss-cluster name when it has clearly fallen behind and a new raw top-3 leader is already present; this changes the current live basket without changing historical backtest metrics through 2026-03-18."
+    "A live migration overlay now releases only the weakest held loss-cluster name when it has clearly fallen behind and a new raw top-3 leader is already present; this changes the current live basket without changing historical backtest metrics through 2026-03-18.",
+    "The iterative improvement engine found a better champion by combining a tighter leader weight cap (0.55) with a slightly stricter tail-veto ATR threshold (0.055)."
   ],
   "hard_exclusions": [
     "MRNA",
@@ -110,7 +111,7 @@
     "leader_persist_min": 0.3,
     "leader_persist_win": 10,
     "leader_topk": 3,
-    "leader_w_cap": 0.5,
+    "leader_w_cap": 0.55,
     "loss_cluster_guard_enable": 1,
     "loss_cluster_max_per_cluster": 1,
     "loss_clusters": [
@@ -162,7 +163,7 @@
     "slot3_max_rank": 4,
     "sma_win": 220,
     "tailcap_enable": 0,
-    "tailveto_atrp_th": 0.05,
+    "tailveto_atrp_th": 0.055,
     "tailveto_enable": 1,
     "tailveto_risk_set": [
       "RKLB",
@@ -199,34 +200,42 @@
     "full_period": {
       "start": "2015-01-02",
       "end": "2026-03-18",
-      "ROI_%": 654839.33267,
-      "CAGR_%": 119.052944,
-      "MaxDD_%": -42.215971,
-      "Sharpe": 1.999646,
-      "Orders": 562
+      "ROI_%": 689193.978277,
+      "CAGR_%": 120.054612,
+      "MaxDD_%": -42.966791,
+      "Sharpe": 2.001814,
+      "Orders": 566
     },
     "oos_2022_2026": {
       "start": "2022-01-03",
       "end": "2026-03-18",
-      "ROI_%": 9260.680334,
-      "CAGR_%": 194.488558,
-      "MaxDD_%": -31.587633,
-      "Sharpe": 2.901942,
-      "Orders": 221
+      "ROI_%": 10411.331572,
+      "CAGR_%": 202.72562,
+      "MaxDD_%": -29.971737,
+      "Sharpe": 2.918335,
+      "Orders": 226
     },
     "walkforward": {
       "status": "completed",
-      "comparison": "vol-managed confirm-all top2 overlay vs prior 29d cooldown baseline",
+      "comparison": "iterative champion engine vs prior BEST_ALGO_184 baseline",
       "years": "2017-2025",
-      "mean_delta_ROI_%": 4.079915,
+      "mean_delta_ROI_%": 9.452597,
       "mean_delta_CAGR_%": 0.0,
-      "mean_delta_MaxDD_%": 0.0,
-      "mean_delta_Sharpe": 0.017449,
-      "ROI_wins": 2,
-      "Sharpe_wins": 2,
-      "MaxDD_wins": 0,
+      "mean_delta_MaxDD_%": 0.947217,
+      "mean_delta_Sharpe": 0.068097,
+      "ROI_wins": 7,
+      "Sharpe_wins": 8,
+      "MaxDD_wins": 7,
       "total_years": 9,
-      "changed_years": [],
+      "changed_years": [
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2022",
+        "2023",
+        "2025"
+      ],
       "ytd_2026_delta_ROI_%": 0.0,
       "ytd_2026_delta_CAGR_%": 0.0,
       "ytd_2026_delta_MaxDD_%": 0.0,
