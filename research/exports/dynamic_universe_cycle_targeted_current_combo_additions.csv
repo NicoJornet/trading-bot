@@ -1,0 +1,2 @@
+name,full_roi_pct,full_cagr_pct,full_maxdd_pct,full_sharpe,full_orders,oos_roi_pct,oos_cagr_pct,oos_maxdd_pct,oos_sharpe,oos_orders,members,full_delta_roi_pct,full_delta_sharpe,full_delta_maxdd_pct,oos_delta_roi_pct,oos_delta_sharpe,oos_delta_maxdd_pct,tested_as_of,test_reused,retest_reason
+FIX+STX,45702.095385328605,72.76324364234897,-44.92230375902515,1.6510310958614118,618,1588.9857831762035,95.93454199424694,-28.81087502934071,2.1423985052705636,215,"FIX,STX",45691.24221488486,,55.07769624097485,1587.2721676499834,,71.1891249706593,2026-03-24,0,member_retested_or_new
