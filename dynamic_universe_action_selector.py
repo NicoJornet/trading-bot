@@ -31,11 +31,62 @@ SUMMARY_PATH = DATA_DIR / "dynamic_universe_actions_summary.md"
 
 BROKER_MIN_MARKET_CAP = 1_000_000_000
 
+SINGLE_DEFAULTS = {
+    "candidate": "",
+    "removed": "",
+    "selection_status": "",
+    "selection_score": 0.0,
+    "full_delta_roi_pct": 0.0,
+    "oos_delta_roi_pct": 0.0,
+    "mean_delta_roi_2017_2025": 0.0,
+    "mean_delta_sharpe_2017_2025": 0.0,
+}
+COMBO_DEFAULTS = {
+    "combo": "",
+    "selection_status": "",
+    "selection_score": 0.0,
+    "full_delta_roi_pct": 0.0,
+    "oos_delta_roi_pct": 0.0,
+    "mean_delta_roi_2017_2025": 0.0,
+    "mean_delta_sharpe_2017_2025": 0.0,
+    "strict_reco": False,
+}
+ADD_DEFAULTS = {
+    "ticker": "",
+    "selection_status": "",
+    "selection_score": 0.0,
+    "promotion_stage": "",
+    "dynamic_status": "",
+    "profile_count": 0.0,
+    "scan_algo_fit": "",
+    "scan_algo_compat_score": 0.0,
+    "scan_algo_compat_score_v2": 0.0,
+    "recent_score": 0.0,
+}
+REMOVE_DEFAULTS = {
+    "ticker": "",
+    "selection_status": "",
+    "selection_score": 0.0,
+    "dead_score": 0.0,
+    "full_delta_roi_pct": 0.0,
+    "oos_delta_roi_pct": 0.0,
+    "mean_delta_roi_2017_2025": 0.0,
+    "mean_delta_sharpe_2017_2025": 0.0,
+}
+
 
 def read_optional_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     return pd.read_csv(path)
+
+
+def ensure_columns(df: pd.DataFrame, defaults: dict[str, object]) -> pd.DataFrame:
+    out = df.copy()
+    for col, default in defaults.items():
+        if col not in out.columns:
+            out[col] = default
+    return out
 
 
 def resolve_broker_tradeability(tickers: set[str]) -> dict[str, bool]:
@@ -129,7 +180,7 @@ def build_single_actions() -> pd.DataFrame:
         dedupe_cols = ["candidate", "removed"] if {"candidate", "removed"}.issubset(walk.columns) else ["swap"]
         walk = walk.drop_duplicates(dedupe_cols, keep="first")
     if single.empty or walk.empty:
-        return pd.DataFrame()
+        return ensure_columns(pd.DataFrame(), SINGLE_DEFAULTS)
     if "candidate" not in walk.columns or "removed" not in walk.columns:
         parsed = walk.get("swap", pd.Series(dtype=str)).fillna("").astype(str).str.split("_for_", n=1, expand=True)
         if not parsed.empty and parsed.shape[1] == 2:
@@ -163,17 +214,18 @@ def build_single_actions() -> pd.DataFrame:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
     df["selection_status"] = df.apply(classify_single, axis=1)
     df["selection_score"] = df.apply(single_score, axis=1)
-    return df.sort_values(
+    df = df.sort_values(
         ["selection_status", "selection_score", "oos_delta_roi_pct", "full_delta_roi_pct"],
         ascending=[False, False, False, False],
     )
+    return ensure_columns(df, SINGLE_DEFAULTS)
 
 
 def build_combo_actions() -> pd.DataFrame:
     combo = read_optional_csv(COMBO_PATH)
     walk = read_optional_csv(COMBO_WALK_PATH)
     if combo.empty or walk.empty:
-        return pd.DataFrame()
+        return ensure_columns(pd.DataFrame(), COMBO_DEFAULTS)
 
     df = combo.merge(
         walk[
@@ -200,16 +252,17 @@ def build_combo_actions() -> pd.DataFrame:
         df["strict_reco"] = False
     df["selection_status"] = df.apply(classify_combo, axis=1)
     df["selection_score"] = df.apply(combo_score, axis=1)
-    return df.sort_values(
+    df = df.sort_values(
         ["selection_status", "selection_score", "oos_delta_roi_pct", "full_delta_roi_pct"],
         ascending=[False, False, False, False],
     )
+    return ensure_columns(df, COMBO_DEFAULTS)
 
 
 def build_dynamic_add_actions() -> pd.DataFrame:
     db = read_optional_csv(DB_PATH)
     if db.empty:
-        return pd.DataFrame()
+        return ensure_columns(pd.DataFrame(), ADD_DEFAULTS)
     if "scan_algo_compat_score_v2" not in db.columns:
         db["scan_algo_compat_score_v2"] = db.get("scan_algo_compat_score", 0.0)
     for col in ("dynamic_conviction_score", "recent_score", "scan_algo_compat_score", "scan_algo_compat_score_v2", "profile_count"):
@@ -229,16 +282,17 @@ def build_dynamic_add_actions() -> pd.DataFrame:
     else:
         out["selection_status"] = out["dynamic_status"].map({"approved": "approved_add", "prime_watch": "watch_add", "watch": "watch_add"}).fillna("reject_add")
     out["selection_score"] = pd.to_numeric(out.get("promotion_score", out["dynamic_conviction_score"]), errors="coerce").fillna(out["dynamic_conviction_score"])
-    return out.sort_values(
+    out = out.sort_values(
         ["selection_status", "selection_score", "scan_algo_compat_score_v2", "recent_score", "scan_algo_compat_score"],
         ascending=[False, False, False, False, False],
     )
+    return ensure_columns(out, ADD_DEFAULTS)
 
 
 def build_standalone_remove_actions() -> pd.DataFrame:
     df = read_optional_csv(STANDALONE_REMOVE_PATH)
     if df.empty:
-        return pd.DataFrame()
+        return ensure_columns(pd.DataFrame(), REMOVE_DEFAULTS)
     for col in (
         "selection_score",
         "full_delta_roi_pct",
@@ -250,10 +304,11 @@ def build_standalone_remove_actions() -> pd.DataFrame:
         if col not in df.columns:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-    return df.sort_values(
+    df = df.sort_values(
         ["selection_status", "selection_score", "oos_delta_roi_pct", "full_delta_roi_pct"],
         ascending=[False, False, False, False],
     )
+    return ensure_columns(df, REMOVE_DEFAULTS)
 
 
 def parse_combo_moves(combo_label: str) -> list[tuple[str, str]]:
