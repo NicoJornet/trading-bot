@@ -1,11 +1,11 @@
 # Dynamic Universe Summary
 
-- as_of: `2026-03-24`
-- total rows: `116`
+- as_of: `2026-03-25`
+- total rows: `117`
 - approved: `0`
 - prime_watch: `0`
-- watch: `7`
-- review: `6`
+- watch: `5`
+- review: `9`
 - reject: `6`
 - approved_live: `0`
 - probation_live: `0`
@@ -20,10 +20,10 @@
 ## Promotion Queue
 
 ticker      promotion_stage  promotion_score dynamic_status recommendation scan_algo_fit  profile_count  source_type_count  recent_score  scan_entry_heat_flag  full_delta_roi_pct  oos_delta_roi_pct  add_mean_delta_roi_2017_2025  add_mean_delta_sharpe_2017_2025  add_roi_wins_2017_2025  add_sharpe_wins_2017_2025
-   FIX targeted_integration        1897.5921          watch          watch          high              1                  1      1.591574                   0.0        43235.979822        1496.903713                           0.0                              0.0                     0.0                        0.0
-   STX targeted_integration        1863.1270          watch          watch          high              1                  3      1.835782                   0.0        42114.703362        1587.272168                           0.0                              0.0                     0.0                        0.0
-  COHR targeted_integration        1802.4095          watch          watch          high              1                  1      1.710119                   0.0        40883.901786        1485.702430                           0.0                              0.0                     0.0                        0.0
-  CIEN targeted_integration        1753.6346          watch          watch          high              1                  1      3.052383                   1.0        39586.897047        1496.903713                           0.0                              0.0                     0.0                        0.0
+   FIX targeted_integration        1897.7817          watch          watch          high              1                  1      1.682359                   0.0        43235.979822        1496.903713                           0.0                              0.0                     0.0                        0.0
+   TER targeted_integration        1877.8256          watch          watch          high              1                  1      1.738676                   0.0        42730.967743        1496.903713                           0.0                              0.0                     0.0                        0.0
+  CIEN targeted_integration        1753.9305          watch          watch          high              1                  1      3.225467                   1.0        39586.897047        1496.903713                           0.0                              0.0                     0.0                        0.0
+   STX targeted_integration        1675.9624          watch          watch          high              1                  3      1.953734                   0.0        37415.626413        1587.272168                           0.0                              0.0                     0.0                        0.0
 
 ## Prime watch
 
@@ -42,16 +42,17 @@ Selected demotions:
 ## Top watch/review
 
 ticker dynamic_status      promotion_stage  source_profiles  profile_count scan_algo_fit  scan_algo_compat_score_v2  recent_score  dynamic_conviction_score recommendation  full_delta_roi_pct  oos_delta_roi_pct
-   FIX          watch targeted_integration targeted_current              1          high                   9.989958      1.591574                   18.4625          watch        43235.979822        1496.903713
-   STX          watch targeted_integration targeted_current              1          high                   9.979108      1.835782                   19.8116          watch        42114.703362        1587.272168
-  COHR          watch targeted_integration targeted_current              1          high                   9.814112      1.710119                   18.4832          watch        40883.901786        1485.702430
-  CIEN          watch targeted_integration targeted_current              1          high                  11.228701      3.052383                   21.2683          watch        39586.897047        1496.903713
-   GEV          watch          watch_queue targeted_current              1        medium                   8.605550      0.889884                   15.3368          watch        36510.652306        1496.903713
-  KEYS          watch          watch_queue targeted_current              1        medium                   7.037062      0.683520                   12.8739          watch        36408.776827        1496.903713
-   GLW          watch          watch_queue targeted_current              1        medium                   7.758278      1.036360                   14.1325          watch        35404.000234        1496.903713
-  DELL         review         review_queue targeted_current              1           low                   6.018691      0.432289                    8.6473            NaN                 NaN                NaN
-  MPWR         review         review_queue targeted_current              1           low                   5.706302      0.408379                    7.8615            NaN                 NaN                NaN
-   FDX         review         review_queue targeted_current              1          weak                   4.926070      0.439913                    6.6005            NaN                 NaN                NaN
-  INTC         review         review_queue targeted_current              1          weak                   4.574269      0.572469                    6.2898            NaN                 NaN                NaN
-   CSX         review         review_queue targeted_current              1          weak                   4.999233      0.204561                    6.1569            NaN                 NaN                NaN
-   GWW         review         review_queue targeted_current              1          weak                   4.854897      0.067134                    6.1071            NaN                 NaN                NaN
+   FIX          watch targeted_integration targeted_current              1          high                  10.009667      1.682359                   18.6521          watch        43235.979822        1496.903713
+   TER          watch targeted_integration targeted_current              1          high                   9.998441      1.738676                   18.8965          watch        42730.967743        1496.903713
+  CIEN          watch targeted_integration targeted_current              1          high                  11.287700      3.225467                   21.5642          watch        39586.897047        1496.903713
+   STX          watch targeted_integration targeted_current              1          high                  10.978694      1.953734                   20.6101          watch        37415.626413        1587.272168
+  KEYS          watch          watch_queue targeted_current              1        medium                   8.243766      0.739305                   13.9090          watch        36408.776827        1496.903713
+  COHR         review          watch_queue targeted_current              1          high                   9.634680      1.839944                   15.9312            NaN                 NaN                NaN
+   GLW         review          watch_queue targeted_current              1        medium                   7.874591      1.211341                   12.0877            NaN                 NaN                NaN
+   GEV         review         review_queue targeted_current              1        medium                   7.545220      0.930363                   11.5186            NaN                 NaN                NaN
+  DELL         review         review_queue targeted_current              1           low                   6.057729      0.526653                    8.8473            NaN                 NaN                NaN
+  MPWR         review         review_queue targeted_current              1           low                   5.668724      0.458200                    7.9426            NaN                 NaN                NaN
+   FDX         review         review_queue targeted_current              1          weak                   4.841770      0.500108                    6.6639            NaN                 NaN                NaN
+  INTC         review         review_queue targeted_current              1          weak                   4.434634      0.578585                    6.1963            NaN                 NaN                NaN
+   GWW         review         review_queue targeted_current              1          weak                   4.874796      0.081050                    6.1599            NaN                 NaN                NaN
+   CSX         review         review_queue targeted_current              1          weak                   4.870243      0.207103                    6.0635            NaN                 NaN                NaN

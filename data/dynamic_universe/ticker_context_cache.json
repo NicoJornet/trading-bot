@@ -377,6 +377,15 @@
     "sectorKey": "technology",
     "ticker": "AEHR"
   },
+  "AEIS": {
+    "exchange": "NMS",
+    "industry": "Electrical Equipment & Parts",
+    "industryKey": "electrical-equipment-parts",
+    "marketCap": 13453699072,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "AEIS"
+  },
   "AFL": {
     "exchange": "NYQ",
     "industry": "Insurance - Life",
@@ -2509,6 +2518,15 @@
     "sector": "Technology",
     "sectorKey": "technology",
     "ticker": "TEL"
+  },
+  "TER": {
+    "exchange": "NMS",
+    "industry": "Semiconductor Equipment & Materials",
+    "industryKey": "semiconductor-equipment-materials",
+    "marketCap": 50119823360,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "TER"
   },
   "TGNA": {
     "exchange": "NYQ",
