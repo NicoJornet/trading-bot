@@ -17,6 +17,15 @@
     "sectorKey": "industrials",
     "ticker": "002270.SZ"
   },
+  "002902.SZ": {
+    "exchange": "SHZ",
+    "industry": "Electronic Components",
+    "industryKey": "electronic-components",
+    "marketCap": 6566153216,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "002902.SZ"
+  },
   "0907.HK": {
     "exchange": "HKG",
     "industry": "Medical Instruments & Supplies",
@@ -188,6 +197,15 @@
     "sectorKey": "technology",
     "ticker": "6209.TW"
   },
+  "6464.TW": {
+    "exchange": "TAI",
+    "industry": "Entertainment",
+    "industryKey": "entertainment",
+    "marketCap": 9826031616,
+    "sector": "Communication Services",
+    "sectorKey": "communication-services",
+    "ticker": "6464.TW"
+  },
   "6869.HK": {
     "exchange": "HKG",
     "industry": "Communication Equipment",
@@ -332,6 +350,15 @@
     "sectorKey": "technology",
     "ticker": "ADTN"
   },
+  "ADV": {
+    "exchange": "NMS",
+    "industry": "Advertising Agencies",
+    "industryKey": "advertising-agencies",
+    "marketCap": 334974848,
+    "sector": "Communication Services",
+    "sectorKey": "communication-services",
+    "ticker": "ADV"
+  },
   "ADV.DU": {
     "exchange": "DUS",
     "industry": null,
@@ -448,6 +475,15 @@
     "sector": "Healthcare",
     "sectorKey": "healthcare",
     "ticker": "ALNY"
+  },
+  "ALOT": {
+    "exchange": "NGM",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 72565024,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "ALOT"
   },
   "AM": {
     "exchange": "NYQ",
@@ -764,6 +800,15 @@
     "sectorKey": "basic-materials",
     "ticker": "CBT"
   },
+  "CC": {
+    "exchange": "NYQ",
+    "industry": "Specialty Chemicals",
+    "industryKey": "specialty-chemicals",
+    "marketCap": 3242403328,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "CC"
+  },
   "CDNS": {
     "exchange": "NMS",
     "industry": "Software - Application",
@@ -836,6 +881,15 @@
     "sectorKey": "technology",
     "ticker": "CIEN"
   },
+  "CLMT": {
+    "exchange": "NMS",
+    "industry": "Specialty Chemicals",
+    "industryKey": "specialty-chemicals",
+    "marketCap": 2782056448,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "CLMT"
+  },
   "CME": {
     "exchange": "NMS",
     "industry": "Financial Data & Stock Exchanges",
@@ -899,6 +953,15 @@
     "sectorKey": "technology",
     "ticker": "CPQQ"
   },
+  "CPRT": {
+    "exchange": "NMS",
+    "industry": "Specialty Business Services",
+    "industryKey": "specialty-business-services",
+    "marketCap": 31392813056,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "CPRT"
+  },
   "CQP": {
     "exchange": "NYQ",
     "industry": "Oil & Gas Midstream",
@@ -952,6 +1015,15 @@
     "sector": "Basic Materials",
     "sectorKey": "basic-materials",
     "ticker": "CTVA"
+  },
+  "CVVUF": {
+    "exchange": "OQX",
+    "industry": "Other Industrial Metals & Mining",
+    "industryKey": "other-industrial-metals-mining",
+    "marketCap": 107856520,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "CVVUF"
   },
   "CWEN-A": {
     "exchange": "NYQ",
@@ -1052,6 +1124,15 @@
     "sectorKey": "technology",
     "ticker": "DIOD"
   },
+  "DTE": {
+    "exchange": "NYQ",
+    "industry": "Utilities - Regulated Electric",
+    "industryKey": "utilities-regulated-electric",
+    "marketCap": 30053822464,
+    "sector": "Utilities",
+    "sectorKey": "utilities",
+    "ticker": "DTE"
+  },
   "DTM": {
     "exchange": "NYQ",
     "industry": "Oil & Gas Midstream",
@@ -1096,6 +1177,15 @@
     "sector": "Healthcare",
     "sectorKey": "healthcare",
     "ticker": "ELV"
+  },
+  "ELVUF": {
+    "exchange": "OQX",
+    "industry": "Uranium",
+    "industryKey": "uranium",
+    "marketCap": 93193624,
+    "sector": "Energy",
+    "sectorKey": "energy",
+    "ticker": "ELVUF"
   },
   "EMAT": {
     "exchange": "NGM",
@@ -1259,6 +1349,24 @@
     "sectorKey": "technology",
     "ticker": "FORM"
   },
+  "FRO": {
+    "exchange": "NYQ",
+    "industry": "Oil & Gas Midstream",
+    "industryKey": "oil-gas-midstream",
+    "marketCap": 7491260928,
+    "sector": "Energy",
+    "sectorKey": "energy",
+    "ticker": "FRO"
+  },
+  "FSI": {
+    "exchange": "ASE",
+    "industry": "Specialty Chemicals",
+    "industryKey": "specialty-chemicals",
+    "marketCap": 67636112,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "FSI"
+  },
   "FTI": {
     "exchange": "NYQ",
     "industry": "Oil & Gas Equipment & Services",
@@ -1294,6 +1402,15 @@
     "sector": "Communication Services",
     "sectorKey": "communication-services",
     "ticker": "FWONA"
+  },
+  "GEHC": {
+    "exchange": "NMS",
+    "industry": "Medical Devices",
+    "industryKey": "medical-devices",
+    "marketCap": 31588968448,
+    "sector": "Healthcare",
+    "sectorKey": "healthcare",
+    "ticker": "GEHC"
   },
   "GEV": {
     "exchange": "NYQ",
@@ -1754,6 +1871,15 @@
     "sectorKey": "technology",
     "ticker": "LRCX"
   },
+  "LWLG": {
+    "exchange": "NCM",
+    "industry": "Specialty Chemicals",
+    "industryKey": "specialty-chemicals",
+    "marketCap": 1076793216,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "LWLG"
+  },
   "MCO": {
     "exchange": "NYQ",
     "industry": "Financial Data & Stock Exchanges",
@@ -1762,6 +1888,15 @@
     "sector": "Financial Services",
     "sectorKey": "financial-services",
     "ticker": "MCO"
+  },
+  "MDU": {
+    "exchange": "NYQ",
+    "industry": "Utilities - Regulated Gas",
+    "industryKey": "utilities-regulated-gas",
+    "marketCap": 4212329984,
+    "sector": "Utilities",
+    "sectorKey": "utilities",
+    "ticker": "MDU"
   },
   "MET": {
     "exchange": "NYQ",
@@ -1988,6 +2123,15 @@
     "sectorKey": "technology",
     "ticker": "NTGR"
   },
+  "NTIC": {
+    "exchange": "NGM",
+    "industry": "Specialty Chemicals",
+    "industryKey": "specialty-chemicals",
+    "marketCap": 78403928,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "NTIC"
+  },
   "NTRA": {
     "exchange": "NMS",
     "industry": "Diagnostics & Research",
@@ -2195,6 +2339,15 @@
     "sectorKey": "utilities",
     "ticker": "PNW"
   },
+  "POR": {
+    "exchange": "NYQ",
+    "industry": "Utilities - Regulated Electric",
+    "industryKey": "utilities-regulated-electric",
+    "marketCap": 5984245248,
+    "sector": "Utilities",
+    "sectorKey": "utilities",
+    "ticker": "POR"
+  },
   "POW": {
     "exchange": "PCX",
     "industry": null,
@@ -2203,6 +2356,15 @@
     "sector": null,
     "sectorKey": null,
     "ticker": "POW"
+  },
+  "POWI": {
+    "exchange": "NMS",
+    "industry": "Semiconductors",
+    "industryKey": "semiconductors",
+    "marketCap": 2747448064,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "POWI"
   },
   "POWL": {
     "exchange": "NMS",
@@ -2338,6 +2500,15 @@
     "sector": "Basic Materials",
     "sectorKey": "basic-materials",
     "ticker": "RPM"
+  },
+  "RPRX": {
+    "exchange": "NMS",
+    "industry": "Biotechnology",
+    "industryKey": "biotechnology",
+    "marketCap": 26809266176,
+    "sector": "Healthcare",
+    "sectorKey": "healthcare",
+    "ticker": "RPRX"
   },
   "RRC": {
     "exchange": "NYQ",
@@ -2941,6 +3112,15 @@
     "sector": "Energy",
     "sectorKey": "energy",
     "ticker": "UROY"
+  },
+  "USLM": {
+    "exchange": "NMS",
+    "industry": "Building Materials",
+    "industryKey": "building-materials",
+    "marketCap": 3554800128,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "USLM"
   },
   "UTHR": {
     "exchange": "NMS",
