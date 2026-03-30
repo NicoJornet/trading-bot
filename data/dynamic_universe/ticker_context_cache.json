@@ -2321,6 +2321,15 @@
     "sectorKey": "industrials",
     "ticker": "PH"
   },
+  "PL": {
+    "exchange": "NYQ",
+    "industry": "Aerospace & Defense",
+    "industryKey": "aerospace-defense",
+    "marketCap": 10682159104,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "PL"
+  },
   "PNC": {
     "exchange": "NYQ",
     "industry": "Banks - Regional",
@@ -2545,6 +2554,15 @@
     "sector": "Financial Services",
     "sectorKey": "financial-services",
     "ticker": "RY"
+  },
+  "SAAB-B.ST": {
+    "exchange": "STO",
+    "industry": "Aerospace & Defense",
+    "industryKey": "aerospace-defense",
+    "marketCap": 316494872576,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "SAAB-B.ST"
   },
   "SATL": {
     "exchange": "NCM",
