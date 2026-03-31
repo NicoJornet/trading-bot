@@ -1430,6 +1430,15 @@
     "sectorKey": "technology",
     "ticker": "GLW"
   },
+  "GRMN": {
+    "exchange": "NYQ",
+    "industry": "Scientific & Technical Instruments",
+    "industryKey": "scientific-technical-instruments",
+    "marketCap": 43500666880,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "GRMN"
+  },
   "GS": {
     "exchange": "NYQ",
     "industry": "Capital Markets",
