@@ -1,4 +1,2 @@
 ticker,promotion_stage,promotion_score,dynamic_status,recommendation,scan_algo_fit,profile_count,source_type_count,recent_score,scan_entry_heat_flag,full_delta_roi_pct,oos_delta_roi_pct,add_mean_delta_roi_2017_2025,add_mean_delta_sharpe_2017_2025,add_roi_wins_2017_2025,add_sharpe_wins_2017_2025
-FIX,targeted_integration,1897.483,watch,watch,high,1,1,1.4299905264527513,0.0,43235.97982181666,1496.9037131262116,0.0,0.0,0.0,0.0
-CIEN,targeted_integration,1755.05,watch,watch,high,1,1,2.65335014720308,0.0,39586.89704667709,1496.9037131262116,0.0,0.0,0.0,0.0
-STX,targeted_integration,1675.3814,watch,watch,high,1,3,1.5765828504928,0.0,37415.6264134357,1587.2721676499834,0.0,0.0,0.0,0.0
+FIX,targeted_integration,1898.0658,watch,watch,high,1,1,1.6799352652748163,0.0,43235.97982181666,1496.9037131262116,0.0,0.0,0.0,0.0
