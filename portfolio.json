@@ -23,10 +23,16 @@
       "avg_price_eur": 51.726902830750355,
       "cost_eur": 489.0,
       "entry_date": "2026-02-11"
+    },
+    "SNDK": {
+      "shares": 0.14291282720723247,
+      "cost_eur": 99.0,
+      "avg_price_eur": 692.72998046875,
+      "entry_date": "2026-04-02"
     }
   },
   "last_updated": "2026-02-13 12:00",
-  "last_dca_month": "2026-03",
+  "last_dca_month": "2026-04",
   "confirm_state": {},
   "cooldown_until": {},
   "last_updated_note": "User correction applied: KO/GILD/WMT not bought. Manual buys executed 2026-02-11: MU, LRCX, PAAS. Cash reflects 1€ fee/order (3€ total); small negative cash may occur due to rounding/amounts provided. Last buy date confirmed: 2026-02-11.",
@@ -53,17 +59,27 @@
       "peak": 65.36000061035156,
       "armed": false,
       "arm_idx": null
+    },
+    "SNDK": {
+      "entry_px": 692.72998046875,
+      "peak": 692.72998046875,
+      "armed": false,
+      "arm_idx": null,
+      "entry_idx": 3079
     }
   },
-  "exit_defer": {},
+  "exit_defer": {
+    "PAAS": 1
+  },
   "entry_date": {
     "MU": "2026-02-11",
     "LRCX": "2026-02-11",
-    "PAAS": "2026-02-11"
+    "PAAS": "2026-02-11",
+    "SNDK": "2026-04-02"
   },
   "exit_stage": {},
-  "last_rebalance_idx": 3069,
-  "last_buy_date": "2026-03-19",
+  "last_rebalance_idx": 3079,
+  "last_buy_date": "2026-04-02",
   "loss_last_exit_idx": {},
-  "last_rebalance_date": "2026-03-18"
+  "last_rebalance_date": "2026-04-01"
 }

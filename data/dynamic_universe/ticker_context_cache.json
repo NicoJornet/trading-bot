@@ -2879,6 +2879,15 @@
     "sectorKey": "healthcare",
     "ticker": "SYK"
   },
+  "SYM": {
+    "exchange": "NGM",
+    "industry": "Specialty Industrial Machinery",
+    "industryKey": "specialty-industrial-machinery",
+    "marketCap": 33016758272,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "SYM"
+  },
   "TD": {
     "exchange": "NYQ",
     "industry": "Banks - Diversified",
