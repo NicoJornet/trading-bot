@@ -3104,6 +3104,15 @@
     "sectorKey": "industrials",
     "ticker": "ULBI"
   },
+  "UMAC": {
+    "exchange": "ASE",
+    "industry": "Computer Hardware",
+    "industryKey": "computer-hardware",
+    "marketCap": 649908864,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "UMAC"
+  },
   "UNP": {
     "exchange": "NYQ",
     "industry": "Railroads",
