@@ -107,6 +107,15 @@
     "sectorKey": "industrials",
     "ticker": "300875.SZ"
   },
+  "301101.SZ": {
+    "exchange": "SHZ",
+    "industry": "Medical Instruments & Supplies",
+    "industryKey": "medical-instruments-supplies",
+    "marketCap": 6587429888,
+    "sector": "Healthcare",
+    "sectorKey": "healthcare",
+    "ticker": "301101.SZ"
+  },
   "301155.SZ": {
     "exchange": "SHZ",
     "industry": "Specialty Industrial Machinery",
@@ -592,6 +601,15 @@
     "sector": "Utilities",
     "sectorKey": "utilities",
     "ticker": "ATO"
+  },
+  "AU": {
+    "exchange": "NYQ",
+    "industry": "Gold",
+    "industryKey": "gold",
+    "marketCap": 51117596672,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "AU"
   },
   "AUGO": {
     "exchange": "NMS",
@@ -1160,6 +1178,15 @@
     "sectorKey": "healthcare",
     "ticker": "DXCM"
   },
+  "EA": {
+    "exchange": "NMS",
+    "industry": "Electronic Gaming & Multimedia",
+    "industryKey": "electronic-gaming-multimedia",
+    "marketCap": 50951655424,
+    "sector": "Communication Services",
+    "sectorKey": "communication-services",
+    "ticker": "EA"
+  },
   "ECL": {
     "exchange": "NYQ",
     "industry": "Specialty Chemicals",
@@ -1259,6 +1286,15 @@
     "sectorKey": "industrials",
     "ticker": "ETN"
   },
+  "EXAS": {
+    "exchange": "NCM",
+    "industry": "Diagnostics & Research",
+    "industryKey": "diagnostics-research",
+    "marketCap": 20026083328,
+    "sector": "Healthcare",
+    "sectorKey": "healthcare",
+    "ticker": "EXAS"
+  },
   "EXP": {
     "exchange": "NYQ",
     "industry": "Building Materials",
@@ -1339,6 +1375,15 @@
     "sector": "Industrials",
     "sectorKey": "industrials",
     "ticker": "FIX"
+  },
+  "FNMA": {
+    "exchange": "OQB",
+    "industry": "Mortgage Finance",
+    "industryKey": "mortgage-finance",
+    "marketCap": 7990803968,
+    "sector": "Financial Services",
+    "sectorKey": "financial-services",
+    "ticker": "FNMA"
   },
   "FORM": {
     "exchange": "NMS",
@@ -1528,6 +1573,15 @@
     "sector": "Technology",
     "sectorKey": "technology",
     "ticker": "HLIT"
+  },
+  "HLUCF": {
+    "exchange": "OQB",
+    "industry": "",
+    "industryKey": "",
+    "marketCap": null,
+    "sector": "",
+    "sectorKey": "",
+    "ticker": "HLUCF"
   },
   "HUM": {
     "exchange": "NYQ",
@@ -2194,6 +2248,15 @@
     "sector": "Communication Services",
     "sectorKey": "communication-services",
     "ticker": "NXST"
+  },
+  "NYT": {
+    "exchange": "NYQ",
+    "industry": "Publishing",
+    "industryKey": "publishing",
+    "marketCap": 13874664448,
+    "sector": "Communication Services",
+    "sectorKey": "communication-services",
+    "ticker": "NYT"
   },
   "OCC": {
     "exchange": "NGM",
@@ -3302,6 +3365,15 @@
     "sectorKey": "energy",
     "ticker": "WES"
   },
+  "WFRD": {
+    "exchange": "NMS",
+    "industry": "Oil & Gas Equipment & Services",
+    "industryKey": "oil-gas-equipment-services",
+    "marketCap": 6835154944,
+    "sector": "Energy",
+    "sectorKey": "energy",
+    "ticker": "WFRD"
+  },
   "WLK": {
     "exchange": "NYQ",
     "industry": "Specialty Chemicals",
@@ -3319,6 +3391,24 @@
     "sector": "Industrials",
     "sectorKey": "industrials",
     "ticker": "WM"
+  },
+  "WMG": {
+    "exchange": "NMS",
+    "industry": "Entertainment",
+    "industryKey": "entertainment",
+    "marketCap": 13638459392,
+    "sector": "Communication Services",
+    "sectorKey": "communication-services",
+    "ticker": "WMG"
+  },
+  "WSTRF": {
+    "exchange": "OQX",
+    "industry": "Uranium",
+    "industryKey": "uranium",
+    "marketCap": 36070648,
+    "sector": "Energy",
+    "sectorKey": "energy",
+    "ticker": "WSTRF"
   },
   "WWD": {
     "exchange": "NMS",

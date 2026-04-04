@@ -1,6 +1,6 @@
 # Dynamic Universe Actions Summary
 
-- as_of: `2026-03-28`
+- as_of: `2026-04-04`
 - approved single swaps: `0`
 - approved combo swaps: `0`
 - approved standalone adds: `0`
@@ -39,25 +39,25 @@
 ## Watch standalone adds
 
 ticker  selection_score      promotion_stage dynamic_status  profile_count scan_algo_fit  scan_algo_compat_score_v2  recent_score
-   RIG        2551.7293 targeted_integration          watch              1          high                  10.344933      1.083721
-  AAOI        2078.5352 targeted_integration    prime_watch              3          high                  11.844140      2.986091
-    AA        2008.5227          watch_queue          watch              1        medium                   9.111457      0.661499
-   FIX        1900.8606 targeted_integration    prime_watch              3          high                  10.261858      1.566404
-   TER        1880.2422 targeted_integration    prime_watch              3          high                   9.875675      1.531250
-  LASR        1766.1488 targeted_integration    prime_watch              2          high                  11.870044      3.289442
-  CIEN        1758.1930 targeted_integration    prime_watch              3          high                  11.867309      2.948299
-   CDE        1698.1352          watch_queue          watch              1        medium                   8.149595      0.675457
-   STX        1677.2796 targeted_integration    prime_watch              3          high                   9.846150      1.692857
-   GEV        1628.2903          watch_queue          watch              3        medium                   8.912836      0.891601
-  DELL        1623.8051          watch_queue         review              3           low                   6.652439      0.506371
-  KEYS        1620.3515          watch_queue          watch              3        medium                   7.253074      0.633259
-    AU        1613.9480          watch_queue          watch              1        medium                   7.119793      0.743458
-  POWL        1583.2234 targeted_integration    prime_watch              3          high                  10.223682      1.239819
-  VIAV        1583.1758          watch_queue          watch              3        medium                   8.692886      1.702343
-   GLW        1581.9607          watch_queue          watch              3        medium                   7.948199      1.158614
-    CF        1579.6813          watch_queue          watch              1        medium                   7.531774      0.672377
-  AMPX        1485.7064 targeted_integration    prime_watch              3          high                  11.441348      2.067625
-    HL        1305.4959 targeted_integration          watch              1          high                   9.515292      1.048005
+  AXTI        2605.9904          watch_queue          watch              1          high                  11.584656     17.675721
+   RIG        2551.1743 targeted_integration          watch              1          high                  10.061919      0.929203
+    AA        2011.9016 targeted_integration          watch              1          high                  10.228447      1.063775
+   FIX        1901.0608 targeted_integration    prime_watch              3          high                   9.976582      1.700942
+   TER        1880.1274 targeted_integration    prime_watch              3          high                   9.951612      1.696631
+  AAOI        1869.5937 targeted_integration    prime_watch              3          high                  12.201846      3.813054
+   STX        1676.9982 targeted_integration    prime_watch              3          high                  10.237491      2.012012
+   GEV        1626.7913          watch_queue          watch              3        medium                   8.614365      1.006669
+  KEYS        1621.0593          watch_queue          watch              3        medium                   7.327229      0.736099
+  CIEN        1583.5743 targeted_integration    prime_watch              3          high                  11.280220      3.473771
+   GLW        1582.9984          watch_queue          watch              3        medium                   8.173947      1.348963
+  POWL        1582.8251 targeted_integration    prime_watch              3          high                   9.887802      1.280256
+  AMPX        1486.1272 targeted_integration    prime_watch              3          high                  11.377557      2.417758
+  LUNR        1350.0045          watch_queue          watch              1        medium                   9.390335      1.484660
+  IRDM        1341.7395          watch_queue         review              1           low                   6.922385      0.604373
+  AEIS          15.0657          watch_queue          watch              3        medium                   9.294730      1.468678
+    HL          14.4295          watch_queue         review              1        medium                   9.438798      1.225671
+  VIAV          13.2884          watch_queue          watch              3        medium                   8.066953      1.884068
+   CDE          13.0523          watch_queue         review              1        medium                   8.345996      0.987041
 
 ## Watch standalone removes
 

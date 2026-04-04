@@ -1,119 +1,119 @@
 ticker,source_names,source_types,seed_hits,etf_hits,name,rating,market weight,sector_key,industry_key,symbol,Name,Holding Percent,seed,source_count,source_type_count,sources,is_active,is_reserve,is_hard_exclusion,candidate_status,ytd return,growth estimate,last price,target price,marketCap,averageDailyVolume3Month,regularMarketPrice,fiftyDayAverageChangePercent,twoHundredDayAverageChangePercent,regularMarketChangePercent,sector,industry,priority_score
-NVDA,"{'WDC', 'SNDK', 'LITE', 'VGT'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,NVIDIA Corporation,Strong Buy,0.19870737,technology,computer-hardware,NVDA,NVIDIA Corp,0.1806971,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
-AAPL,"{'WDC', 'SNDK', 'LITE', 'VGT'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,Apple Inc.,Buy,0.17846708,technology,computer-hardware,AAPL,Apple Inc,0.1583723,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
-MSFT,"{'WDC', 'SNDK', 'LITE', 'VGT'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,Microsoft Corporation,Strong Buy,0.12940998,technology,computer-hardware,MSFT,Microsoft Corp,0.10394,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
-AVGO,"{'WDC', 'SNDK', 'LITE', 'VGT'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,Broadcom Inc.,Strong Buy,0.069574684,technology,computer-hardware,AVGO,Broadcom Inc,0.0434203,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
-ANET,"{'WDC', 'SNDK', 'LITE'}",industry_top_growth|seed_peer,LITE|SNDK|WDC,,"Arista Networks, Inc.",Strong Buy,0.0074222367,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,1,0,0,active,-0.0783,0.2564841498559078,,,,,,,,,,,26.5
-WDC,"{'WDC', 'SNDK', 'LITE'}",industry_top_performing|seed_peer,LITE|SNDK|WDC,,Western Digital Corporation,Buy,0.004594298,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,1,0,0,active,0.5983,,275.34,321.0,,,,,,,,,26.5
-SNDK,"{'WDC', 'SNDK', 'LITE'}",industry_top_performing|seed_peer,LITE|SNDK|WDC,,Sandisk Corporation,Buy,0.0044361046,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,1,0,0,active,1.5943,,615.83,770.316,,,,,,,,,26.5
-LITE,"{'WDC', 'SNDK', 'LITE'}",industry_top_growth|seed_peer,LITE|SNDK|WDC,,Lumentum Holdings Inc.,Buy,0.0024487157,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,1,0,0,active,0.9065,0.5643564356435644,,,,,,,,,,,26.5
-MU,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Micron Technology, Inc.",Buy,0.019660482,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-ORCL,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Oracle Corporation,Buy,0.019602865,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-PLTR,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Palantir Technologies Inc.,Buy,0.016698297,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-AMD,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Advanced Micro Devices, Inc.",Buy,0.016072322,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-AMAT,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Applied Materials, Inc.",Buy,0.0130589325,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-LRCX,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Lam Research Corporation,Buy,0.012959171,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-KLAC,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,KLA Corporation,Buy,0.009254464,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-CRM,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Salesforce, Inc.",Buy,0.008199659,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-APH,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Amphenol Corporation,Buy,0.007415975,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-SHOP,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Shopify Inc.,Buy,0.007124034,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-UBER,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Uber Technologies, Inc.",Buy,0.007015237,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-QCOM,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,QUALCOMM Incorporated,Hold,0.006625536,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-PANW,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Palo Alto Networks, Inc.",Buy,0.0058548837,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-INTU,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Intuit Inc.,Buy,0.0056555765,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-NOW,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"ServiceNow, Inc.",Strong Buy,0.0051190937,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-ADBE,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Adobe Inc.,Buy,0.004704754,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-CRWD,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"CrowdStrike Holdings, Inc.",Buy,0.0045743934,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-MRVL,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Marvell Technology, Inc.",Strong Buy,0.0040484318,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-CDNS,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Cadence Design Systems, Inc.",Strong Buy,0.0036590325,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-NET,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Cloudflare, Inc.",Buy,0.003487457,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-NXPI,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,NXP Semiconductors N.V.,Strong Buy,0.0023636117,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-UI,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Ubiquiti Inc.,Hold,0.0023035961,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
-CAT,"{'BE', 'XLI'}",etf_holding|seed_peer,BE,XLI,Caterpillar Inc.,Buy,0.050426327,industrials,electrical-equipment-parts,CAT,Caterpillar Inc,0.0639929,BE,2,2,BE|XLI,1,0,0,active,,,,,,,,,,,,,20.0
-GE,"{'BE', 'XLI'}",etf_holding|seed_peer,BE,XLI,GE Aerospace,Strong Buy,0.046223875,industrials,electrical-equipment-parts,GE,GE Aerospace,0.0664574,BE,2,2,BE|XLI,1,0,0,active,,,,,,,,,,,,,20.0
-RTX,"{'BE', 'XLI'}",etf_holding|seed_peer,BE,XLI,RTX Corporation,Buy,0.03956605,industrials,electrical-equipment-parts,RTX,RTX Corp,0.0500102,BE,2,2,BE|XLI,1,0,0,active,,,,,,,,,,,,,20.0
-SMCI,"{'WDC', 'SNDK'}",industry_top_growth,,,"Super Micro Computer, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,1,0,0,active,-0.2494,0.511996378451788,,,,,,,,,,,17.5
-VRT,{'BE'},industry_top_growth|industry_top_performing|seed_peer,BE,,Vertiv Holdings Co,Strong Buy,0.014884484,industrials,electrical-equipment-parts,,,,,1,3,BE,1,0,0,active,0.5497,0.519774011299435,251.07,270.208,,,,,,,,,14.5
-BE,{'BE'},industry_top_performing|seed_peer,BE,,Bloom Energy Corporation,Buy,0.005792124,industrials,electrical-equipment-parts,,,,,1,2,BE,1,0,0,active,0.5334,,133.24,144.08,,,,,,,,,14.5
-DE,{'BE'},seed_peer,BE,,Deere & Company,Buy,0.023715882,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-BA,{'BE'},seed_peer,BE,,The Boeing Company,Buy,0.023199186,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-ETN,{'BE'},seed_peer,BE,,Eaton Corporation plc,Buy,0.02150705,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-PH,{'BE'},seed_peer,BE,,Parker-Hannifin Corporation,Buy,0.01737561,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-NOC,{'BE'},seed_peer,BE,,Northrop Grumman Corporation,Buy,0.015015871,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-HWM,{'BE'},seed_peer,BE,,Howmet Aerospace Inc.,Strong Buy,0.01421366,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-TT,{'BE'},seed_peer,BE,,Trane Technologies plc,Buy,0.014095006,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-WM,{'BE'},seed_peer,BE,,"Waste Management, Inc.",Buy,0.014065682,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-PWR,{'BE'},seed_peer,BE,,"Quanta Services, Inc.",Buy,0.0127505995,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-TDG,{'BE'},seed_peer,BE,,TransDigm Group Incorporated,Buy,0.009976017,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-LHX,{'BE'},seed_peer,BE,,"L3Harris Technologies, Inc.",Buy,0.009941552,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-FAST,{'BE'},seed_peer,BE,,Fastenal Company,Hold,0.007998187,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-CARR,{'BE'},seed_peer,BE,,Carrier Global Corporation,Buy,0.007026202,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-RKLB,{'BE'},seed_peer,BE,,Rocket Lab Corporation,Buy,0.0053573623,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-AXON,{'BE'},seed_peer,BE,,"Axon Enterprise, Inc.",Buy,0.0053560804,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
-FTNT,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Fortinet, Inc.",Hold,0.0028380882,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,1,hard_exclusion,,,,,,,,,,,,,24.0
-DELL,"{'WDC', 'SNDK', 'LITE'}",industry_top_performing|seed_peer,LITE|SNDK|WDC,,Dell Technologies Inc.,Buy,0.0055566146,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,0,0,0,new,0.3649,,171.81,170.565,,,,,,,,,26.5
-STX,"{'WDC', 'SNDK', 'LITE'}",industry_top_growth|industry_top_performing|seed_peer,LITE|SNDK|WDC,,Seagate Technology Holdings plc,Buy,0.004155397,technology,computer-hardware,,,,,3,3,LITE|SNDK|WDC,0,0,0,new,0.3801,4.829457364341085,380.07,475.354,,,,,,,,,26.5
-CSCO,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Cisco Systems, Inc.",Buy,0.015410778,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-IBM,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,International Business Machines Corporation,Buy,0.010823834,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-INTC,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Intel Corporation,Hold,0.010514344,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-ACN,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Accenture plc,Buy,0.005829039,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-GLW,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Corning Incorporated,Buy,0.005728363,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-ADP,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Automatic Data Processing, Inc.",Hold,0.0039723828,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-MSI,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Motorola Solutions, Inc.",Buy,0.0035628756,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-SNPS,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Synopsys, Inc.",Buy,0.003556981,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-TEL,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,TE Connectivity plc,Buy,0.0028957734,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-CIEN,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Ciena Corporation,Buy,0.0027726844,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-SNOW,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Snowflake Inc.,Strong Buy,0.0025518495,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-MPWR,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Monolithic Power Systems, Inc.",Strong Buy,0.0025242064,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-ADSK,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Autodesk, Inc.",Strong Buy,0.0023780072,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-KEYS,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Keysight Technologies, Inc.",Buy,0.002335922,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-TER,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Teradyne, Inc.",Buy,0.0022586053,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
-GEV,"{'BE', 'XLI'}",etf_holding|seed_peer,BE,XLI,GE Vernova Inc.,Buy,0.03586813,industrials,electrical-equipment-parts,GEV,GE Vernova Inc,0.0436343,BE,2,2,BE|XLI,0,0,0,new,,,,,,,,,,,,,20.0
-ALOT,"{'WDC', 'SNDK'}",industry_top_performing,,,"AstroNova, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,0,0,0,new,0.0983,,9.5,,,,,,,,,,17.5
-OSS,"{'WDC', 'SNDK'}",industry_top_growth,,,"One Stop Systems, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,0,0,0,new,0.0675,12.0,,,,,,,,,,,17.5
-PSTG,"{'WDC', 'SNDK'}",industry_top_growth,,,"Everpure, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,0,0,0,new,-0.1198,0.14084507042253536,,,,,,,,,,,17.5
-UNP,{'BE'},seed_peer,BE,,Union Pacific Corporation,Buy,0.021955997,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-FDX,{'BE'},seed_peer,BE,,FedEx Corporation,Buy,0.01257611,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-UPS,{'BE'},seed_peer,BE,,"United Parcel Service, Inc.",Buy,0.012472795,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-JCI,{'BE'},seed_peer,BE,,Johnson Controls International plc,Buy,0.012451617,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-MMM,{'BE'},seed_peer,BE,,3M Company,Buy,0.011673915,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-ITW,{'BE'},seed_peer,BE,,Illinois Tool Works Inc.,Hold,0.011567954,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-CSX,{'BE'},seed_peer,BE,,CSX Corporation,Buy,0.011430556,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-RSG,{'BE'},seed_peer,BE,,"Republic Services, Inc.",Buy,0.01035279,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-CTAS,{'BE'},seed_peer,BE,,Cintas Corporation,Buy,0.010271624,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-NSC,{'BE'},seed_peer,BE,,Norfolk Southern Corporation,Hold,0.009856468,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-PCAR,{'BE'},seed_peer,BE,,PACCAR Inc,Buy,0.009187786,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-GWW,{'BE'},seed_peer,BE,,"W.W. Grainger, Inc.",Hold,0.007759443,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-FIX,{'BE'},seed_peer,BE,,"Comfort Systems USA, Inc.",Strong Buy,0.007470001,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-AME,{'BE'},seed_peer,BE,,"AMETEK, Inc.",Buy,0.0074267704,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-URI,{'BE'},seed_peer,BE,,"United Rentals, Inc.",Buy,0.0072398935,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-FERG,{'BE'},seed_peer,BE,,Ferguson Enterprises Inc.,Buy,0.0069925864,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-DAL,{'BE'},seed_peer,BE,,"Delta Air Lines, Inc.",Strong Buy,0.0065610274,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-WAB,{'BE'},seed_peer,BE,,Westinghouse Air Brake Technologies Corporation,Buy,0.0063870205,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-WCN,{'BE'},seed_peer,BE,,"Waste Connections, Inc.",Strong Buy,0.006180062,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-ROK,{'BE'},seed_peer,BE,,"Rockwell Automation, Inc.",Buy,0.0061237235,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-ODFL,{'BE'},seed_peer,BE,,"Old Dominion Freight Line, Inc.",Hold,0.006102237,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-HEI-A,{'BE'},seed_peer,BE,,HEICO Corporation,Hold,0.0051322184,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-EME,{'BE'},seed_peer,BE,,"EMCOR Group, Inc.",Buy,0.005083719,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-CPRT,{'BE'},seed_peer,BE,,"Copart, Inc.",Buy,0.004864363,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
-WATT,{'LITE'},industry_top_performing,,,Energous Corporation,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,2.6341,,14.5,13.0,,,,,,,,,11.5
-AAOI,{'LITE'},industry_top_growth|industry_top_performing,,,"Applied Optoelectronics, Inc.",,,technology,communication-equipment,,,,,1,2,LITE,0,0,0,new,1.8173,0.9285714285714288,98.21,90.3,,,,,,,,,11.5
-FIEE,{'LITE'},industry_top_performing,,,,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,1.1209,,6.808,,,,,,,,,,11.5
-OCC,{'LITE'},industry_top_performing,,,Optical Cable Corporation,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,1.0539,,9.14,,,,,,,,,,11.5
-VIAV,{'LITE'},industry_top_performing,,,Viavi Solutions Inc.,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,0.9439,,34.64,30.9286,,,,,,,,,11.5
-NTGR,{'LITE'},industry_top_growth,,,"NETGEAR, Inc.",,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,-0.1207,35.66666666666667,,,,,,,,,,,11.5
-EXTR,{'LITE'},industry_top_growth,,,"Extreme Networks, Inc.",,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,-0.0835,1.40625,,,,,,,,,,,11.5
-HLIT,{'LITE'},industry_top_growth,,,Harmonic Inc.,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,-0.0516,0.9189189189189189,,,,,,,,,,,11.5
-AMPX,{'BE'},industry_top_performing,,,"Amprius Technologies, Inc.",,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,1.0431,,16.12,20.0,,,,,,,,,11.5
-RFIL,{'BE'},industry_top_performing,,,"RF Industries, Ltd.",,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,0.9403,,11.215,11.25,,,,,,,,,11.5
-POWL,{'BE'},industry_top_growth|industry_top_performing,,,"Powell Industries, Inc.",,,industrials,electrical-equipment-parts,,,,,1,2,BE,0,0,0,new,0.6878,1.9271844660194175,538.04,517.667,,,,,,,,,11.5
-ULBI,{'BE'},industry_top_growth,,,Ultralife Corporation,,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,0.1154,0.43396226415094336,,,,,,,,,,,11.5
-NVT,{'BE'},industry_top_growth,,,nVent Electric plc,,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,0.1472,0.1896551724137931,,,,,,,,,,,11.5
-HAYW,{'BE'},industry_top_growth,,,"Hayward Holdings, Inc.",,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,-0.1437,0.1249999999999999,,,,,,,,,,,11.5
-TXN,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,Texas Instruments Incorporated,Hold,0.008457099,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,1,0,reserve,,,,,,,,,,,,,24.0
-ADI,"{'WDC', 'SNDK', 'LITE'}",seed_peer,LITE|SNDK|WDC,,"Analog Devices, Inc.",Buy,0.0073251,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,1,0,reserve,,,,,,,,,,,,,24.0
-LMT,{'BE'},seed_peer,BE,,Lockheed Martin Corporation,Hold,0.02208121,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
-HON,{'BE'},seed_peer,BE,,Honeywell International Inc.,Buy,0.021977073,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
-GD,{'BE'},seed_peer,BE,,General Dynamics Corporation,Buy,0.014528306,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
-CMI,{'BE'},seed_peer,BE,,Cummins Inc.,Buy,0.011202015,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
-EMR,{'BE'},seed_peer,BE,,Emerson Electric Co.,Buy,0.010926045,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
+NVDA,"{'VGT', 'WDC', 'SNDK', 'LITE'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,NVIDIA Corporation,Strong Buy,0.20109631,technology,computer-hardware,NVDA,NVIDIA Corp,0.1806971,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
+AAPL,"{'VGT', 'WDC', 'SNDK', 'LITE'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,Apple Inc.,Buy,0.17544444,technology,computer-hardware,AAPL,Apple Inc,0.1583723,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
+MSFT,"{'VGT', 'WDC', 'SNDK', 'LITE'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,Microsoft Corporation,Strong Buy,0.12946464,technology,computer-hardware,MSFT,Microsoft Corp,0.10394,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
+AVGO,"{'VGT', 'WDC', 'SNDK', 'LITE'}",etf_holding|seed_peer,LITE|SNDK|WDC,VGT,Broadcom Inc.,Strong Buy,0.069560714,technology,computer-hardware,AVGO,Broadcom Inc,0.0434203,SNDK,4,2,LITE|SNDK|VGT|WDC,1,0,0,active,,,,,,,,,,,,,32.0
+ANET,"{'LITE', 'WDC', 'SNDK'}",industry_top_growth|seed_peer,LITE|SNDK|WDC,,"Arista Networks, Inc.",Strong Buy,0.0074406597,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,1,0,0,active,-0.0332,0.2564841498559078,,,,,,,,,,,26.5
+SNDK,"{'LITE', 'WDC', 'SNDK'}",industry_top_performing|seed_peer,LITE|SNDK|WDC,,Sandisk Corporation,Buy,0.0048300535,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,1,0,0,active,1.9556,,701.59,770.316,,,,,,,,,26.5
+WDC,"{'LITE', 'WDC', 'SNDK'}",industry_top_performing|seed_peer,LITE|SNDK|WDC,,Western Digital Corporation,Buy,0.0047038705,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,1,0,0,active,0.7123,,294.97,328.391,,,,,,,,,26.5
+LITE,"{'LITE', 'WDC', 'SNDK'}",industry_top_growth|industry_top_performing|seed_peer,LITE|SNDK|WDC,,Lumentum Holdings Inc.,Buy,0.0027537216,technology,computer-hardware,,,,,3,3,LITE|SNDK|WDC,1,0,0,active,1.2434,0.5643564356435644,826.88,708.565,,,,,,,,,26.5
+ORCL,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Oracle Corporation,Buy,0.019636177,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+MU,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Micron Technology, Inc.",Strong Buy,0.019264236,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+PLTR,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Palantir Technologies Inc.,Buy,0.016561173,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+AMD,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Advanced Micro Devices, Inc.",Buy,0.016540006,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+AMAT,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Applied Materials, Inc.",Buy,0.012898874,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+LRCX,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Lam Research Corporation,Buy,0.012797099,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+KLAC,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,KLA Corporation,Buy,0.009295851,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+CRM,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Salesforce, Inc.",Buy,0.008180472,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+APH,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Amphenol Corporation,Buy,0.0073386664,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+SHOP,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Shopify Inc.,Buy,0.007198116,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+UBER,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Uber Technologies, Inc.",Buy,0.0068962895,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+QCOM,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,QUALCOMM Incorporated,Hold,0.00631667,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+PANW,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Palo Alto Networks, Inc.",Buy,0.0062117833,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+INTU,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Intuit Inc.,Buy,0.0054835053,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+NOW,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"ServiceNow, Inc.",Strong Buy,0.005019851,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+CRWD,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"CrowdStrike Holdings, Inc.",Buy,0.0047212415,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+ADBE,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Adobe Inc.,Buy,0.0046186615,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+MRVL,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Marvell Technology, Inc.",Strong Buy,0.004368662,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+CDNS,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Cadence Design Systems, Inc.",Strong Buy,0.0035892308,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+NET,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Cloudflare, Inc.",Buy,0.003475346,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+UI,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Ubiquiti Inc.,Hold,0.0023737135,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+NXPI,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,NXP Semiconductors N.V.,Strong Buy,0.0022929972,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,1,0,0,active,,,,,,,,,,,,,24.0
+CAT,"{'XLI', 'BE'}",etf_holding|seed_peer,BE,XLI,Caterpillar Inc.,Buy,0.05046603,industrials,electrical-equipment-parts,CAT,Caterpillar Inc,0.0639929,BE,2,2,BE|XLI,1,0,0,active,,,,,,,,,,,,,20.0
+GE,"{'XLI', 'BE'}",etf_holding|seed_peer,BE,XLI,GE Aerospace,Strong Buy,0.04459121,industrials,electrical-equipment-parts,GE,GE Aerospace,0.0664574,BE,2,2,BE|XLI,1,0,0,active,,,,,,,,,,,,,20.0
+RTX,"{'XLI', 'BE'}",etf_holding|seed_peer,BE,XLI,RTX Corporation,Buy,0.039707977,industrials,electrical-equipment-parts,RTX,RTX Corp,0.0500102,BE,2,2,BE|XLI,1,0,0,active,,,,,,,,,,,,,20.0
+SMCI,"{'WDC', 'SNDK'}",industry_top_growth,,,"Super Micro Computer, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,1,0,0,active,-0.2067,0.511996378451788,,,,,,,,,,,17.5
+VRT,{'BE'},industry_top_growth|industry_top_performing|seed_peer,BE,,Vertiv Holdings Co,Buy,0.015030932,industrials,electrical-equipment-parts,,,,,1,3,BE,1,0,0,active,0.6128,0.519774011299435,261.29,271.208,,,,,,,,,14.5
+BA,{'BE'},seed_peer,BE,,The Boeing Company,Buy,0.02460247,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+DE,{'BE'},seed_peer,BE,,Deere & Company,Buy,0.02338083,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+ETN,{'BE'},seed_peer,BE,,Eaton Corporation plc,Buy,0.021087572,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+PH,{'BE'},seed_peer,BE,,Parker-Hannifin Corporation,Buy,0.017232593,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+NOC,{'BE'},seed_peer,BE,,Northrop Grumman Corporation,Buy,0.015074789,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+WM,{'BE'},seed_peer,BE,,"Waste Management, Inc.",Buy,0.01427677,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+TT,{'BE'},seed_peer,BE,,Trane Technologies plc,Buy,0.014238395,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+HWM,{'BE'},seed_peer,BE,,Howmet Aerospace Inc.,Strong Buy,0.014081366,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+PWR,{'BE'},seed_peer,BE,,"Quanta Services, Inc.",Buy,0.012612007,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+LHX,{'BE'},seed_peer,BE,,"L3Harris Technologies, Inc.",Buy,0.010012308,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+TDG,{'BE'},seed_peer,BE,,TransDigm Group Incorporated,Buy,0.009909139,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+FAST,{'BE'},seed_peer,BE,,Fastenal Company,Hold,0.007994053,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+CARR,{'BE'},seed_peer,BE,,Carrier Global Corporation,Buy,0.007001292,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+RKLB,{'BE'},seed_peer,BE,,Rocket Lab Corporation,Buy,0.005798615,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+BE,{'BE'},seed_peer,BE,,Bloom Energy Corporation,Buy,0.0057211476,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+AXON,{'BE'},seed_peer,BE,,"Axon Enterprise, Inc.",Buy,0.0049901498,industrials,electrical-equipment-parts,,,,,1,1,BE,1,0,0,active,,,,,,,,,,,,,12.0
+FTNT,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Fortinet, Inc.",Hold,0.0028625866,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,1,hard_exclusion,,,,,,,,,,,,,24.0
+DELL,"{'LITE', 'WDC', 'SNDK'}",industry_top_performing|seed_peer,LITE|SNDK|WDC,,Dell Technologies Inc.,Buy,0.0053896587,technology,computer-hardware,,,,,3,2,LITE|SNDK|WDC,0,0,0,new,0.3852,,174.37,170.542,,,,,,,,,26.5
+STX,"{'LITE', 'WDC', 'SNDK'}",industry_top_growth|industry_top_performing|seed_peer,LITE|SNDK|WDC,,Seagate Technology Holdings plc,Buy,0.0044864016,technology,computer-hardware,,,,,3,3,LITE|SNDK|WDC,0,0,0,new,0.5591,4.829457364341085,429.36,483.065,,,,,,,,,26.5
+CSCO,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Cisco Systems, Inc.",Buy,0.014562427,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+INTC,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Intel Corporation,Hold,0.011798549,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+IBM,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,International Business Machines Corporation,Buy,0.010861838,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+GLW,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Corning Incorporated,Buy,0.0059266174,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+ACN,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Accenture plc,Buy,0.005779232,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+ADP,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Automatic Data Processing, Inc.",Hold,0.0038485248,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+SNPS,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Synopsys, Inc.",Buy,0.0035377662,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+MSI,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Motorola Solutions, Inc.",Buy,0.0034100595,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+CIEN,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Ciena Corporation,Buy,0.0029543974,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+TEL,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,TE Connectivity plc,Buy,0.002862409,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+MPWR,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Monolithic Power Systems, Inc.",Strong Buy,0.0025624307,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+SNOW,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Snowflake Inc.,Strong Buy,0.0024484629,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+ADSK,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Autodesk, Inc.",Strong Buy,0.0023541716,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+KEYS,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Keysight Technologies, Inc.",Buy,0.0023299116,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+TER,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Teradyne, Inc.",Buy,0.002260809,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,0,0,new,,,,,,,,,,,,,24.0
+GEV,"{'XLI', 'BE'}",etf_holding|seed_peer,BE,XLI,GE Vernova Inc.,Strong Buy,0.036656782,industrials,electrical-equipment-parts,GEV,GE Vernova Inc,0.0436343,BE,2,2,BE|XLI,0,0,0,new,,,,,,,,,,,,,20.0
+UMAC,"{'WDC', 'SNDK'}",industry_top_performing,,,"Unusual Machines, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,0,0,0,new,0.0675,,13.6,24.2,,,,,,,,,17.5
+OSS,"{'WDC', 'SNDK'}",industry_top_growth,,,"One Stop Systems, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,0,0,0,new,0.0641,12.0,,,,,,,,,,,17.5
+PSTG,"{'WDC', 'SNDK'}",industry_top_growth,,,"Everpure, Inc.",,,technology,computer-hardware,,,,,2,1,SNDK|WDC,0,0,0,new,-0.0676,0.14084507042253536,,,,,,,,,,,17.5
+UNP,{'BE'},seed_peer,BE,,Union Pacific Corporation,Buy,0.021843527,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+FDX,{'BE'},seed_peer,BE,,FedEx Corporation,Buy,0.012973796,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+UPS,{'BE'},seed_peer,BE,,"United Parcel Service, Inc.",Buy,0.012542805,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+JCI,{'BE'},seed_peer,BE,,Johnson Controls International plc,Buy,0.012236915,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+CSX,{'BE'},seed_peer,BE,,CSX Corporation,Buy,0.011527607,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+MMM,{'BE'},seed_peer,BE,,3M Company,Buy,0.011440918,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+ITW,{'BE'},seed_peer,BE,,Illinois Tool Works Inc.,Hold,0.011188887,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+CTAS,{'BE'},seed_peer,BE,,Cintas Corporation,Buy,0.010486041,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+RSG,{'BE'},seed_peer,BE,,"Republic Services, Inc.",Buy,0.010367917,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+NSC,{'BE'},seed_peer,BE,,Norfolk Southern Corporation,Hold,0.009724516,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+PCAR,{'BE'},seed_peer,BE,,PACCAR Inc,Buy,0.009355707,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+GWW,{'BE'},seed_peer,BE,,"W.W. Grainger, Inc.",Hold,0.007959377,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+AME,{'BE'},seed_peer,BE,,"AMETEK, Inc.",Buy,0.007518189,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+FIX,{'BE'},seed_peer,BE,,"Comfort Systems USA, Inc.",Buy,0.007515838,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+FERG,{'BE'},seed_peer,BE,,Ferguson Enterprises Inc.,Buy,0.007096434,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+URI,{'BE'},seed_peer,BE,,"United Rentals, Inc.",Buy,0.006934452,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+DAL,{'BE'},seed_peer,BE,,"Delta Air Lines, Inc.",Strong Buy,0.00655596,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+WAB,{'BE'},seed_peer,BE,,Westinghouse Air Brake Technologies Corporation,Strong Buy,0.0065266006,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+WCN,{'BE'},seed_peer,BE,,"Waste Connections, Inc.",Strong Buy,0.006383429,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+ODFL,{'BE'},seed_peer,BE,,"Old Dominion Freight Line, Inc.",Hold,0.00622495,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+ROK,{'BE'},seed_peer,BE,,"Rockwell Automation, Inc.",Buy,0.006170652,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+EME,{'BE'},seed_peer,BE,,"EMCOR Group, Inc.",Buy,0.005090506,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+HEI-A,{'BE'},seed_peer,BE,,HEICO Corporation,Hold,0.0050581335,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+CPRT,{'BE'},seed_peer,BE,,"Copart, Inc.",Buy,0.004861269,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,,,,,,,,,,,,,12.0
+WATT,{'LITE'},industry_top_performing,,,Energous Corporation,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,2.9449,,15.74,26.0,,,,,,,,,11.5
+AAOI,{'LITE'},industry_top_growth|industry_top_performing,,,"Applied Optoelectronics, Inc.",,,technology,communication-equipment,,,,,1,2,LITE,0,0,0,new,1.9808,0.9285714285714288,103.91,90.3,,,,,,,,,11.5
+FIEE,{'LITE'},industry_top_performing,,,,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,1.2118,,7.1,,,,,,,,,,11.5
+VIAV,{'LITE'},industry_top_performing,,,Viavi Solutions Inc.,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,1.0701,,36.89,30.9286,,,,,,,,,11.5
+NTGR,{'LITE'},industry_top_growth,,,"NETGEAR, Inc.",,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,-0.0469,35.66666666666667,,,,,,,,,,,11.5
+EXTR,{'LITE'},industry_top_growth,,,"Extreme Networks, Inc.",,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,-0.0775,1.40625,,,,,,,,,,,11.5
+HLIT,{'LITE'},industry_top_growth,,,Harmonic Inc.,,,technology,communication-equipment,,,,,1,1,LITE,0,0,0,new,-0.0698,0.9189189189189189,,,,,,,,,,,11.5
+AMPX,{'BE'},industry_top_performing,,,"Amprius Technologies, Inc.",,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,1.0279,,16.0,20.0,,,,,,,,,11.5
+RFIL,{'BE'},industry_top_performing,,,"RF Industries, Ltd.",,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,0.8841,,10.89,11.25,,,,,,,,,11.5
+POWL,{'BE'},industry_top_growth|industry_top_performing,,,"Powell Industries, Inc.",,,industrials,electrical-equipment-parts,,,,,1,2,BE,0,0,0,new,0.7185,1.9271844660194175,547.81,517.667,,,,,,,,,11.5
+AEIS,{'BE'},industry_top_performing,,,"Advanced Energy Industries, Inc.",,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,0.5872,,332.31,342.222,,,,,,,,,11.5
+ULBI,{'BE'},industry_top_growth,,,Ultralife Corporation,,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,0.1678,0.43396226415094336,,,,,,,,,,,11.5
+NVT,{'BE'},industry_top_growth,,,nVent Electric plc,,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,0.1568,0.1896551724137931,,,,,,,,,,,11.5
+HAYW,{'BE'},industry_top_growth,,,"Hayward Holdings, Inc.",,,industrials,electrical-equipment-parts,,,,,1,1,BE,0,0,0,new,-0.134,0.1249999999999999,,,,,,,,,,,11.5
+TXN,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,Texas Instruments Incorporated,Hold,0.008275358,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,1,0,reserve,,,,,,,,,,,,,24.0
+ADI,"{'LITE', 'WDC', 'SNDK'}",seed_peer,LITE|SNDK|WDC,,"Analog Devices, Inc.",Buy,0.0072488985,technology,computer-hardware,,,,,3,1,LITE|SNDK|WDC,0,1,0,reserve,,,,,,,,,,,,,24.0
+HON,{'BE'},seed_peer,BE,,Honeywell International Inc.,Buy,0.021930248,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
+LMT,{'BE'},seed_peer,BE,,Lockheed Martin Corporation,Hold,0.021580476,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
+GD,{'BE'},seed_peer,BE,,General Dynamics Corporation,Buy,0.014216067,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
+CMI,{'BE'},seed_peer,BE,,Cummins Inc.,Buy,0.011419032,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0
+EMR,{'BE'},seed_peer,BE,,Emerson Electric Co.,Buy,0.011134618,industrials,electrical-equipment-parts,,,,,1,1,BE,0,1,0,reserve,,,,,,,,,,,,,12.0

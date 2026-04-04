@@ -8,7 +8,7 @@
 
 ## Current raw leaders
 
-- SNDK, LITE, WDC, BE, MU, VRT, ALB, LRCX, RKLB, AMAT
+- SNDK, LITE, WDC, BE, MU, VRT, ALB, LRCX, RKLB, SQM
 
 ## Seed tickers
 
@@ -20,66 +20,66 @@
 
 ## Discovery summary
 
-- total discovered symbols: `1015`
-- new symbols outside active/reserve/exclusions: `861`
+- total discovered symbols: `1039`
+- new symbols outside active/reserve/exclusions: `887`
 
 ## Top new candidates by discovery score
 
 ticker  priority_score  source_count                                                             source_types    marketCap  averageDailyVolume3Month  sector  industry
-  INTC         58.5261             8             custom_screen|predefined_screen|sector_top_company|seed_peer 2.165562e+11               104905003.0     NaN       NaN
-  DELL         55.2818             7   industry_top_performing|predefined_screen|sector_top_company|seed_peer 1.138567e+11                 8067052.0     NaN       NaN
-  CSCO         52.7256             7                               custom_screen|sector_top_company|seed_peer 3.157715e+11                23332288.0     NaN       NaN
-  CIEN         52.3749             7                           predefined_screen|sector_top_company|seed_peer 5.681314e+10                 3310193.0     NaN       NaN
-   STX         44.8187             6 industry_top_growth|industry_top_performing|sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   GEV         42.4374             5                   custom_screen|etf_holding|sector_top_company|seed_peer 2.314797e+11                 2764322.0     NaN       NaN
-   IBM         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   ACN         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   GLW         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   ADP         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   MSI         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-  SNPS         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   TEL         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-  SNOW         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-  MPWR         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-  ADSK         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-  KEYS         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   TER         42.3187             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   CRH         40.5759             5                   custom_screen|etf_holding|sector_top_company|seed_peer 6.803684e+10                 5152764.0     NaN       NaN
-   ECL         34.8187             4             etf_holding|industry_top_growth|sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
-   CSX         34.3355             4                               custom_screen|sector_top_company|seed_peer 7.376862e+10                13446164.0     NaN       NaN
-   JCI         34.1458             4                               custom_screen|sector_top_company|seed_peer 8.035816e+10                 5215154.0     NaN       NaN
-    VZ         33.8995             4                             custom_screen|etf_holding|sector_top_company 2.121917e+11                31597718.0     NaN       NaN
-     T         33.7867             4                             custom_screen|etf_holding|sector_top_company 2.037168e+11                44477611.0     NaN       NaN
-   DAL         33.6453             4                               custom_screen|sector_top_company|seed_peer 4.234247e+10                10096813.0     NaN       NaN
+  INTC         59.1843             8             custom_screen|predefined_screen|sector_top_company|seed_peer 2.529585e+11               108059024.0     NaN       NaN
+  CIEN         58.4413             8                           predefined_screen|sector_top_company|seed_peer 6.334168e+10                 3485809.0     NaN       NaN
+  DELL         55.2844             7   industry_top_performing|predefined_screen|sector_top_company|seed_peer 1.155532e+11                 8889191.0     NaN       NaN
+   GLW         52.9687             7                               custom_screen|sector_top_company|seed_peer 1.270655e+11                11557730.0     NaN       NaN
+  CSCO         52.1858             7                               custom_screen|sector_top_company|seed_peer 3.122155e+11                24087758.0     NaN       NaN
+   STX         44.6655             6 industry_top_growth|industry_top_performing|sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   IBM         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   ACN         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   ADP         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+  SNPS         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   MSI         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   TEL         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+  MPWR         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+  SNOW         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+  ADSK         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+  KEYS         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   TER         42.1655             6                                             sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   CRH         40.5404             5                   custom_screen|etf_holding|sector_top_company|seed_peer 6.993237e+10                 5314496.0     NaN       NaN
+   ECL         34.6655             4             etf_holding|industry_top_growth|sector_top_company|seed_peer          NaN                       NaN     NaN       NaN
+   CSX         34.3383             4                               custom_screen|sector_top_company|seed_peer 7.666891e+10                14118201.0     NaN       NaN
+   DAL         33.9644             4                               custom_screen|sector_top_company|seed_peer 4.360301e+10                11271527.0     NaN       NaN
+    VZ         33.6858             4                             custom_screen|etf_holding|sector_top_company 2.083536e+11                32071458.0     NaN       NaN
+     T         33.5525             4                             custom_screen|etf_holding|sector_top_company 1.983264e+11                45896650.0     NaN       NaN
+   NEE         33.4913             4                             custom_screen|etf_holding|sector_top_company 1.940801e+11                 9976151.0     NaN       NaN
+   UPS         33.2599             4                               custom_screen|sector_top_company|seed_peer 8.342089e+10                 6598820.0     NaN       NaN
 
 ## Top algo-compatible candidates before backtest
 
-ticker scan_algo_fit  scan_algo_compat_score  scan_latest_rank_if_added  scan_days_top15_if_added  scan_days_top5_if_added  recent_score  priority_score                                                             source_types
-  AAOI          high                 11.0000                        3.0                     762.0                    467.0        2.9861         20.1276                custom_screen|industry_top_growth|industry_top_performing
-  CIEN          high                 10.9750                        4.0                     357.0                    164.0        2.9483         52.3749                           predefined_screen|sector_top_company|seed_peer
-  AMPX          high                 10.9500                        5.0                     273.0                    140.0        2.0676         25.7601                                    custom_screen|industry_top_performing
-   FIX          high                  9.3750                        6.0                     810.0                    115.0        1.5664         24.3187                                             sector_top_company|seed_peer
-   RIG          high                  9.3500                        7.0                     352.0                    148.0        1.0837         25.3680                       custom_screen|predefined_screen|sector_top_company
-    HL          high                  9.3000                        9.0                     600.0                    289.0        1.0480         27.3714                               custom_screen|sector_top_company|seed_peer
-   STX          high                  8.9390                        6.0                     238.0                     46.0        1.6929         44.8187 industry_top_growth|industry_top_performing|sector_top_company|seed_peer
-   TER          high                  8.9320                        6.0                     326.0                     48.0        1.5313         42.3187                                             sector_top_company|seed_peer
-   CDE        medium                  8.0000                       11.0                     626.0                    324.0        0.6755         33.1241             custom_screen|predefined_screen|sector_top_company|seed_peer
-    AA        medium                  7.9750                       15.0                     388.0                    192.0        0.6615         27.5966                               custom_screen|sector_top_company|seed_peer
-   GEV        medium                  7.9025                       10.0                     149.0                      7.0        0.8916         42.4374                   custom_screen|etf_holding|sector_top_company|seed_peer
-   GLW        medium                  6.7660                        7.0                      42.0                      0.0        1.1586         42.3187                                             sector_top_company|seed_peer
-    AU        medium                  6.4250                       19.0                     737.0                    371.0        0.7435         27.1739                               custom_screen|sector_top_company|seed_peer
-    CF        medium                  6.1950                       25.0                     284.0                     80.0        0.6724         28.0581                               custom_screen|sector_top_company|seed_peer
-  KEYS        medium                  5.9730                       19.0                     213.0                     47.0        0.6333         42.3187                                             sector_top_company|seed_peer
-  DELL           low                  5.8060                       25.0                     270.0                     34.0        0.5064         55.2818   industry_top_performing|predefined_screen|sector_top_company|seed_peer
-    MP           low                  5.4000                       56.0                     259.0                    124.0        0.2537         26.0611                               custom_screen|sector_top_company|seed_peer
-   EME           low                  4.6000                       39.0                     271.0                      0.0        0.4505         24.3187                                             sector_top_company|seed_peer
-  MPWR           low                  4.5830                       36.0                     196.0                      0.0        0.3949         42.3187                                             sector_top_company|seed_peer
-   CLF          weak                  4.1750                      148.0                     574.0                    321.0       -0.2583         25.7936                               custom_screen|sector_top_company|seed_peer
-   MOS          weak                  3.9990                      138.0                     217.0                     61.0       -0.1376         26.1217                               custom_screen|sector_top_company|seed_peer
-  ODFL          weak                  3.8250                       72.0                     150.0                      0.0        0.2195         24.3187                                             sector_top_company|seed_peer
-   GWW          weak                  3.8245                      103.0                     151.0                     46.0        0.0773         24.3187                                             sector_top_company|seed_peer
-   URI          weak                  3.7710                      123.0                     241.0                     19.0       -0.0487         24.3187                                             sector_top_company|seed_peer
-    NU          weak                  3.7155                      111.0                     181.0                     10.0        0.0054         23.9611                       custom_screen|predefined_screen|sector_top_company
+ticker scan_algo_fit  scan_algo_compat_score  scan_latest_rank_if_added  scan_days_top15_if_added  scan_days_top5_if_added  recent_score  priority_score                                                                source_types
+  AXTI          high                 11.0000                        1.0                     679.0                    187.0       17.6757         25.9317                     custom_screen|industry_top_performing|predefined_screen
+  AAOI          high                 10.9750                        3.0                     766.0                    471.0        3.8131         26.1963 custom_screen|industry_top_growth|industry_top_performing|predefined_screen
+  CIEN          high                 10.9500                        4.0                     361.0                    168.0        3.4738         58.4413                              predefined_screen|sector_top_company|seed_peer
+  AMPX          high                 10.9250                        5.0                     277.0                    144.0        2.4178         25.7276                                       custom_screen|industry_top_performing
+   STX          high                 10.4500                        5.0                     242.0                     50.0        2.0120         44.6655    industry_top_growth|industry_top_performing|sector_top_company|seed_peer
+   FIX          high                  9.3500                        6.0                     814.0                    115.0        1.7009         24.1655                                                sector_top_company|seed_peer
+   RIG          high                  9.3000                        8.0                     356.0                    148.0        0.9292         25.2955                          custom_screen|predefined_screen|sector_top_company
+    AA          high                  9.2500                        8.0                     392.0                    192.0        1.0638         28.3210                                  custom_screen|sector_top_company|seed_peer
+    HL        medium                  9.2250                        8.0                     604.0                    289.0        1.2257         27.4249                                  custom_screen|sector_top_company|seed_peer
+  LUNR        medium                  9.0230                        8.0                     176.0                    107.0        1.4847         23.5265                                             custom_screen|predefined_screen
+   TER          high                  8.9070                        6.0                     330.0                     48.0        1.6966         42.1655                                                sector_top_company|seed_peer
+   CDE        medium                  7.9250                       11.0                     630.0                    324.0        0.9870         27.3614                                  custom_screen|sector_top_company|seed_peer
+   GEV        medium                  7.8695                        9.0                     153.0                      7.0        1.0067         32.1655                                    etf_holding|sector_top_company|seed_peer
+   GLW        medium                  6.8080                        7.0                      46.0                      0.0        1.3490         52.9687                                  custom_screen|sector_top_company|seed_peer
+  KEYS        medium                  5.9230                       16.0                     213.0                     47.0        0.7361         42.1655                                                sector_top_company|seed_peer
+  DELL           low                  5.7060                       25.0                     270.0                     34.0        0.5015         55.2844      industry_top_performing|predefined_screen|sector_top_company|seed_peer
+  IRDM           low                  5.4250                       32.0                     355.0                    205.0        0.6044         24.3547                          custom_screen|predefined_screen|sector_top_company
+    CF           low                  5.3450                       26.0                     284.0                     80.0        0.5908         28.0428                                  custom_screen|sector_top_company|seed_peer
+    MP           low                  5.1500                       69.0                     259.0                    124.0        0.2813         25.8922                                  custom_screen|sector_top_company|seed_peer
+  MPWR           low                  4.5580                       27.0                     196.0                      0.0        0.5047         42.1655                                                sector_top_company|seed_peer
+   EME           low                  4.4500                       44.0                     271.0                      0.0        0.5148         24.1655                                                sector_top_company|seed_peer
+   CLF          weak                  4.1500                      150.0                     574.0                    321.0       -0.1886         25.8340                                  custom_screen|sector_top_company|seed_peer
+   MOS          weak                  3.9740                      137.0                     217.0                     61.0       -0.0826         26.1540                                  custom_screen|sector_top_company|seed_peer
+  INTC           low                  3.8475                       16.0                      45.0                      0.0        0.7477         59.1843                custom_screen|predefined_screen|sector_top_company|seed_peer
+   GWW           low                  3.7995                       94.0                     151.0                     46.0        0.1446         24.1655                                                sector_top_company|seed_peer
 
 ## Recommended additions
 
@@ -87,27 +87,24 @@ ticker scan_algo_fit  scan_algo_compat_score  scan_latest_rank_if_added  scan_da
 
 ## Watchlist additions
 
-name  full_delta_roi_pct  full_delta_sharpe  full_delta_maxdd_pct  oos_delta_roi_pct  oos_delta_sharpe  oos_delta_maxdd_pct                                                             source_types
- RIG          59004.4407                NaN               50.5300          1723.2868               NaN              69.0504                       custom_screen|predefined_screen|sector_top_company
-AAOI          47147.4114                NaN               55.1468          1675.6433               NaN              64.2289                custom_screen|industry_top_growth|industry_top_performing
-  HL          28171.5134                NaN               55.0883          1605.6639               NaN              71.1891                               custom_screen|sector_top_company|seed_peer
- STX          37415.6264                NaN               55.1534          1587.2722               NaN              71.1891 industry_top_growth|industry_top_performing|sector_top_company|seed_peer
-  AA          46013.8306                NaN               55.1534          1522.2026               NaN              71.1810                               custom_screen|sector_top_company|seed_peer
-  CF          35382.2102                NaN               55.1534          1497.4248               NaN              71.1890                               custom_screen|sector_top_company|seed_peer
- FIX          43235.9798                NaN               55.0777          1496.9037               NaN              71.1891                                             sector_top_company|seed_peer
- TER          42730.9677                NaN               55.1237          1496.9037               NaN              71.1891                                             sector_top_company|seed_peer
-CIEN          39586.8970                NaN               55.5490          1496.9037               NaN              71.1891                           predefined_screen|sector_top_company|seed_peer
- GEV          36510.6523                NaN               55.1237          1496.9037               NaN              71.1891                   custom_screen|etf_holding|sector_top_company|seed_peer
-DELL          36510.6523                NaN               55.1237          1496.9037               NaN              71.1891   industry_top_performing|predefined_screen|sector_top_company|seed_peer
-INTC          36510.6523                NaN               55.1237          1496.9037               NaN              71.1891             custom_screen|predefined_screen|sector_top_company|seed_peer
-  AU          36339.7135                NaN               55.1247          1460.7348               NaN              69.6862                               custom_screen|sector_top_company|seed_peer
- CDE          38658.7536                NaN               55.1418          1364.6362               NaN              66.2254             custom_screen|predefined_screen|sector_top_company|seed_peer
-AMPX          33551.7254                NaN               55.1237          1207.1984               NaN              71.1891                                    custom_screen|industry_top_performing
+name  full_delta_roi_pct  full_delta_sharpe  full_delta_maxdd_pct  oos_delta_roi_pct  oos_delta_sharpe  oos_delta_maxdd_pct                                                                source_types
+AXTI          58193.3283                NaN               55.1763          2580.3124               NaN              71.1891                     custom_screen|industry_top_performing|predefined_screen
+ RIG          59004.4407                NaN               50.5300          1723.2868               NaN              69.0504                          custom_screen|predefined_screen|sector_top_company
+AAOI          41882.4424                NaN               55.1468          1675.6433               NaN              64.2289 custom_screen|industry_top_growth|industry_top_performing|predefined_screen
+ STX          37415.6264                NaN               55.1534          1587.2722               NaN              71.1891    industry_top_growth|industry_top_performing|sector_top_company|seed_peer
+  AA          46013.8306                NaN               55.1534          1522.2026               NaN              71.1810                                  custom_screen|sector_top_company|seed_peer
+ FIX          43235.9798                NaN               55.0777          1496.9037               NaN              71.1891                                                sector_top_company|seed_peer
+KEYS          36408.7768                NaN               55.1534          1496.9037               NaN              71.1891                                                sector_top_company|seed_peer
+ GLW          35404.0002                NaN               55.1534          1496.9037               NaN              71.1891                                  custom_screen|sector_top_company|seed_peer
+CIEN          35247.8184                NaN               55.5490          1496.9037               NaN              71.1891                              predefined_screen|sector_top_company|seed_peer
+IRDM          29608.0747                NaN               49.7136          1442.7907               NaN              71.2074                          custom_screen|predefined_screen|sector_top_company
+LUNR          30254.7405                NaN               55.1237          1238.1387               NaN              57.0924                                             custom_screen|predefined_screen
+AMPX          33551.7254                NaN               55.1237          1207.1984               NaN              71.1891                                       custom_screen|industry_top_performing
 
 ## Combo tests
 
-    name  full_delta_roi_pct  full_delta_sharpe  full_delta_maxdd_pct  oos_delta_roi_pct  oos_delta_sharpe  oos_delta_maxdd_pct
-AAOI+RIG          76004.4377                NaN               50.5289          2125.9059               NaN              64.1802
-  HL+RIG          46884.7161                NaN               50.5841          1847.4877               NaN              69.0504
- RIG+STX          62352.8950                NaN               50.5300          1826.4786               NaN              69.0504
- AAOI+HL          32783.2354                NaN               55.0980          1798.5542               NaN              64.2289
+     name  full_delta_roi_pct  full_delta_sharpe  full_delta_maxdd_pct  oos_delta_roi_pct  oos_delta_sharpe  oos_delta_maxdd_pct
+ AXTI+RIG         112186.5162                NaN               50.5118          2960.5679               NaN              69.0504
+AAOI+AXTI          68156.9491                NaN               55.1728          2861.1792               NaN              64.2289
+ AXTI+STX          56833.0136                NaN               55.1763          2517.7576               NaN              71.1891
+ AAOI+RIG          76004.4377                NaN               50.5289          2125.9059               NaN              64.1802
