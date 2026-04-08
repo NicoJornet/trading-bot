@@ -1376,6 +1376,15 @@
     "sectorKey": "industrials",
     "ticker": "FIX"
   },
+  "FLY": {
+    "exchange": "NGM",
+    "industry": "Aerospace & Defense",
+    "industryKey": "aerospace-defense",
+    "marketCap": 5689506304,
+    "sector": "Industrials",
+    "sectorKey": "industrials",
+    "ticker": "FLY"
+  },
   "FNMA": {
     "exchange": "OQB",
     "industry": "Mortgage Finance",
