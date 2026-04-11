@@ -602,6 +602,15 @@
     "sectorKey": "utilities",
     "ticker": "ATO"
   },
+  "ATOM": {
+    "exchange": "NCM",
+    "industry": "Semiconductor Equipment & Materials",
+    "industryKey": "semiconductor-equipment-materials",
+    "marketCap": 197099920,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "ATOM"
+  },
   "AU": {
     "exchange": "NYQ",
     "industry": "Gold",
@@ -935,6 +944,15 @@
     "sectorKey": "communication-services",
     "ticker": "CNK"
   },
+  "CNR": {
+    "exchange": "NYQ",
+    "industry": "Thermal Coal",
+    "industryKey": "thermal-coal",
+    "marketCap": 4649334272,
+    "sector": "Energy",
+    "sectorKey": "energy",
+    "ticker": "CNR"
+  },
   "COF": {
     "exchange": "NYQ",
     "industry": "Credit Services",
@@ -998,6 +1016,15 @@
     "sectorKey": "technology",
     "ticker": "CRWD"
   },
+  "CRWV": {
+    "exchange": "NMS",
+    "industry": "Software - Infrastructure",
+    "industryKey": "software-infrastructure",
+    "marketCap": 53620187136,
+    "sector": "Technology",
+    "sectorKey": "technology",
+    "ticker": "CRWV"
+  },
   "CSCO": {
     "exchange": "NMS",
     "industry": "Communication Equipment",
@@ -1006,6 +1033,15 @@
     "sector": "Technology",
     "sectorKey": "technology",
     "ticker": "CSCO"
+  },
+  "CSTM": {
+    "exchange": "NYQ",
+    "industry": "Aluminum",
+    "industryKey": "aluminum",
+    "marketCap": 4084444672,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "CSTM"
   },
   "CSX": {
     "exchange": "NMS",
@@ -1475,6 +1511,15 @@
     "sectorKey": "industrials",
     "ticker": "GEV"
   },
+  "GL7.F": {
+    "exchange": "FRA",
+    "industry": "Uranium",
+    "industryKey": "uranium",
+    "marketCap": 63810724,
+    "sector": "Energy",
+    "sectorKey": "energy",
+    "ticker": "GL7.F"
+  },
   "GLW": {
     "exchange": "NYQ",
     "industry": "Electronic Components",
@@ -1510,6 +1555,15 @@
     "sector": "Communication Services",
     "sectorKey": "communication-services",
     "ticker": "GSAT"
+  },
+  "GURFF": {
+    "exchange": "OQB",
+    "industry": "Other Industrial Metals & Mining",
+    "industryKey": "other-industrial-metals-mining",
+    "marketCap": 5147034,
+    "sector": "Basic Materials",
+    "sectorKey": "basic-materials",
+    "ticker": "GURFF"
   },
   "GWW": {
     "exchange": "NYQ",
@@ -2806,6 +2860,15 @@
     "sector": "Utilities",
     "sectorKey": "utilities",
     "ticker": "SR"
+  },
+  "SRUUF": {
+    "exchange": "OQX",
+    "industry": "",
+    "industryKey": "",
+    "marketCap": 5675999232,
+    "sector": "",
+    "sectorKey": "",
+    "ticker": "SRUUF"
   },
   "SSD": {
     "exchange": "NYQ",
