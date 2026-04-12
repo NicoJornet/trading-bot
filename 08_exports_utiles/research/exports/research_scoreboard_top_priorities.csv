@@ -1,0 +1,16 @@
+ticker,monitor_bucket,promotion_stage,dynamic_status,pit_cluster_key,scan_candidate_track,history_emergence_persistence_score,pit_data_context_score,recent_score,monitor_priority_score
+285A.T,quality_lane,approved_live,approved,semiconductors,quality_compounder,6.1,0.766,6.7521,18.317
+272210.KS,legacy_universe_gap,approved_live,approved,space-defense,persistent_leader,6.5167,0.8768,1.975,17.7183
+006400.KS,legacy_universe_gap,approved_live,approved,industrial-compounders,persistent_leader,6.1,0.8875,1.2079,17.618
+2383.TW,legacy_universe_gap,approved_live,approved,technology,quality_compounder,5.5333,0.8875,2.7037,17.5445
+006800.KS,legacy_selection_gap,approved_live,approved,financial-services,emerging_leader,7.0,0.8875,3.5879,16.927
+ONDS,quality_lane,approved_live,watch,optical-networking,persistent_leader,6.6167,0.4875,3.2129,16.2927
+FTI,quality_lane,targeted_integration,approved,oil-gas,fringe,5.9,0.4875,0.9163,14.3991
+3037.TW,quality_lane,targeted_integration,watch,technology,quality_compounder,5.7333,0.4875,2.8553,12.7818
+TER,legacy_universe_gap,targeted_integration,watch,semiconductors,quality_compounder,5.4917,0.8875,2.3662,12.6882
+PLS.AX,quality_lane,targeted_integration,watch,industrial-compounders,persistent_leader,5.4917,0.6375,1.719,12.6154
+2345.TW,legacy_universe_gap,targeted_integration,watch,optical-networking,persistent_leader,5.2,0.8875,1.1462,12.4344
+6857.T,legacy_universe_gap,targeted_integration,watch,semiconductors,persistent_leader,5.2,0.8875,1.4515,12.343
+UCTT,legacy_universe_gap,targeted_integration,prime_watch,semiconductors,persistent_leader,5.9,0.925,1.3094,12.1748
+PR,legacy_universe_gap,targeted_integration,watch,oil-gas,fringe,5.4333,0.8875,0.6985,12.0698
+CIFR,quality_lane,targeted_integration,watch,technology,persistent_leader,4.55,0.8564,2.5535,11.8525

@@ -1,0 +1,10 @@
+cluster,names,approved_live,targeted,avg_priority,avg_persistence
+semiconductors,6,1,5,12.6212,5.5542
+technology,4,1,3,12.9547,5.1166
+optical-networking,4,1,3,12.4161,5.4584
+industrial-compounders,2,1,1,15.1167,5.7958
+financial-services,2,1,1,13.6699,6.275
+space-defense,1,1,0,17.7183,6.5167
+oil-gas,2,0,2,13.2344,5.6667
+industrials,2,0,2,10.3428,4.8611
+communication-services,1,0,1,11.3275,5.9

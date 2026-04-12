@@ -1,0 +1,2 @@
+as_of,snapshot_files,first_snapshot_date,last_snapshot_date,snapshot_span_days,selected_move_days,selected_add_history_files,selected_demotion_history_files,governance_event_rows,history_readiness_score,history_readiness_label
+2026-03-29,8,2026-03-20,2026-03-29,9,1,1,1,614,0.2167,too_early

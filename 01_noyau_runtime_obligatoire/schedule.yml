@@ -1,0 +1,15 @@
+reference_only: true
+note: >
+  This file is a local schedule reference only. GitHub Actions does not read
+  this file. The real schedules are defined in:
+  - .github/workflows/apex_daily.yml
+  - .github/workflows/apex_dynamic_selection.yml
+workflows:
+  apex_daily:
+    cadence: "weekdays"
+    cron_utc: "0 6 * * 1-5"
+    role: "runtime live engine"
+  apex_dynamic_selection:
+    cadence: "weekly saturday"
+    cron_utc: "0 6 * * 6"
+    role: "full dynamic scan / swap / selection refresh"

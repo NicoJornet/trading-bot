@@ -1,0 +1,10 @@
+action_group,action_type,ticker,paired_ticker,side,selection_status,selection_score,reason
+0568.HK->ZS,single,0568.HK,ZS,ADD,approved,144.07632316239076,approved_single
+0568.HK->ZS,single,ZS,0568.HK,REMOVE,approved,144.07632316239076,approved_single
+ADD:AXTI,standalone_add,AXTI,,ADD,approved_add,16838.9007605,approved_add
+ADD:006800.KS,standalone_add,006800.KS,,ADD,approved_add,5420.41383,approved_add
+ADD:272210.KS,standalone_add,272210.KS,,ADD,approved_add,5414.633349999999,approved_add
+ADD:006400.KS,standalone_add,006400.KS,,ADD,approved_add,5386.09252,approved_add
+ADD:ONDS,standalone_add,ONDS,,ADD,approved_add,2138.1497499999996,approved_add
+ADD:2383.TW,standalone_add,2383.TW,,ADD,approved_add,1321.09372,approved_add
+ADD:285A.T,standalone_add,285A.T,,ADD,approved_add,492.45129,approved_add

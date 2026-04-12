@@ -1,0 +1,16 @@
+ticker,promotion_stage,dynamic_status,pit_cluster_key,scan_candidate_track,scan_quality_compounder_fit,pit_data_context_score,monitor_priority_score
+LRCX,watch_queue,watch,semiconductors,,weak,0.925,6.62
+KLAC,watch_queue,watch,semiconductors,,weak,0.925,6.62
+AMAT,watch_queue,watch,semiconductors,,weak,0.8875,6.62
+CAT,review_queue,review,industrials,,weak,0.8875,4.32
+MRVL,review_queue,review,semiconductors,,weak,0.8875,4.32
+CVX,review_queue,review,oil-gas,,weak,0.925,4.32
+GE,review_queue,review,space-defense,,weak,0.8875,4.32
+AAPL,review_queue,review,technology,,weak,0.925,4.32
+ENI.MI,review_queue,review,oil-gas,,weak,0.8875,4.32
+AVGO,review_queue,review,semiconductors,,weak,0.8875,4.32
+CCJ,review_queue,review,uranium,,weak,0.8875,4.3005
+ALB,review_queue,review,basic-materials,,weak,0.925,4.2811
+FCX,review_queue,review,copper-miners,,weak,0.925,4.24
+TSM,review_queue,review,semiconductors,,weak,0.925,4.1817
+PWR,review_queue,review,industrials,,weak,0.8875,4.1622

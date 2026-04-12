@@ -1,0 +1,10 @@
+bucket,stage_bin,count,share_pct
+missing_selection,review_or_discovered,55,72.37
+missing_selection,not_in_current_scan,17,22.37
+missing_selection,watch_queue,3,3.95
+missing_selection,approved_live,1,1.32
+missing_universe,review_or_discovered,71,68.27
+missing_universe,watch_queue,15,14.42
+missing_universe,targeted_integration,13,12.5
+missing_universe,approved_live,3,2.88
+missing_universe,not_in_current_scan,2,1.92
