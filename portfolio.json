@@ -1,80 +1,64 @@
 {
   "currency": "EUR",
-  "initial_capital": 2000,
-  "monthly_dca": 100,
+  "initial_capital": 1900.0,
+  "monthly_dca": 100.0,
   "cash": 0.0,
-  "start_date": "2025-12-29",
-  "last_dca_date": "2026-02-02",
+  "start_date": "2026-03-05",
+  "last_dca_date": "2026-04-01",
   "positions": {
-    "MU": {
-      "shares": 2.30596,
-      "avg_price_eur": 333.05,
-      "cost_eur": 769.0,
-      "entry_date": "2026-02-11"
+    "LITE": {
+      "shares": 1.17256594942261,
+      "avg_price_eur": 644.7150268554688,
+      "cost_eur": 755.970887571808,
+      "entry_date": "2026-03-05"
     },
-    "LRCX": {
-      "shares": 4.208991,
-      "avg_price_eur": 198.86,
-      "cost_eur": 838.0,
-      "entry_date": "2026-02-11"
-    },
-    "PAAS": {
-      "shares": 9.453494666015489,
-      "avg_price_eur": 51.726902830750355,
-      "cost_eur": 489.0,
-      "entry_date": "2026-02-11"
+    "AXTI": {
+      "shares": 14.8938793772079,
+      "avg_price_eur": 44.52000045776367,
+      "cost_eur": 663.075516691171,
+      "entry_date": "2026-04-02"
     },
     "SNDK": {
-      "shares": 0.14291282720723247,
-      "cost_eur": 99.0,
-      "avg_price_eur": 692.72998046875,
+      "shares": 1.40289269011172,
+      "avg_price_eur": 642.0900268554688,
+      "cost_eur": 900.783405069177,
       "entry_date": "2026-04-02"
     }
   },
-  "last_updated": "2026-02-13 12:00",
+  "last_updated": "2026-04-12 12:30",
   "last_dca_month": "2026-04",
   "confirm_state": {},
   "cooldown_until": {},
-  "last_updated_note": "User correction applied: KO/GILD/WMT not bought. Manual buys executed 2026-02-11: MU, LRCX, PAAS. Cash reflects 1€ fee/order (3€ total); small negative cash may occur due to rounding/amounts provided. Last buy date confirmed: 2026-02-11.",
-  "next_dca_date": "2026-03-10",
-  "reset_date": "2026-02-10",
+  "last_updated_note": "Baseline r8 path rebuilt from the latest real open basket. Reconstructed with 1900 EUR initial capital, inv-vol20 plus leader overweight sizing, 3 opening buys on 2026-03-05, two realized exits on 2026-03-25 and 2026-03-27, monthly DCA +100 EUR on 2026-04-01, and re-entries on 2026-04-02.",
+  "next_dca_date": "2026-05-01",
+  "reset_date": "2026-03-05",
   "pp_state": {
-    "MU": {
-      "entry_px": 418.010009765625,
-      "entry_idx": 3053,
-      "peak": 461.7300109863281,
-      "armed": false,
-      "arm_idx": null
+    "LITE": {
+      "entry_px": 644.7150268554688,
+      "entry_idx": 3059,
+      "peak": 897.2999877929688,
+      "armed": true,
+      "arm_idx": 3083
     },
-    "LRCX": {
-      "entry_px": 244.25,
-      "entry_idx": 3053,
-      "peak": 244.25,
-      "armed": false,
-      "arm_idx": null
-    },
-    "PAAS": {
-      "entry_px": 65.36000061035156,
-      "entry_idx": 3053,
-      "peak": 65.36000061035156,
-      "armed": false,
-      "arm_idx": null
+    "AXTI": {
+      "entry_px": 44.52000045776367,
+      "entry_idx": 3079,
+      "peak": 64.18000030517578,
+      "armed": true,
+      "arm_idx": 3084
     },
     "SNDK": {
-      "entry_px": 692.72998046875,
-      "peak": 692.72998046875,
+      "entry_px": 642.0900268554688,
+      "entry_idx": 3079,
+      "peak": 851.77001953125,
       "armed": false,
-      "arm_idx": null,
-      "entry_idx": 3079
+      "arm_idx": null
     }
   },
-  "exit_defer": {
-    "PAAS": 1
-  },
+  "exit_defer": {},
   "entry_date": {
-    "MU": "2026-02-11",
-    "LRCX": "2026-02-11",
-    "PAAS": "2026-02-11",
+    "LITE": "2026-03-05",
+    "AXTI": "2026-04-02",
     "SNDK": "2026-04-02"
   },
   "exit_stage": {},
